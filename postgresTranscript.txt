@@ -1,0 +1,29 @@
+sam@sam-desktop:~$ sudo -u postgres psql
+psql (16.10 (Ubuntu 16.10-1.pgdg24.04+1))
+Type "help" for help.
+
+postgres=# CREATE EXTENSION age
+postgres-# LOAD 'age'
+postgres-# SET search_path = ag_catalog, "$user", public
+postgres-# SELECT create_graph('test_graph');
+ERROR:  syntax error at or near "LOAD"
+LINE 2: LOAD 'age'
+        ^
+postgres=# CREATE EXTENSION age;
+CREATE EXTENSION
+postgres=# LOAD 'age';
+LOAD
+postgres=# SET search_path = ag_catalog, "$user", public;
+SET
+postgres=# SELECT create_graph('test_graph');
+NOTICE:  graph "test_graph" has been created
+ create_graph 
+--------------
+ 
+(1 row)
+
+postgres=# SHOW data_directory;
+       data_directory        
+-----------------------------
+ /var/lib/postgresql/16/main
+(1 row)

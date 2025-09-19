@@ -1,0 +1,12 @@
+# File: backend/apps/comments/urls.py
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import CommentViewSet, CommentVoteViewSet
+
+router = DefaultRouter()
+router.register(r'comments', CommentViewSet)
+router.register(r'votes', CommentVoteViewSet)
+
+urlpatterns = [
+    path('', include(router.urls)),
+]

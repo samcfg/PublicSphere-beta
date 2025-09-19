@@ -1,0 +1,1141 @@
+# File: backend/docs/api/swagger.yml
+openapi: 3.0.0
+info:
+  title: PublicSphere SourceExchange API
+  description: API for the PublicSphere SourceExchange platform
+  version: 1.0.0
+  contact:
+    email: support@publicsphere.fyi
+servers:
+  - url: https://api.publicsphere.fyi/api
+    description: Production server
+  - url: http://localhost:8000/api
+    description: Development server
+tags:
+  - name: users
+    description: User authentication and management
+  - name: articles
+    description: Article management
+  - name: sources
+    description: Source area management
+  - name: connections
+    description: Connection management between articles and sources
+  - name: forums
+    description: Forum category and thread management
+  - name: comments
+    description: Comment management
+  - name: ratings
+    description: Rating management
+  - name: moderation
+    description: Moderation actions
+  - name: access
+    description: Article access management
+
+paths:
+  /users/register/:
+    post:
+      summary: Register a new user
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithToken'
+        '400':
+          description: Invalid input
+
+  /users/login/:
+    post:
+      summary: Authenticate user
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithToken'
+        '400':
+          description: Invalid credentials
+
+  /users/me/:
+    get:
+      summary: Get current user profile
+      tags:
+        - users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  /sources/:
+    get:
+      summary: List source areas
+      tags:
+        - sources
+      parameters:
+        - name: search
+          in: query
+          description: Search term
+          schema:
+            type: string
+        - name: ordering
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_at, -created_at, title, -title]
+      responses:
+        '200':
+          description: List of source areas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SourceArea'
+
+    post:
+      summary: Create a new source area
+      tags:
+        - sources
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceAreaCreate'
+      responses:
+        '201':
+          description: Source area created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceArea'
+        '400':
+          description: Invalid input
+
+  /sources/search/:
+    get:
+      summary: Advanced search for source areas
+      tags:
+        - sources
+      parameters:
+        - name: q
+          in: query
+          description: Search term
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Source type
+          schema:
+            type: string
+            enum: [paper, news, firsthand, book, video, other]
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceArea'
+
+  /articles/:
+    get:
+      summary: List articles
+      tags:
+        - articles
+      parameters:
+        - name: search
+          in: query
+          description: Search term
+          schema:
+            type: string
+        - name: ordering
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_at, -created_at, title, -title, pub_date, -pub_date]
+      responses:
+        '200':
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+
+    post:
+      summary: Create a new article
+      tags:
+        - articles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleCreate'
+      responses:
+        '201':
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Article'
+        '400':
+          description: Invalid input
+
+  /forums/categories/:
+    get:
+      summary: List forum categories
+      tags:
+        - forums
+      parameters:
+        - name: article
+          in: query
+          description: Filter by article ID
+          schema:
+            type: string
+            format: uuid
+        - name: tab_type
+          in: query
+          description: Filter by tab type
+          schema:
+            type: string
+            enum: [sources, general, reader_topics, author_asks, experience, other]
+      responses:
+        '200':
+          description: List of forum categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ForumCategory'
+
+  /forums/threads/:
+    get:
+      summary: List threads
+      tags:
+        - forums
+      parameters:
+        - name: category
+          in: query
+          description: Filter by category ID
+          schema:
+            type: string
+            format: uuid
+        - name: ordering
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_at, -created_at, updated_at, -updated_at]
+      responses:
+        '200':
+          description: List of threads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Thread'
+
+    post:
+      summary: Create a new thread
+      tags:
+        - forums
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreadCreate'
+      responses:
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          description: Invalid input
+
+  /comments/:
+    get:
+      summary: List comments
+      tags:
+        - comments
+      parameters:
+        - name: thread
+          in: query
+          description: Filter by thread ID
+          schema:
+            type: string
+            format: uuid
+        - name: parent
+          in: query
+          description: Filter by parent comment ID
+          schema:
+            type: string
+            format: uuid
+        - name: top_level_only
+          in: query
+          description: Show only top-level comments
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+
+    post:
+      summary: Create a new comment
+      tags:
+        - comments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreate'
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Invalid input
+
+  /ratings/:
+    get:
+      summary: List ratings
+      tags:
+        - ratings
+      parameters:
+        - name: content_type
+          in: query
+          description: Filter by content type
+          schema:
+            type: string
+            enum: [source_area, connection, article]
+        - name: object_id
+          in: query
+          description: Filter by object ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rating'
+
+    post:
+      summary: Create or update a rating
+      tags:
+        - ratings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingCreate'
+      responses:
+        '201':
+          description: Rating created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+        '400':
+          description: Invalid input
+
+  /ratings/stats/:
+    get:
+      summary: Get rating statistics
+      tags:
+        - ratings
+      parameters:
+        - name: content_type
+          in: query
+          required: true
+          description: Content type
+          schema:
+            type: string
+            enum: [source_area, connection, article]
+        - name: object_id
+          in: query
+          required: true
+          description: Object ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rating statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingStats'
+
+  /access/user-access/:
+    get:
+      summary: List user article access records
+      tags:
+        - access
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of access records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserArticleAccess'
+
+  /access/user-access/validate-referrer/:
+    post:
+      summary: Validate referrer and grant access
+      tags:
+        - access
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferrerValidation'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  message:
+                    type: string
+                  access_granted:
+                    type: boolean
+                  access:
+                    $ref: '#/components/schemas/UserArticleAccess'
+                    nullable: true
+
+  /moderation/moderators/:
+    get:
+      summary: List moderators
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of moderators
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  next:
+                    type: string
+                    nullable: true
+                  previous:
+                    type: string
+                    nullable: true
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Moderator'
+
+    post:
+      summary: Create a new moderator
+      tags:
+        - moderation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModeratorCreate'
+      responses:
+        '201':
+          description: Moderator created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Moderator'
+        '400':
+          description: Invalid input
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserRegistration:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - password_confirm
+        - privacy_policy
+        - terms_of_service
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        password_confirm:
+          type: string
+          format: password
+        privacy_policy:
+          type: boolean
+        terms_of_service:
+          type: boolean
+
+    UserLogin:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UserWithToken:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        message:
+          type: string
+        token:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, moderator, admin]
+        reputation:
+          type: integer
+        date_joined:
+          type: string
+          format: date-time
+        last_login_timestamp:
+          type: string
+          format: date-time
+          nullable: true
+        account_status:
+          type: string
+          enum: [active, suspended, deleted]
+        two_factor_enabled:
+          type: boolean
+
+    SourceAreaCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        author:
+          type: string
+        institution:
+          type: string
+        url:
+          type: string
+          format: uri
+        date_published:
+          type: string
+          format: date
+        date_accessed:
+          type: string
+          format: date
+        doi:
+          type: string
+        source_type:
+          type: string
+          enum: [paper, news, firsthand, book, video, other]
+
+    SourceArea:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        creator:
+          $ref: '#/components/schemas/UserMinimal'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        author:
+          type: string
+        institution:
+          type: string
+        url:
+          type: string
+          format: uri
+        date_published:
+          type: string
+          format: date
+        date_accessed:
+          type: string
+          format: date
+        doi:
+          type: string
+        source_type:
+          type: string
+          enum: [paper, news, firsthand, book, video, other]
+        confidence_score:
+          type: number
+          nullable: true
+        version:
+          type: integer
+
+    UserMinimal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        reputation:
+          type: integer
+
+    ArticleCreate:
+      type: object
+      required:
+        - title
+        - url
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        author_name:
+          type: string
+        publication:
+          type: string
+        pub_date:
+          type: string
+          format: date
+        description:
+          type: string
+        is_restricted:
+          type: boolean
+        featured_image:
+          type: string
+          format: uri
+        is_featured:
+          type: boolean
+
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        author_name:
+          type: string
+        publication:
+          type: string
+        pub_date:
+          type: string
+          format: date
+        registered_by:
+          $ref: '#/components/schemas/UserMinimal'
+        created_at:
+          type: string
+          format: date-time
+        is_restricted:
+          type: boolean
+        description:
+          type: string
+        slug:
+          type: string
+        featured_image:
+          type: string
+          format: uri
+        is_featured:
+          type: boolean
+        view_count:
+          type: integer
+
+    ForumCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        is_default:
+          type: boolean
+        article:
+          type: string
+          format: uuid
+        article_title:
+          type: string
+        tab_type:
+          type: string
+          enum: [sources, general, reader_topics, author_asks, experience, other]
+        thread_count:
+          type: integer
+
+    ThreadCreate:
+      type: object
+      required:
+        - title
+        - category
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+          format: uuid
+        content_type:
+          type: string
+          enum: [thread, source_discussion, author_ask, testimony]
+        object_id:
+          type: string
+          format: uuid
+        is_author_prompt:
+          type: boolean
+        prompt_type:
+          type: string
+          enum: [general, source_request, experience]
+
+    Thread:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          type: string
+          format: uuid
+        creator:
+          $ref: '#/components/schemas/UserMinimal'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        is_locked:
+          type: boolean
+        is_pinned:
+          type: boolean
+        content_type:
+          type: string
+          enum: [thread, source_discussion, author_ask, testimony]
+        object_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_author_prompt:
+          type: boolean
+        prompt_type:
+          type: string
+          enum: [general, source_request, experience]
+        comment_count:
+          type: integer
+
+    CommentCreate:
+      type: object
+      required:
+        - thread
+        - content
+      properties:
+        thread:
+          type: string
+          format: uuid
+        content:
+          type: string
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        thread:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/UserMinimal'
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        vote_score:
+          type: integer
+        user_vote:
+          type: boolean
+          nullable: true
+        reply_count:
+          type: integer
+        is_edited:
+          type: boolean
+        is_deleted:
+          type: boolean
+
+    RatingCreate:
+      type: object
+      required:
+        - content_type
+        - object_id
+        - value
+      properties:
+        content_type:
+          type: string
+          enum: [source_area, connection, article]
+        object_id:
+          type: string
+          format: uuid
+        value:
+          type: number
+          minimum: 0
+          maximum: 100
+        explanation:
+          type: string
+
+    Rating:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/UserMinimal'
+        content_type:
+          type: string
+          enum: [source_area, connection, article]
+        object_id:
+          type: string
+          format: uuid
+        value:
+          type: number
+        explanation:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RatingStats:
+      type: object
+      properties:
+        average:
+          type: number
+        count:
+          type: integer
+        distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        user_rating:
+          $ref: '#/components/schemas/Rating'
+          nullable: true
+
+    UserArticleAccess:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/UserMinimal'
+        article:
+          $ref: '#/components/schemas/Article'
+        access_granted_at:
+          type: string
+          format: date-time
+        access_method:
+          type: string
+          enum: [referrer, direct, invitation, subscription]
+        access_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        referrer_url:
+          type: string
+          format: uri
+          nullable: true
+        is_expired:
+          type: boolean
+
+    ReferrerValidation:
+      type: object
+      required:
+        - article_id
+        - referrer_url
+      properties:
+        article_id:
+          type: string
+          format: uuid
+        referrer_url:
+          type: string
+          format: uri
+
+    ModeratorCreate:
+      type: object
+      required:
+        - user_id
+        - scope_type
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        scope_type:
+          type: string
+          enum: [global, article, category]
+        scope_id:
+          type: string
+          format: uuid
+          nullable: true
+        permissions:
+          type: object
+          properties:
+            delete_comments:
+              type: boolean
+            lock_threads:
+              type: boolean
+            ban_users:
+              type: boolean
+            remove_sources:
+              type: boolean
+            edit_content:
+              type: boolean
+
+    Moderator:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/UserMinimal'
+        scope_type:
+          type: string
+          enum: [global, article, category]
+        scope_id:
+          type: string
+          format: uuid
+          nullable: true
+        appointed_by:
+          $ref: '#/components/schemas/UserMinimal'
+        appointed_at:
+          type: string
+          format: date-time
+        permissions:
+          type: object
+          properties:
+            delete_comments:
+              type: boolean
+            lock_threads:
+              type: boolean
+            ban_users:
+              type: boolean
+            remove_sources:
+              type: boolean
+            edit_content:
+              type: boolean
+        active:
+          type: boolean
