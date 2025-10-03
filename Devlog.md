@@ -173,4 +173,5 @@ Got the initial skeleton working, where the PS/Graph_DB/src/schema.py file defin
 - Made [[languagecontexts]] design. 
 Started editing languages, first made a [[cli]] file so I can use terminal like api. Added delete for node/edge. Next we add edit_content
 
-Before anything tomorrow I should start backing this up on github. 
+With the basics of the language, now we'll configure the cytoscape visual for ease of testing. 
+- split the js visualization code into 5 files within /src. 

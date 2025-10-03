@@ -125,6 +125,70 @@ class LanguageOperations:
         )
         return result[0]['deleted'] > 0 if result else False
 
+    def edit_node(self, node_id: str, **fields) -> bool:
+        """Edit node properties. Accepts any valid node properties as keyword arguments"""
+        if not self.current_graph:
+            raise ValueError("No graph set. Call set_graph() first")
+
+        if not fields:
+            return True  # No changes requested
+
+        db = get_db()
+
+        # Build SET clause dynamically
+        set_clauses = []
+        for field, value in fields.items():
+            if isinstance(value, str):
+                escaped_value = value.replace("'", "\\'")
+                set_clauses.append(f"n.{field} = '{escaped_value}'")
+            elif isinstance(value, (int, float)):
+                set_clauses.append(f"n.{field} = {value}")
+            else:
+                # Handle other types as needed
+                escaped_value = str(value).replace("'", "\\'")
+                set_clauses.append(f"n.{field} = '{escaped_value}'")
+
+        set_clause = ", ".join(set_clauses)
+
+        result = db.execute_cypher(
+            self.current_graph,
+            f"MATCH (n {{id: '{node_id}'}}) SET {set_clause} RETURN count(n) as updated",
+            ['updated']
+        )
+        return result[0]['updated'] > 0 if result else False
+
+    def edit_edge(self, edge_id: str, **fields) -> bool:
+        """Edit edge properties. Accepts any valid edge properties as keyword arguments"""
+        if not self.current_graph:
+            raise ValueError("No graph set. Call set_graph() first")
+
+        if not fields:
+            return True  # No changes requested
+
+        db = get_db()
+
+        # Build SET clause dynamically
+        set_clauses = []
+        for field, value in fields.items():
+            if isinstance(value, str):
+                escaped_value = value.replace("'", "\\'")
+                set_clauses.append(f"r.{field} = '{escaped_value}'")
+            elif isinstance(value, (int, float)):
+                set_clauses.append(f"r.{field} = {value}")
+            else:
+                # Handle other types as needed
+                escaped_value = str(value).replace("'", "\\'")
+                set_clauses.append(f"r.{field} = '{escaped_value}'")
+
+        set_clause = ", ".join(set_clauses)
+
+        result = db.execute_cypher(
+            self.current_graph,
+            f"MATCH ()-[r {{id: '{edge_id}'}}]->() SET {set_clause} RETURN count(r) as updated",
+            ['updated']
+        )
+        return result[0]['updated'] > 0 if result else False
+
 # Global operations instance
 language_ops = LanguageOperations()
 

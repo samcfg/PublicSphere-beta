@@ -1,9 +1,0 @@
-We are working on the language.py. read the <devlog.md> for details. We
-  are expanding and testing the soon-to-be api. If you understand the use,
-  help me design two more functions in language, a edit_node() and
-  edit_edge() function. How should we design these functions to make it
-  easiest. Eventually from the UI, users will edit text in text boxes.
-  should we have a different function for every field within these
-  node/edges? We could alternatively have a compound function that takes a
-  list of things to edit as part of the input. Thinking about the eventual
-  use as an API, what makes most sense?  
