@@ -175,3 +175,7 @@ Started editing languages, first made a [[cli]] file so I can use terminal like 
 
 With the basics of the language, now we'll configure the cytoscape visual for ease of testing. 
 - split the js visualization code into 5 files within /src. 
+Made the plan for node forking and merging. 
+
+We integrated Django into the project to manage temporal version logging, creating backend/PS_Django_DB/ with a bookkeeper app containing NodeVersion and EdgeVersion models. Django is configured to use the same ostgreSQL publicsphere database as AGE, with UUIDs serving as the consistent identifier format. 
+Making logging.py wrapper. 
