@@ -179,3 +179,4 @@ Made the plan for node forking and merging.
 
 We integrated Django into the project to manage temporal version logging, creating backend/PS_Django_DB/ with a bookkeeper app containing NodeVersion and EdgeVersion models. Django is configured to use the same ostgreSQL publicsphere database as AGE, with UUIDs serving as the consistent identifier format. 
 Making logging.py wrapper. 
+Functional, modifying language.py to include 

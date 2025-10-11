@@ -1,10 +1,15 @@
 [project]
-name = "graph-schema"
+name = "backend"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "PublicSphere Backend"
 requires-python = ">=3.11"
 dependencies = [
     "django>=5.2.7",
     "psycopg2-binary>=2.9.10",
 ]
+
+[project.scripts]
+cli = "cli:main"
+
+[tool.setuptools.packages.find]
+include = ["*"]

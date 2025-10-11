@@ -54,6 +54,8 @@ class EdgeVersion(models.Model):
 
     # Graph properties (mirrors PS_Graph_DB BasicSchema edges)
     notes = models.TextField(null=True, blank=True)
+    logic_type = models.CharField(max_length=10, null=True, blank=True)  # 'AND', 'OR'
+    composite_id = models.CharField(max_length=36, null=True, blank=True, db_index=True)
 
     # Temporal metadata
     OPERATION_CHOICES = [

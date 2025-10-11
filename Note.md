@@ -27,7 +27,7 @@
     - log_edge_version(cursor, edge_id, edge_type, source_id, target_id, properties, operation):
       - Same pattern for edges
 
-  Step 2.2: Create wrapper in database.py
+  Step 2.2: Create wrapper in language.py
   - Create execute_cypher_with_logging(graph_name, query, log_context)
     - log_context = dict with:
       - entity_type: 'node' or 'edge'
@@ -49,7 +49,7 @@
       # Return snapshot of all nodes at that moment
 
   Step 3.2: Add get_edges_at_timestamp()
-  - Same pattern for edges
+  - Same pattern for ed`ges
 
   Step 3.3: Add get_graph_at_timestamp()
   - Combines both queries
@@ -70,3 +70,24 @@
   - Compare current graph state (from AGE) with latest
   relational versions
   - They must match exactly
+
+  Data Flow:
+  1. database.js:getGraphData() queries AGE, returns all edges individually
+  2. database.js:formatForCytoscape() transforms edges to Cytoscape format
+  (lines 82-105)
+    - Spreads all edge properties: ...edge.properties (line 99)
+    - Already passes through logic_type and composite_id without
+  modification
+  3. graph.js:loadElements() renders elements to canvas
+  4. graph.js:setupEdgeTooltip() shows notes on edge click
+
+  Key Finding: database.js already forwards compound edge properties to
+  frontend via property spreading. No changes needed there.
+  ToDo: Client-side grouping after render
+  - Render all edges individually first
+  - Post-processing: detect compound groups by composite_id
+  - Apply visual convergence (bezier curve adjustments)
+  - Pros: Preserves individual edge data, allows partial compound
+  operations
+
+We are going to implement this compound edge visualization in conjunction with a much increased involvement in cytoscape rendering. what we have now is minimal, but I want the graph to reflect the logical structure of the data as an argument map. In the map, a given node that is a conclusion (edge pointing "to") should be displayed above, and premises(from) beneath. this pattern must continue in e higherarchy, as designed in @context. 

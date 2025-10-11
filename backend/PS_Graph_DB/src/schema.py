@@ -34,7 +34,11 @@ class BasicSchema:
                 from_labels=['Claim'],
                 to_labels=['Claim'],
                 required_properties={'id': str},
-                optional_properties={'notes': str}
+                optional_properties={
+                    'notes': str,
+                    'logic_type': str,    # 'AND' or 'OR' for compound edges
+                    'composite_id': str   # UUID shared across compound edge group
+                }
             )
         }
     

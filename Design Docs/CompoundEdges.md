@@ -24,3 +24,10 @@ so as a measure to make versioning easier, all of the language
   syncronized in terms of versioning, as well as readably converging for the
    user. 
 Visually the convergence of the edges will be dicteted by calculating coordinates by triangulating node positions = setting bezier control points for the two edges. This will be done in the same development step as when we make the arguments hierarchical, theoretically. 
+
+we'll have a group of
+ fields in the compound edges that have shared values always. composite_id,
+ logic_type, and note. The crucial part here is that the composite_id must 
+be usable in the language.py api functions as though it is another edge id.
+ We should be able to put conditional handling somewhere so that the 
+functions work with compound edges just the same.

@@ -7,6 +7,7 @@ import sys
 import django
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+from django.utils import timezone
 
 # Django setup for model access
 django_path = os.path.join(os.path.dirname(__file__), '../../PS_Django_DB')
@@ -15,7 +16,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from bookkeeper.models import NodeVersion, EdgeVersion
-from database import get_db
+from PS_Graph_DB.src.database import get_db
 
 
 class TemporalLogger:
@@ -51,13 +52,19 @@ class TemporalLogger:
                 MATCH (n {{id: '{node_id}'}})-[r]-()
                 RETURN r.id as edge_id, type(r) as edge_type,
                        startNode(r).id as source_id, endNode(r).id as target_id,
-                       r.notes as notes
+                       r.notes as notes, r.logic_type as logic_type, r.composite_id as composite_id
                 """,
-                ['edge_id', 'edge_type', 'source_id', 'target_id', 'notes']
+                ['edge_id', 'edge_type', 'source_id', 'target_id', 'notes', 'logic_type', 'composite_id']
             )
             # Log each edge deletion
             for edge_data in edges:
-                edge_properties = {'notes': edge_data['notes']} if edge_data.get('notes') else {}
+                edge_properties = {}
+                if edge_data.get('notes'):
+                    edge_properties['notes'] = edge_data['notes']
+                if edge_data.get('logic_type'):
+                    edge_properties['logic_type'] = edge_data['logic_type']
+                if edge_data.get('composite_id'):
+                    edge_properties['composite_id'] = edge_data['composite_id']
                 self.log_edge_version(
                     graph_name=graph_name,
                     edge_id=edge_data['edge_id'],
@@ -75,7 +82,7 @@ class TemporalLogger:
             NodeVersion.objects.filter(
                 node_id=node_id,
                 valid_to__isnull=True
-            ).update(valid_to=datetime.now())
+            ).update(valid_to=timezone.now())
 
         # For CREATE and UPDATE, create new version
         if operation in ('CREATE', 'UPDATE'):
@@ -116,7 +123,7 @@ class TemporalLogger:
             EdgeVersion.objects.filter(
                 edge_id=edge_id,
                 valid_to__isnull=True
-            ).update(valid_to=datetime.now())
+            ).update(valid_to=timezone.now())
 
         # For CREATE and UPDATE, create new version
         if operation in ('CREATE', 'UPDATE'):
@@ -126,6 +133,8 @@ class TemporalLogger:
                 source_node_id=source_id,
                 target_node_id=target_id,
                 notes=properties.get('notes'),
+                logic_type=properties.get('logic_type'),
+                composite_id=properties.get('composite_id'),
                 operation=operation,
                 changed_by=changed_by,
                 change_notes=change_notes

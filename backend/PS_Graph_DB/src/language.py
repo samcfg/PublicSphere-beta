@@ -1,7 +1,19 @@
 from typing import Dict, List, Optional, Any
-from database import get_db
-from logging import get_temporal_logger
+from datetime import datetime
+from PS_Graph_DB.src.database import get_db
+from PS_Graph_DB.src.logging import get_temporal_logger
 import uuid
+import os
+import sys
+import django
+
+# Django setup for temporal service access
+django_path = os.path.join(os.path.dirname(__file__), '../../PS_Django_DB')
+sys.path.insert(0, django_path)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+
+from bookkeeper.services import get_temporal_service
 
 class LanguageOperations:
     """Data operations for Claims and Connections"""
@@ -138,8 +150,11 @@ class LanguageOperations:
         return claim_id
     
     def create_connection(self, from_claim_id: str, to_claim_id: str,
-                         connection_id: Optional[str] = None, notes: Optional[str] = None) -> str:
-        """Create a Connection edge between two Claims with optional notes"""
+                         connection_id: Optional[str] = None,
+                         notes: Optional[str] = None,
+                         logic_type: Optional[str] = None,
+                         composite_id: Optional[str] = None) -> str:
+        """Create a Connection edge between two Claims with optional notes, logic_type, and composite_id"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -151,11 +166,19 @@ class LanguageOperations:
         if notes is not None:
             escaped_notes = notes.replace("'", "\\'")
             cypher_props += f", notes: '{escaped_notes}'"
+        if logic_type is not None:
+            cypher_props += f", logic_type: '{logic_type}'"
+        if composite_id is not None:
+            cypher_props += f", composite_id: '{composite_id}'"
 
         # Build logging properties dict
         log_props = {}
         if notes is not None:
             log_props['notes'] = notes
+        if logic_type is not None:
+            log_props['logic_type'] = logic_type
+        if composite_id is not None:
+            log_props['composite_id'] = composite_id
 
         self._execute_with_logging(
             cypher_query=f"""
@@ -175,7 +198,41 @@ class LanguageOperations:
         )
 
         return connection_id
-    
+
+    def create_compound_connection(self, source_claim_ids: List[str], target_claim_id: str,
+                                   logic_type: str, notes: Optional[str] = None,
+                                   composite_id: Optional[str] = None) -> str:
+        """
+        Create a compound connection (multiple edges with shared composite_id, logic_type, notes).
+
+        Args:
+            source_claim_ids: List of source claim IDs (all edges will point to same target)
+            target_claim_id: Target claim ID (shared by all edges)
+            logic_type: 'AND' or 'OR' (shared by all edges)
+            notes: Optional notes (shared by all edges)
+            composite_id: Optional shared group ID (auto-generated if not provided)
+
+        Returns:
+            The composite_id used for the group
+        """
+        if not self.current_graph:
+            raise ValueError("No graph set. Call set_graph() first")
+
+        if composite_id is None:
+            composite_id = str(uuid.uuid4())
+
+        # Create all edges in the compound group with shared metadata
+        for source_id in source_claim_ids:
+            self.create_connection(
+                from_claim_id=source_id,
+                to_claim_id=target_claim_id,
+                notes=notes,
+                logic_type=logic_type,
+                composite_id=composite_id
+            )
+
+        return composite_id
+
     def get_all_claims(self) -> List[Dict]:
         """Retrieve all Claim nodes"""
         if not self.current_graph:
@@ -236,29 +293,77 @@ class LanguageOperations:
         return result[0]['deleted'] > 0 if result else False
 
     def delete_edge(self, edge_id: str) -> bool:
-        """Delete a specific edge by UUID"""
+        """
+        Delete edge(s) by UUID. Accepts either individual edge ID or composite_id.
+        Try-single-first: queries as individual ID first, falls back to composite query.
+        """
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
         db = get_db()
 
-        # Query for edge metadata first (needed for logging)
+        # Try-single-first: Query as individual edge ID
         edge_data = db.execute_cypher(
             self.current_graph,
             f"""
             MATCH (source)-[r {{id: '{edge_id}'}}]->(target)
-            RETURN type(r) as edge_type, source.id as source_id, target.id as target_id, r.notes as notes
+            RETURN type(r) as edge_type, source.id as source_id, target.id as target_id,
+                   r.notes as notes, r.logic_type as logic_type, r.composite_id as composite_id
             """,
-            ['edge_type', 'source_id', 'target_id', 'notes']
+            ['edge_type', 'source_id', 'target_id', 'notes', 'logic_type', 'composite_id']
         )
-        if not edge_data:
-            return False
 
+        # If no match as individual ID, try as composite_id
+        if not edge_data:
+            edge_data = db.execute_cypher(
+                self.current_graph,
+                f"""
+                MATCH (source)-[r {{composite_id: '{edge_id}'}}]->(target)
+                RETURN type(r) as edge_type, source.id as source_id, target.id as target_id,
+                       r.notes as notes, r.logic_type as logic_type, r.composite_id as composite_id, r.id as edge_id
+                """,
+                ['edge_type', 'source_id', 'target_id', 'notes', 'logic_type', 'composite_id', 'edge_id']
+            )
+            if not edge_data:
+                return False
+
+            # Deleting compound group: log and delete each edge
+            deleted_count = 0
+            for edge in edge_data:
+                properties = {}
+                if edge.get('notes'):
+                    properties['notes'] = edge['notes']
+                if edge.get('logic_type'):
+                    properties['logic_type'] = edge['logic_type']
+                if edge.get('composite_id'):
+                    properties['composite_id'] = edge['composite_id']
+
+                result = self._execute_with_logging(
+                    cypher_query=f"MATCH ()-[r {{id: '{edge['edge_id']}'}}]->() DELETE r RETURN count(r) as deleted",
+                    columns=['deleted'],
+                    entity_type='edge',
+                    operation='DELETE',
+                    entity_id=edge['edge_id'],
+                    label_or_type=edge['edge_type'],
+                    properties=properties,
+                    source_id=edge['source_id'],
+                    target_id=edge['target_id']
+                )
+                deleted_count += result[0]['deleted'] if result else 0
+
+            return deleted_count > 0
+
+        # Deleting single edge
         edge_type = edge_data[0]['edge_type']
         source_id = edge_data[0]['source_id']
         target_id = edge_data[0]['target_id']
-        notes = edge_data[0].get('notes')
-        properties = {'notes': notes} if notes else {}
+        properties = {}
+        if edge_data[0].get('notes'):
+            properties['notes'] = edge_data[0]['notes']
+        if edge_data[0].get('logic_type'):
+            properties['logic_type'] = edge_data[0]['logic_type']
+        if edge_data[0].get('composite_id'):
+            properties['composite_id'] = edge_data[0]['composite_id']
 
         result = self._execute_with_logging(
             cypher_query=f"MATCH ()-[r {{id: '{edge_id}'}}]->() DELETE r RETURN count(r) as deleted",
@@ -322,7 +427,11 @@ class LanguageOperations:
         return result[0]['updated'] > 0 if result else False
 
     def edit_edge(self, edge_id: str, **fields) -> bool:
-        """Edit edge properties. Accepts any valid edge properties as keyword arguments"""
+        """
+        Edit edge properties. Accepts either individual edge ID or composite_id.
+        Try-single-first: queries as individual ID first, falls back to composite query.
+        For compound edges, updates all edges in the group with shared metadata.
+        """
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -331,18 +440,62 @@ class LanguageOperations:
 
         db = get_db()
 
-        # Query for edge metadata first (needed for logging)
+        # Try-single-first: Query as individual edge ID
         edge_data = db.execute_cypher(
             self.current_graph,
             f"""
             MATCH (source)-[r {{id: '{edge_id}'}}]->(target)
-            RETURN type(r) as edge_type, source.id as source_id, target.id as target_id
+            RETURN type(r) as edge_type, source.id as source_id, target.id as target_id, r.id as edge_id
             """,
-            ['edge_type', 'source_id', 'target_id']
+            ['edge_type', 'source_id', 'target_id', 'edge_id']
         )
-        if not edge_data:
-            return False
 
+        # If no match as individual ID, try as composite_id
+        if not edge_data:
+            edge_data = db.execute_cypher(
+                self.current_graph,
+                f"""
+                MATCH (source)-[r {{composite_id: '{edge_id}'}}]->(target)
+                RETURN type(r) as edge_type, source.id as source_id, target.id as target_id, r.id as edge_id
+                """,
+                ['edge_type', 'source_id', 'target_id', 'edge_id']
+            )
+            if not edge_data:
+                return False
+
+            # Editing compound group: update all edges with shared metadata
+            updated_count = 0
+            for edge in edge_data:
+                # Build SET clause dynamically
+                set_clauses = []
+                for field, value in fields.items():
+                    if isinstance(value, str):
+                        escaped_value = value.replace("'", "\\'")
+                        set_clauses.append(f"r.{field} = '{escaped_value}'")
+                    elif isinstance(value, (int, float)):
+                        set_clauses.append(f"r.{field} = {value}")
+                    else:
+                        escaped_value = str(value).replace("'", "\\'")
+                        set_clauses.append(f"r.{field} = '{escaped_value}'")
+
+                set_clause = ", ".join(set_clauses)
+
+                result = self._execute_with_logging(
+                    cypher_query=f"MATCH ()-[r {{id: '{edge['edge_id']}'}}]->() SET {set_clause} RETURN count(r) as updated",
+                    columns=['updated'],
+                    entity_type='edge',
+                    operation='UPDATE',
+                    entity_id=edge['edge_id'],
+                    label_or_type=edge['edge_type'],
+                    properties=fields,
+                    source_id=edge['source_id'],
+                    target_id=edge['target_id']
+                )
+                updated_count += result[0]['updated'] if result else 0
+
+            return updated_count > 0
+
+        # Editing single edge
         edge_type = edge_data[0]['edge_type']
         source_id = edge_data[0]['source_id']
         target_id = edge_data[0]['target_id']
@@ -374,6 +527,41 @@ class LanguageOperations:
         )
 
         return result[0]['updated'] > 0 if result else False
+
+    # ========== Temporal Query Methods ==========
+
+    def get_nodes_at_timestamp(self, timestamp: datetime) -> List[Dict[str, Any]]:
+        """
+        Get snapshot of all nodes that existed at the given timestamp.
+
+        Args:
+            timestamp: The point in time to query
+
+        Returns:
+            List of node dicts: [{'id': '...', 'label': '...', 'properties': {...}}, ...]
+        """
+        service = get_temporal_service()
+        return service.get_nodes_at_timestamp(timestamp)
+
+    def get_edges_at_timestamp(self, timestamp: datetime) -> List[Dict[str, Any]]:
+        """
+        Get snapshot of all edges that existed at the given timestamp.
+        Returns:
+            List of edge dicts: [{'id': '...', 'type': '...', 'source': '...', 'target': '...', 'properties': {...}}, ...]
+        """
+        service = get_temporal_service()
+        return service.get_edges_at_timestamp(timestamp)
+
+    def get_graph_at_timestamp(self, timestamp: datetime) -> Dict[str, Any]:
+        """
+        Get complete graph state at timestamp (nodes + edges).
+
+        Returns:
+            Dict with 'nodes' and 'edges' keys: {'nodes': [...], 'edges': [...]}
+        """
+        service = get_temporal_service()
+        return service.get_graph_at_timestamp(timestamp)
+
 
 # Global operations instance
 language_ops = LanguageOperations()
