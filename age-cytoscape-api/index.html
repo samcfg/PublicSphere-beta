@@ -19,22 +19,65 @@
             --error-text: #721c24;
         }
 
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
             background-color: var(--bg-primary);
             color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
         }
+
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            z-index: 10;
+            background-color: transparent;
+            pointer-events: none;
+        }
+
+        .header h1,
+        .header button {
+            pointer-events: auto;
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+        }
+
+        .controls {
+            margin-bottom: 0;
+        }
+
         #cy {
-            width: 100%;
-            height: 600px;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
             border: 1px solid var(--bg-tertiary);
-            margin-top: 20px;
             background-color: var(--bg-secondary);
         }
-        .controls {
-            margin-bottom: 20px;
+
+        #status {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 20px;
+            min-height: 20px;
+            z-index: 10;
+            background-color: transparent;
+            color: var(--text-secondary);
+            pointer-events: none;
         }
         button {
             padding: 10px 20px;
@@ -47,11 +90,6 @@
         }
         button:hover {
             background-color: var(--border-color);
-        }
-        #status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 4px;
         }
         .success { background-color: var(--success-bg); color: var(--success-text); }
         .error { background-color: var(--error-bg); color: var(--error-text); }
@@ -82,23 +120,26 @@
     </style>
 </head>
 <body>
-    <h1>AGE Graph Visualization</h1>
-    
-    <div class="controls">
-        <button id="load-btn">Load Graph</button>
-        <button id="reset-btn">Reset View</button>
-        <button id="fit-btn">Fit to Screen</button>
+    <div class="header">
+        <h1>Map of an Argument</h1>
+        <div class="controls">
+            <button id="load-btn">Load Graph</button>
+            <button id="reset-btn">Reset View</button>
+            <button id="fit-btn">Fit to Screen</button>
+        </div>
     </div>
-    
-    <div id="status"></div>
+
     <div id="cy"></div>
+    <div id="status"></div>
 
     <div id="edge-tooltip">
         <div class="tooltip-label">Edge Notes:</div>
         <div class="tooltip-content"></div>
     </div>
 
-    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script src="/static/vendor/cytoscape.min.js"></script>
+    <script src="/static/vendor/dagre.min.js"></script>
+    <script src="/static/vendor/cytoscape-dagre.js"></script>
     <script src="src/api.js"></script>
     <script src="src/data.js"></script>
     <script src="src/graph.js"></script>

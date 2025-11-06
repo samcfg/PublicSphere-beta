@@ -9,22 +9,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AGEDatabase:
-    def __init__(self, 
+    def __init__(self,
                  user: str = "sam",
-                 host: str = "localhost", 
+                 host: str = "localhost",
                  database: str = "postgres",
                  password: str = "124141",
                  port: int = 5432,
                  minconn: int = 1,
-                 maxconn: int = 10):
+                 maxconn: int = 10,
+                 query_timeout: int = 30000):  # 30 second timeout in milliseconds
         
         self.connection_params = {
             'user': user,
             'host': host,
             'database': database,
             'password': password,
-            'port': port
+            'port': port,
+            'options': f'-c statement_timeout={query_timeout}'
         }
+        self.query_timeout = query_timeout
         
         try:
             self.pool = psycopg2.pool.ThreadedConnectionPool(

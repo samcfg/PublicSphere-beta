@@ -5,7 +5,7 @@ Passed to language.py
 from typing import List, Dict, Any
 from datetime import datetime
 from django.db.models import Q
-from .models import NodeVersion, EdgeVersion
+from .models import ClaimVersion, SourceVersion, EdgeVersion
 
 
 class TemporalQueryService:
@@ -13,6 +13,7 @@ class TemporalQueryService:
 
     def get_nodes_at_timestamp(self, timestamp: datetime) -> List[Dict[str, Any]]:
         """
+        Get all nodes (Claims and Sources) that were valid at the given timestamp.
 
         A node is valid at timestamp T if:
         - valid_from <= T AND (valid_to > T OR valid_to IS NULL)
@@ -21,29 +22,53 @@ class TemporalQueryService:
             List of dicts with structure:
             {
                 'id': node_id (UUID),
-                'label': node_label (e.g., 'Claim'),
+                'label': node_label (e.g., 'Claim', 'Source'),
                 'properties': {'content': '...', ...}
             }
         """
-        # Query for nodes valid at timestamp
-        node_versions = NodeVersion.objects.filter(
+        nodes = []
+
+        # Query for Claim nodes valid at timestamp
+        claim_versions = ClaimVersion.objects.filter(
             Q(valid_from__lte=timestamp) &
             (Q(valid_to__gt=timestamp) | Q(valid_to__isnull=True))
         )
 
-        # Transform to dict format
-        nodes = []
-        for nv in node_versions:
+        for cv in claim_versions:
             node_dict = {
-                'id': nv.node_id,
-                'label': nv.node_label,
+                'id': cv.node_id,
+                'label': 'Claim',
                 'properties': {}
             }
+            if cv.content:
+                node_dict['properties']['content'] = cv.content
+            nodes.append(node_dict)
 
-            # Add properties if they exist
-            if nv.content:
-                node_dict['properties']['content'] = nv.content
+        # Query for Source nodes valid at timestamp
+        source_versions = SourceVersion.objects.filter(
+            Q(valid_from__lte=timestamp) &
+            (Q(valid_to__gt=timestamp) | Q(valid_to__isnull=True))
+        )
 
+        for sv in source_versions:
+            node_dict = {
+                'id': sv.node_id,
+                'label': 'Source',
+                'properties': {}
+            }
+            # Add Source-specific properties if they exist
+            if sv.url:
+                node_dict['properties']['url'] = sv.url
+            if sv.title:
+                node_dict['properties']['title'] = sv.title
+            if sv.author:
+                node_dict['properties']['author'] = sv.author
+            if sv.publication_date:
+                node_dict['properties']['publication_date'] = sv.publication_date
+            if sv.source_type:
+                node_dict['properties']['source_type'] = sv.source_type
+            if sv.content:
+                node_dict['properties']['content'] = sv.content
             nodes.append(node_dict)
 
         return nodes

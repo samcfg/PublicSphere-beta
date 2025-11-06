@@ -1,7 +1,7 @@
-# Fork and Merge Operations
+# Fork, Equivalence, and Merge Operations
 
 ## Core Concept
-Nodes represent ideas. Users fork nodes to modify existing ideas, or merge nodes when discovering semantic equivalence.
+Nodes represent ideas. Users fork nodes to modify existing ideas, link equivalent nodes via EQUIVALENT_TO edges, or (with admin approval) merge nodes when semantic identity is confirmed.
 
 ## Fork Operation
 **"This idea, but slightly different"**
@@ -33,11 +33,49 @@ fork_history:
 - Lineage tracked via optional non-displayed graph edge OR relational table
 - Temporal queries: Relational returns which forks existed at timestamp T
 
-## Merge Operation
-**"These are actually the same idea"**
+## Equivalence Operation (User-Level)
+**"These nodes represent the same idea"**
+
+Lightweight linking for redundant nodes—both nodes persist with independent ratings/edges, preserving authorship and argument contexts.
+
+### Graph State
+```python
+Node A: {id: 'A_id', content: '...'}
+Node B: {id: 'B_id', content: '...'}
+
+A-[:EQUIVALENT_TO {created_by_user, created_at, notes}]->B
+```
+
+### Creation Flow
+- String matching suggests candidates during node creation (UI "shadow" preview)
+- User manually creates EQUIVALENT_TO edge or proceeds independently
+- No destruction, no consent required
+
+### Relational Logging
+```sql
+equivalence_links:
+  link_id, node_a_id, node_b_id, created_by_user, created_at, notes
+
+-- Cluster query (transitive closure)
+WITH RECURSIVE equiv_cluster AS (
+  SELECT node_b_id FROM equivalence_links WHERE node_a_id = 'A_id'
+  UNION SELECT node_a_id FROM equivalence_links WHERE node_b_id = 'A_id'
+  UNION
+  SELECT el.node_b_id FROM equivalence_links el
+  JOIN equiv_cluster ec ON el.node_a_id = ec.node_id
+  UNION
+  SELECT el.node_a_id FROM equivalence_links el
+  JOIN equiv_cluster ec ON el.node_b_id = ec.node_id
+)
+```
+
+## Merge Operation (Admin-Level)
+**"Destroy duplicates—these are literally identical"**
+
+Requires admin approval. Heavy operation for confirmed semantic identity—destroys both nodes, creates replacement. Reserved for cases where equivalence is certain and consolidation benefits clarity.
 
 ### Semantic Constraint
-Merge only valid when nodes are semantically equivalent. If edges contradict (A→X supports, B→X contradicts), one edge is logically incorrect.
+Only valid when nodes are semantically identical. Contradictory edges (A→X supports, B→X contradicts) indicate logical error requiring resolution before merge.
 
 ### Merge Process: A + B → C
 

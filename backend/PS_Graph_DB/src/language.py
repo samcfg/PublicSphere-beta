@@ -32,7 +32,8 @@ class LanguageOperations:
                              source_id: Optional[str] = None,
                              target_id: Optional[str] = None,
                              changed_by: Optional[str] = None,
-                             change_notes: Optional[str] = None) -> List[Dict]:
+                             change_notes: Optional[str] = None,
+                             user_id: Optional[int] = None) -> List[Dict]:
         """
         Execute Cypher with atomic logging.
         Both graph operation and version logging succeed or both rollback.
@@ -60,7 +61,8 @@ class LanguageOperations:
                                 properties=properties,
                                 operation=operation,
                                 changed_by=changed_by,
-                                change_notes=change_notes
+                                change_notes=change_notes,
+                                user_id=user_id
                             )
                         elif entity_type == 'edge':
                             logger.log_edge_version(
@@ -72,7 +74,8 @@ class LanguageOperations:
                                 properties=properties,
                                 operation=operation,
                                 changed_by=changed_by,
-                                change_notes=change_notes
+                                change_notes=change_notes,
+                                user_id=user_id
                             )
 
                     # Execute graph operation
@@ -88,7 +91,8 @@ class LanguageOperations:
                                 properties=properties,
                                 operation=operation,
                                 changed_by=changed_by,
-                                change_notes=change_notes
+                                change_notes=change_notes,
+                                user_id=user_id
                             )
                         elif entity_type == 'edge':
                             logger.log_edge_version(
@@ -100,7 +104,8 @@ class LanguageOperations:
                                 properties=properties,
                                 operation=operation,
                                 changed_by=changed_by,
-                                change_notes=change_notes
+                                change_notes=change_notes,
+                                user_id=user_id
                             )
 
                     conn.commit()
@@ -118,7 +123,7 @@ class LanguageOperations:
         self.current_graph = graph_name
         return True
     
-    def create_claim(self, claim_id: Optional[str] = None, content: Optional[str] = None) -> str:
+    def create_claim(self, claim_id: Optional[str] = None, content: Optional[str] = None, user_id: Optional[int] = None) -> str:
         """Create a new Claim node with UUID and optional content"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
@@ -144,19 +149,83 @@ class LanguageOperations:
             operation='CREATE',
             entity_id=claim_id,
             label_or_type='Claim',
-            properties=log_props
+            properties=log_props,
+            user_id=user_id
         )
 
         return claim_id
-    
-    def create_connection(self, from_claim_id: str, to_claim_id: str,
+
+    def create_source(self, source_id: Optional[str] = None,
+                     url: Optional[str] = None,
+                     title: Optional[str] = None,
+                     author: Optional[str] = None,
+                     publication_date: Optional[str] = None,
+                     source_type: Optional[str] = None,
+                     content: Optional[str] = None,
+                     user_id: Optional[int] = None) -> str:
+        """Create a new Source node with UUID and optional properties"""
+        if not self.current_graph:
+            raise ValueError("No graph set. Call set_graph() first")
+
+        if source_id is None:
+            source_id = str(uuid.uuid4())
+
+        # Build Cypher properties string
+        cypher_props = f"id: '{source_id}'"
+        log_props = {}
+
+        if url is not None:
+            escaped_url = url.replace("'", "\\'")
+            cypher_props += f", url: '{escaped_url}'"
+            log_props['url'] = url
+        if title is not None:
+            escaped_title = title.replace("'", "\\'")
+            cypher_props += f", title: '{escaped_title}'"
+            log_props['title'] = title
+        if author is not None:
+            escaped_author = author.replace("'", "\\'")
+            cypher_props += f", author: '{escaped_author}'"
+            log_props['author'] = author
+        if publication_date is not None:
+            escaped_date = publication_date.replace("'", "\\'")
+            cypher_props += f", publication_date: '{escaped_date}'"
+            log_props['publication_date'] = publication_date
+        if source_type is not None:
+            escaped_type = source_type.replace("'", "\\'")
+            cypher_props += f", source_type: '{escaped_type}'"
+            log_props['source_type'] = source_type
+        if content is not None:
+            escaped_content = content.replace("'", "\\'")
+            cypher_props += f", content: '{escaped_content}'"
+            log_props['content'] = content
+
+        self._execute_with_logging(
+            cypher_query=f"CREATE (s:Source {{{cypher_props}}}) RETURN s",
+            columns=['source'],
+            entity_type='node',
+            operation='CREATE',
+            entity_id=source_id,
+            label_or_type='Source',
+            properties=log_props,
+            user_id=user_id
+        )
+
+        return source_id
+
+    def create_connection(self, from_node_id: str, to_node_id: str,
                          connection_id: Optional[str] = None,
                          notes: Optional[str] = None,
                          logic_type: Optional[str] = None,
-                         composite_id: Optional[str] = None) -> str:
-        """Create a Connection edge between two Claims with optional notes, logic_type, and composite_id"""
+                         composite_id: Optional[str] = None,
+                         user_id: Optional[int] = None) -> str:
+        """Create a Connection edge between any two nodes (Claims, Sources) with optional notes, logic_type, and composite_id"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
+
+        # Validate logic_type
+        VALID_LOGIC_TYPES = {'AND', 'OR', 'NOT', 'NAND'}
+        if logic_type is not None and logic_type not in VALID_LOGIC_TYPES:
+            raise ValueError(f"Invalid logic_type: '{logic_type}'. Must be one of {VALID_LOGIC_TYPES}")
 
         if connection_id is None:
             connection_id = str(uuid.uuid4())
@@ -182,8 +251,8 @@ class LanguageOperations:
 
         self._execute_with_logging(
             cypher_query=f"""
-            MATCH (from:Claim {{id: '{from_claim_id}'}})
-            MATCH (to:Claim {{id: '{to_claim_id}'}})
+            MATCH (from {{id: '{from_node_id}'}})
+            MATCH (to {{id: '{to_node_id}'}})
             CREATE (from)-[r:Connection {{{cypher_props}}}]->(to)
             RETURN r
             """,
@@ -193,22 +262,24 @@ class LanguageOperations:
             entity_id=connection_id,
             label_or_type='Connection',
             properties=log_props,
-            source_id=from_claim_id,
-            target_id=to_claim_id
+            source_id=from_node_id,
+            target_id=to_node_id,
+            user_id=user_id
         )
 
         return connection_id
 
-    def create_compound_connection(self, source_claim_ids: List[str], target_claim_id: str,
+    def create_compound_connection(self, source_node_ids: List[str], target_node_id: str,
                                    logic_type: str, notes: Optional[str] = None,
-                                   composite_id: Optional[str] = None) -> str:
+                                   composite_id: Optional[str] = None,
+                                   user_id: Optional[int] = None) -> str:
         """
         Create a compound connection (multiple edges with shared composite_id, logic_type, notes).
 
         Args:
-            source_claim_ids: List of source claim IDs (all edges will point to same target)
-            target_claim_id: Target claim ID (shared by all edges)
-            logic_type: 'AND' or 'OR' (shared by all edges)
+            source_node_ids: List of source node IDs (all edges will point to same target)
+            target_node_id: Target node ID (shared by all edges)
+            logic_type: 'AND', 'OR', 'NOT', 'NAND' (shared by all edges)
             notes: Optional notes (shared by all edges)
             composite_id: Optional shared group ID (auto-generated if not provided)
 
@@ -218,17 +289,23 @@ class LanguageOperations:
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
+        # Validate logic_type
+        VALID_LOGIC_TYPES = {'AND', 'OR', 'NOT', 'NAND'}
+        if logic_type not in VALID_LOGIC_TYPES:
+            raise ValueError(f"Invalid logic_type: '{logic_type}'. Must be one of {VALID_LOGIC_TYPES}")
+
         if composite_id is None:
             composite_id = str(uuid.uuid4())
 
         # Create all edges in the compound group with shared metadata
-        for source_id in source_claim_ids:
+        for source_id in source_node_ids:
             self.create_connection(
-                from_claim_id=source_id,
-                to_claim_id=target_claim_id,
+                from_node_id=source_id,
+                to_node_id=target_node_id,
                 notes=notes,
                 logic_type=logic_type,
-                composite_id=composite_id
+                composite_id=composite_id,
+                user_id=user_id
             )
 
         return composite_id
@@ -244,9 +321,21 @@ class LanguageOperations:
             "MATCH (c:Claim) RETURN c",
             ['claim']
         )
-    
-    def get_claim_connections(self, claim_id: str) -> List[Dict]:
-        """Get all connections from a specific claim"""
+
+    def get_all_sources(self) -> List[Dict]:
+        """Retrieve all Source nodes"""
+        if not self.current_graph:
+            raise ValueError("No graph set. Call set_graph() first")
+
+        db = get_db()
+        return db.execute_cypher(
+            self.current_graph,
+            "MATCH (s:Source) RETURN s",
+            ['source']
+        )
+
+    def get_node_connections(self, node_id: str) -> List[Dict]:
+        """Get all connections from/to a specific node (bidirectional query)"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -254,13 +343,13 @@ class LanguageOperations:
         return db.execute_cypher(
             self.current_graph,
             f"""
-            MATCH (c:Claim {{id: '{claim_id}'}})-[r:Connection]->(target:Claim)
-            RETURN c, r, target
+            MATCH (n {{id: '{node_id}'}})-[r:Connection]-(other)
+            RETURN n, r, other
             """,
-            ['source', 'connection', 'target']
+            ['node', 'connection', 'other']
         )
 
-    def delete_node(self, node_id: str) -> bool:
+    def delete_node(self, node_id: str, user_id: Optional[int] = None) -> bool:
         """Delete any node by UUID and all its connections"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
@@ -270,15 +359,22 @@ class LanguageOperations:
         # Query for node metadata first (needed for logging)
         node_data = db.execute_cypher(
             self.current_graph,
-            f"MATCH (n {{id: '{node_id}'}}) RETURN labels(n) as labels, n.content as content",
-            ['labels', 'content']
+            f"""MATCH (n {{id: '{node_id}'}})
+            RETURN labels(n) as labels, n.content as content,
+                   n.url as url, n.title as title, n.author as author,
+                   n.publication_date as publication_date, n.source_type as source_type""",
+            ['labels', 'content', 'url', 'title', 'author', 'publication_date', 'source_type']
         )
         if not node_data:
             return False
 
         node_label = node_data[0]['labels'][0]
-        content = node_data[0].get('content')
-        properties = {'content': content} if content else {}
+
+        # Build properties dict based on what exists
+        properties = {}
+        for prop in ['content', 'url', 'title', 'author', 'publication_date', 'source_type']:
+            if node_data[0].get(prop):
+                properties[prop] = node_data[0][prop]
 
         result = self._execute_with_logging(
             cypher_query=f"MATCH (n {{id: '{node_id}'}}) DETACH DELETE n RETURN count(n) as deleted",
@@ -287,12 +383,13 @@ class LanguageOperations:
             operation='DELETE',
             entity_id=node_id,
             label_or_type=node_label,
-            properties=properties
+            properties=properties,
+            user_id=user_id
         )
 
         return result[0]['deleted'] > 0 if result else False
 
-    def delete_edge(self, edge_id: str) -> bool:
+    def delete_edge(self, edge_id: str, user_id: Optional[int] = None) -> bool:
         """
         Delete edge(s) by UUID. Accepts either individual edge ID or composite_id.
         Try-single-first: queries as individual ID first, falls back to composite query.
@@ -347,7 +444,8 @@ class LanguageOperations:
                     label_or_type=edge['edge_type'],
                     properties=properties,
                     source_id=edge['source_id'],
-                    target_id=edge['target_id']
+                    target_id=edge['target_id'],
+                    user_id=user_id
                 )
                 deleted_count += result[0]['deleted'] if result else 0
 
@@ -374,12 +472,13 @@ class LanguageOperations:
             label_or_type=edge_type,
             properties=properties,
             source_id=source_id,
-            target_id=target_id
+            target_id=target_id,
+            user_id=user_id
         )
 
         return result[0]['deleted'] > 0 if result else False
 
-    def edit_node(self, node_id: str, **fields) -> bool:
+    def edit_node(self, node_id: str, user_id: Optional[int] = None, **fields) -> bool:
         """Edit node properties. Accepts any valid node properties as keyword arguments"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
@@ -421,12 +520,13 @@ class LanguageOperations:
             operation='UPDATE',
             entity_id=node_id,
             label_or_type=node_label,
-            properties=fields
+            properties=fields,
+            user_id=user_id
         )
 
         return result[0]['updated'] > 0 if result else False
 
-    def edit_edge(self, edge_id: str, **fields) -> bool:
+    def edit_edge(self, edge_id: str, user_id: Optional[int] = None, **fields) -> bool:
         """
         Edit edge properties. Accepts either individual edge ID or composite_id.
         Try-single-first: queries as individual ID first, falls back to composite query.
@@ -489,7 +589,8 @@ class LanguageOperations:
                     label_or_type=edge['edge_type'],
                     properties=fields,
                     source_id=edge['source_id'],
-                    target_id=edge['target_id']
+                    target_id=edge['target_id'],
+                    user_id=user_id
                 )
                 updated_count += result[0]['updated'] if result else 0
 
@@ -523,7 +624,8 @@ class LanguageOperations:
             label_or_type=edge_type,
             properties=fields,
             source_id=source_id,
-            target_id=target_id
+            target_id=target_id,
+            user_id=user_id
         )
 
         return result[0]['updated'] > 0 if result else False

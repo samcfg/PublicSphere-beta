@@ -9,20 +9,23 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 - `Claim` - Assertions/conclusions in argument structure
   - **Required properties:** `id` (str, UUID)
   - **Optional properties:** `content` (str, text content)
+- `Source` - Evidence, observations, citations
+  - **Required properties:** `id` (str, UUID)
+  - **Optional properties:** `url` (str), `title` (str), `author` (str), `publication_date` (str), `source_type` (str: 'web'|'book'|'paper'|'observation'), `content` (str, quotes/excerpts)
 
 ### Graph Edge Types (AGE Database)
 **Current Edge Types:**
-- `Connection` - Logical relationships between Claims
+- `Connection` - Logical relationships between any nodes (Claim ↔ Claim, Source → Claim, Claim → Source, Source ↔ Source)
   - **Required properties:** `id` (str, UUID)
   - **Optional properties:**
     - `notes` (str, interpretation/context)
-    - `logic_type` (str, 'AND' or 'OR' for compound edges, NULL for single edges)
+    - `logic_type` (str, 'AND'|'OR'|'NOT'|'NAND' - validated at creation)
     - `composite_id` (str, UUID shared across compound edge group, NULL for single edges)
 
 
 ## Files That Define/Enforce Schema
 
-### Python Backend (PS_Graph_DB/src/)
+### Graph Backend (PS_Graph_DB/src/)
 
 **schema.py** (Graph Schema)
 - `BasicSchema.__init__()`: Defines all node/edge schema structures
@@ -35,13 +38,18 @@ This file tracks all locations where data schemas are defined, enforced, or cons
   - DELETE: logs first (queries intact graph), then executes Cypher
   - CREATE/UPDATE: executes Cypher first, then logs
 - `LanguageOperations.create_claim()`: Creates Claim nodes with UUID id, optional content
-- `LanguageOperations.create_connection()`: Creates Connection edges with UUID id, optional notes, logic_type, composite_id
+- `LanguageOperations.create_source()`: Creates Source nodes with UUID id, optional url, title, author, publication_date, source_type, content
+- `LanguageOperations.create_connection()`: Creates Connection edges between any nodes with UUID id, optional notes, logic_type, composite_id
+  - Validates logic_type against {'AND', 'OR', 'NOT', 'NAND'}
+  - Accepts from_node_id/to_node_id (works with Claims, Sources, any future node types)
 - `LanguageOperations.create_compound_connection()`: Convenience function for creating compound edge groups
   - Creates multiple edges with shared composite_id, logic_type, notes
+  - Validates logic_type at entry
   - Returns composite_id for group operations
 - `LanguageOperations.get_all_claims()`: Returns all Claim nodes
-- `LanguageOperations.get_claim_connections()`: Returns connections for specific claim (individual edges with compound metadata)
-- `LanguageOperations.delete_node()`: Deletes node by UUID (DETACH DELETE, cascades edges)
+- `LanguageOperations.get_all_sources()`: Returns all Source nodes
+- `LanguageOperations.get_node_connections()`: Returns all connections from/to a specific node (bidirectional, works for any node type)
+- `LanguageOperations.delete_node()`: Deletes node by UUID (DETACH DELETE, cascades edges). Queries all properties for proper logging (Claim: content; Source: url, title, author, publication_date, source_type, content)
 - `LanguageOperations.delete_edge()`: Deletes edge(s) by UUID using try-single-first pattern
   - Accepts individual edge ID or composite_id
   - Queries as individual ID first (fast path), falls back to composite_id query
@@ -58,27 +66,37 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 - `AGEDatabase.execute_cypher()`: Parses AGE JSON format
 - AGE type suffix handling (::vertex, ::edge)
 
-### Python Backend (PS_Django_DB/)
+### Relational Backend (PS_Django_DB/)
 
 **bookkeeper/models.py** (Django ORM - Temporal Versioning)
-- `NodeVersion` model: Tracks all node changes
-  - Fields: `node_id` (CharField, UUID), `node_label` (CharField), `content` (TextField, nullable), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
+- `ClaimVersion` model: Tracks all Claim node changes
+  - Fields: `node_id` (CharField, UUID), `content` (TextField, nullable), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
   - Indexes: node_id, timestamp, (valid_from, valid_to)
+  - Table: `claim_versions`
+- `SourceVersion` model: Tracks all Source node changes
+  - Fields: `node_id` (CharField, UUID), `url` (URLField, nullable), `title` (CharField, nullable), `author` (CharField, nullable), `publication_date` (CharField, nullable), `source_type` (CharField, nullable), `content` (TextField, nullable), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
+  - Indexes: node_id, timestamp, (valid_from, valid_to)
+  - Table: `source_versions`
 - `EdgeVersion` model: Tracks all edge changes
-  - Fields: `edge_id` (CharField, UUID), `edge_type` (CharField), `source_node_id` (CharField, UUID), `target_node_id` (CharField, UUID), `notes` (TextField, nullable), `logic_type` (CharField, nullable, 'AND'/'OR'), `composite_id` (CharField, nullable, UUID), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
+  - Fields: `edge_id` (CharField, UUID), `edge_type` (CharField), `source_node_id` (CharField, UUID), `target_node_id` (CharField, UUID), `notes` (TextField, nullable), `logic_type` (CharField, nullable, 'AND'|'OR'|'NOT'|'NAND'), `composite_id` (CharField, nullable, UUID), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
   - Indexes: edge_id, timestamp, (valid_from, valid_to), (source_node_id, target_node_id), composite_id
+  - Table: `edge_versions`
 
 **bookkeeper/services.py** (Temporal Queries)
-- `TemporalQueryService.get_nodes_at_timestamp()`: Returns all nodes valid at given timestamp
+- `TemporalQueryService.get_nodes_at_timestamp()`: Returns all nodes (Claims and Sources) valid at given timestamp
+  - Queries both ClaimVersion and SourceVersion tables
+  - Reconstructs node dicts with proper labels and type-specific properties
 - `TemporalQueryService.get_edges_at_timestamp()`: Returns all edges valid at given timestamp (includes logic_type, composite_id properties)
 - `TemporalQueryService.get_graph_at_timestamp()`: Returns complete graph state (nodes + edges) at timestamp
 - `get_temporal_service()`: Singleton accessor for service instance
 
 **PS_Graph_DB/src/logging.py** (Version Logging Coordinator)
 - `TemporalLogger.log_node_version()`: Logs node CREATE/UPDATE/DELETE to Django models
+  - Dispatches based on node label: Claim → ClaimVersion, Source → SourceVersion
   - DELETE: Cascades to connected edges (queries logic_type, composite_id for cascade logging), closes valid_to intervals
   - UPDATE: Closes previous version (valid_to = now), creates new open version
   - CREATE: Creates new open version (valid_to = NULL)
+  - Raises ValueError for unknown node labels
 - `TemporalLogger.log_edge_version()`: Logs edge CREATE/UPDATE/DELETE to Django models
   - Extracts and logs notes, logic_type, composite_id properties
   - Same valid_from/valid_to interval logic as nodes
@@ -89,15 +107,23 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 **database.js**
 - `formatForCytoscape()` (lines 60-108): Converts AGE data to Cytoscape format
 - Line 71: Node ID uses UUID from properties (nodeData.properties.id)
+- Line 72: Node label extracted from AGE data (handles 'Claim', 'Source', future types)
+- Line 73: Property spreading (`...nodeData.properties`) automatically includes all node-specific properties (Claim: content; Source: url, title, author, publication_date, source_type, content)
 - Lines 96-97: Edge source/target correctly uses UUID (source.properties.id, target.properties.id)
 - Line 98: Edge type field maps to edge.label (Connection type)
-- Line 99: Property spreading (`...edge.properties`) passes through logic_type and composite_id to frontend
+- Lines 99-101: Property spreading (`...edge.properties`) passes through logic_type, composite_id, notes to frontend
 
-**index.html / graph.js**
+**graph.js**
 - Cytoscape styling selectors for nodes and edges
-- Edge styling differentiation planned: logic_type='AND' (blue), logic_type='OR' (orange)
-- Edge tooltip displays notes, logic_type, and composite_id for compound edges
-- Compound edge convergence (bezier triangulation) deferred to hierarchical arguments phase
+- Node styling:
+  - Base: Blue rectangles with content label
+  - `node[label = "Source"]`: Green background with dark green border
+- Edge styling:
+  - Default: Green arrows
+  - `edge[logic_type = "NOT"], edge[logic_type = "NAND"]`: Red arrows (negation/contradiction)
+- Edge tooltip displays notes
+- Compound edge bundling: Bezier curves converge edges with shared composite_id
+- Compound edge highlighting: Hovering one edge highlights entire group
 
 ## Data Flow
 
@@ -137,42 +163,30 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 
 When modifying data structure:
 
-- [x] Update `PS_Graph_DB/src/schema.py` (graph schema) node/edge definitions
-- [x] Update `PS_Django_DB/bookkeeper/models.py` if adding/removing node/edge properties (create Django migration)
-- [x] Update `language.py` creation/query/edit functions
-- [x] Update `logging.py` if property extraction logic needs to change
-- [x] Update `database.py` parsing logic if property names/types change (verified: no changes needed)
+- [ ] Update `PS_Graph_DB/src/schema.py` (graph schema) node/edge definitions
+- [ ] Update `PS_Django_DB/bookkeeper/models.py` if adding/removing node/edge properties. Then change  `logging.py`, `services.py` and `admin.py` . Then, makemigrations; migrate. 
+- [ ] Update `language.py` creation/query/edit functions
+- [ ] Update `database.py` parsing logic if property names/types change (verified: no changes needed)
 - [ ] Update `database.js` formatting logic (verified: property spreading handles new fields)
 - [ ] Update `graph.js` styling selectors for compound edge visualization
 - [ ] Test data flow: Python → AGE + Django → JavaScript → Frontend
 - [ ] Test temporal queries: create/modify/delete → query historical state
-- [x] Update this documentation
-
-**Compound Edge Implementation Status (Oct 2025):**
-- ✅ Backend schema extended (logic_type, composite_id)
-- ✅ Django migration applied (0002_edgeversion_composite_id_edgeversion_logic_type)
-- ✅ API operations support compound edges (create_compound_connection, transparent delete/edit)
-- ✅ Temporal logging captures compound metadata
-- ✅ Try-single-first pattern optimizes for single edges (majority case)
-- ⏳ Frontend visualization (color differentiation planned, convergence deferred)
-- ⏳ End-to-end testing
+- [ ] Update this documentation
 
 ## Compound Edges: Design & Implementation
 
 ### Motivation
-Multi-premise arguments require multiple source claims converging to a single conclusion. Compound edges group these logical relationships while maintaining individual edge identity for graph operations.
+Multi-premise argument. Shows logical relationships while maintaining individual edge identity for graph operations. All edges in a compound group share the same target node.
 
 ### Data Model
 **Shared Metadata Fields (synchronized across group):**
 - `composite_id` (UUID): Identifies the compound group
-- `logic_type` ('AND' or 'OR'): Logical operator for the group
+- `logic_type` ('AND' | 'OR' | 'NOT' | 'NAND'): Logical operator for the group (validated at creation)
 - `notes` (str): Shared interpretation/context
 
 **Individual Fields (per edge):**
 - `id` (UUID): Individual edge identifier
-- `source_node_id`, `target_node_id`: Topology
-
-**Constraint:** All edges in a compound group share the same target node.
+- `source_node_id`, `target_node_id`: Node topology (supports Claims, Sources, any node type)
 
 ### API Design Pattern: Try-Single-First
 Operations accept either individual `edge_id` or `composite_id`:
@@ -181,20 +195,15 @@ Operations accept either individual `edge_id` or `composite_id`:
 2. If not found, query as composite_id (compound group operation)
 3. Apply operation to all edges in group if compound
 
-**Example:**
-```python
-ops.delete_edge('abc-123')  # Could be individual ID or composite_id
-# Backend tries individual lookup first, falls back to composite query
-```
-
 ### Frontend Data Flow
 - Backend returns individual edges with compound metadata
 - Frontend receives all edges separately
-- Client groups by `composite_id` for visualization
-- Visual convergence (bezier triangulation) deferred to hierarchical arguments phase
+- Client groups by `composite_id` for visualization, constructs visual
 
 ### Temporal Behavior
 Historical snapshots preserve compound metadata. Temporal queries return individual edges with `logic_type` and `composite_id`, allowing reconstruction of compound groups at any point in time.
+
+---
 
 ## Addendum: API Response Format Standardization
 
@@ -215,7 +224,5 @@ When exposing backends via HTTP (FastAPI/Express/Django REST), standardize respo
 ```
 
 **Implementation Timing**:
-Handle during HTTP layer development, not in core `language.py` operations. Current Python function returns can remain backend-specific until API routes are built.
-
-**Example Use Case**:
+Handle during HTTP layer development, not in core `language.py` operations. Current Python function returns can remain backend-specific until API routes are built. For example:
 User clicks Cytoscape node → fetch node data (graph), comments and edit history (Django) → combine into single popup UI. All three calls use same error handling logic.

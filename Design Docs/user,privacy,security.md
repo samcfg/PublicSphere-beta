@@ -1,0 +1,176 @@
+# Design for "Users" 
+User identity, build with gdrp compatibility in mind. 
+The user will not "own" their comments, nodes, edges, etc which they produce, they are connected to them indirectly. User creates (User_id parameter) -> Graph DB (no user data) -> logging.py -> Global User Data DB (table with all user contributions linked to user_id)
+## User Page
+#### Delete account 
+deletes user, user_profile, and user_attributions
+### Home
+Has the user's private **workspaces**
+Only the user has acces to their workspaces, when they make their work public, the workspace remains as a private copy, then fork. 
+In the backend, there's a workspaces table that joins users to the workspaces they've made, the name of it, and a json blob containing the UUID of references entities. 
+   {
+     "draft_claims": ["uuid1", "uuid2"],
+     "draft_sources": ["uuid3"],
+...}
+These reverence three draft tables: 
+DraftClaim, DraftSource, DraftConnection
+As well as the three public version tables. 
+Workspace displays versions with comments and ratings, drafts are stripped of these. 
+
+### Reputation
+Reputation will be stored in user profile
+Reputation is two words "value" "type". value = upvotes/downvotes +(admin-related incidents). type= sum(contribution type*number)
+eg "prolific reader" or "effective contributor" (average quality=no word)
+Reputation and formula both displayed on rep tab. 
+Disclaimer: * of course, this calculation is an approximation with a large margin of error, and should be considered as a factor among others when considering user. 
+### Settings
+**"anonymous mode" on/off** - a user's 
+contributions are tagged in a non-individualized way when anon mode is on.Looks the same as a deleted
+user (though anonymous, non-deleted users will have their attributions 
+saved in the attributions table with their UUID as usual).
+How it works: In backend, this anonymity is saved in a boolean at the level of the user_attribution table, governing actual privacy. This setting governs whether this boolean is on or off as user creates contributions. 
+User can also toggle anon on their contributions table (retroactive). 
+Disclimer: *Please assume good faith for anonymous users. There are many good reasons for wanting anonymity. Anonymous users take on extra responsibility for good conduct: admins have been instructed to more readily suspend or delete anon profiles for misconduct.  
+### Contributions 
+Shows, claims, sources, connections, ratings and comments. 
+non-anonymous contributions are public to anyone looking at user page. 
+### Data 
+Only viewable for user to their own user page. Shows contributions, as well as other table entries with their data: User profile, user, and attributions. Ready for gdpr export. 
+# Moderation
+
+Three Tiers of Access
+
+  1. Superuser (Infrastructure Layer)
+
+  Purpose: Break-glass emergency access to fix broken systems.
+
+  Capabilities:
+  - Bypasses all Django permission checks entirely
+  - Direct database access via Django shell
+  - Can modify ContentType, Permission, Group definitions
+  - Can unlock locked-out accounts, override any model's has_permission() methods
+  - Access to Django migrations, settings changes
+
+  When to use:
+  - Migration failures (schema conflicts, rollback needed)
+  - Catastrophic data corruption requiring manual SQL
+  - All staff accounts compromised and need to create new admin
+  - Third-party package breaking the admin interface
+
+  Security posture:
+  - One or two accounts maximum
+  - Strong passphrase (not just password) + 2FA mandatory
+  - Not used for day-to-day operations
+  - Credentials stored in password manager, not in browser autofill
+  - Activity logged separately (Django admin logs + system logs)
+  ---
+  1. Staff Admins (Operational Layer)
+
+  Purpose: Manage user-facing systems and handle edge cases outside normal moderation workflows.
+
+  Capabilities in your system:
+  - Create/modify moderator accounts and assign to Moderator group
+  - Handle account deletion requests (your Phase 1 delete_account() function)
+  - Investigate bug reports (read-only access to version history, attribution tables)
+  - Handle privacy requests (retroactive anonymity via UserAttribution.is_anonymous)
+  - Configure site settings (e.g., rate limits, feature flags if you add those)
+  - Access to all Django admin models with view permissions, selective write permissions
+
+  When to use:
+  - Onboarding new moderators (create User, add to Moderator group)
+  - Escalated issues moderators can't resolve (e.g., systematic sockpuppeting requiring account merge/ban)
+  - GDPR/privacy law compliance (data export, account deletion, anonymization)
+  - Responding to legal requests (user data queries, content preservation)
+
+  Security posture:
+  - Small team (you + 1-2 trusted people for 24/7 coverage)
+  - Permissions scoped via Django groups (no superuser flag set)
+  - Activity logged in Django admin logs (who changed what when)
+  - Password + 2FA
+  - Credentials expire/rotate periodically
+
+  Implementation in PublicSphere:
+  Create a "Staff Admin" Django group with these permissions:
+  # users app
+  users.add_user  # Create moderator accounts
+  users.change_user  # Enable/disable accounts, reset passwords
+  users.view_user
+  users.add_group_membership  # Assign moderators to Moderator group
+  users.change_userattribution  # Anonymity toggle
+  users.view_userattribution
+  users.view_userprofile
+
+  # bookkeeper app (read-only for investigations)
+  bookkeeper.view_claimversion
+  bookkeeper.view_sourceversion
+  bookkeeper.view_edgeversion
+
+  # social app (Phase 2 - handle escalations)
+  social.delete_comment  # Hard delete (not just soft delete)
+  social.change_rating  # Remove brigading/spam ratings
+  social.view_flaggedcontent  # See what moderators flagged
+
+  ---
+  3. Moderators (Content Moderation Layer)
+
+  Purpose: Day-to-day content quality enforcement and community management.
+
+  Capabilities in your system:
+  - Verify sources (Phase 1 plan mentions admin verification—this should actually be moderator-level)
+  - Soft-delete comments (Phase 2)
+  - Flag entities for staff review (Phase 2 flag_entity())
+  - Soft-hide spam/off-topic claims (Phase 2 hide_entity())
+  - View flagged content queue
+  - Respond to user reports
+
+  Cannot do:
+  - Create/delete user accounts
+  - Modify permissions or groups
+  - Access attribution data (privacy—they don't know who posted what unless public)
+  - Delete version history
+  - Hard-delete anything (only soft-hide from UI)
+
+  Security posture:
+  - Recruited from trusted community members
+  - Actions logged and auditable by staff admins
+  - Limited to Django admin interface, no shell/database access
+  - Can be removed from Moderator group by staff admin without account deletion
+
+  Implementation in PublicSphere:
+  Create a "Moderator" Django group with these permissions:
+  # Limited to moderation actions only
+  social.view_comment
+  social.change_comment  # Soft delete flag only
+  social.view_rating
+  social.add_flaggedcontent  # Flag for staff review
+  social.view_flaggedcontent
+
+  # Future: source verification
+  bookkeeper.view_sourceversion  # Read source details for fact-checking
+  # (Verification mark stored as Source property, edited via custom admin action)
+- Middleware for flagging/blocking profanity or bad links? (look for dependencies)
+a middleware dependency that flaggs potentially bad links/text without auto-blocking it, or auto-blocking only 
+some things, and flagging others? 
+
+● No mature Django package does this end-to-end. Closest is building custom middleware using better-profanity + urlhaus Python 
+  client, where you define severity thresholds (hard slurs = auto-block, borderline terms = flag, suspicious domains = flag).
+  You'd write ~100 lines wrapping these libraries in Django middleware that inspects request.POST, runs checks, and either
+  returns 403 or creates a Flag record before passing through.
+
+# Brainstorm for "privacy"
+Will be gdpr compatible without a banner, meaning: no 3rd party analytics, no browsing history, analytics are taken at backend level without specifying user. IPs not stored for longer than 30 days; always hashed. Passwords hashed.
+Cookies: only strictly necessary session/CSRF cookies. UI preferences (theme, layout) stored in localStorage, migrated to DB on account creation.
+View counts: public site feature using aggregate counters—no personal data logged. Deduplication via temporary session hash (24h) if needed.
+Server analytics: anonymized logs (zeroed IP octets or daily hash) for traffic metrics, legitimate interest basis.
+# Security 
+- Addressing account ban evasion by: \
+    Option A (Recommended):
+  - Hash IP at login/creation time (ephemeral, not stored)
+  - Check against Ban table
+  - Only Ban table persists (30 days)
+
+- SCA Tool for monitoring dependencies? 
+- SAST for source code scan?
+- OWASP.org (input validation)
+- Check if libraries are trusted (know versions, know supply chain)
+- Cloudflare free tier for DDoS

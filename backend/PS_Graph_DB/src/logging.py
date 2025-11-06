@@ -15,7 +15,8 @@ sys.path.insert(0, django_path)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-from bookkeeper.models import NodeVersion, EdgeVersion
+from bookkeeper.models import ClaimVersion, SourceVersion, EdgeVersion
+from users.models import User, UserAttribution, UserModificationAttribution
 from PS_Graph_DB.src.database import get_db
 
 
@@ -25,7 +26,8 @@ class TemporalLogger:
     def log_node_version(self, graph_name: str, node_id: str, label: str,
                         properties: Dict[str, Any], operation: str,
                         changed_by: Optional[str] = None,
-                        change_notes: Optional[str] = None) -> None:
+                        change_notes: Optional[str] = None,
+                        user_id: Optional[int] = None) -> None:
         """
         Log a node version to the temporal database.
 
@@ -39,8 +41,9 @@ class TemporalLogger:
             label: Node label (e.g., 'Claim')
             properties: Dict of node properties (e.g., {'content': '...'})
             operation: 'CREATE', 'UPDATE', or 'DELETE'
-            changed_by: Optional user identifier
+            changed_by: Optional user identifier (deprecated, use user_id)
             change_notes: Optional notes about the change
+            user_id: Optional User model ID for attribution tracking
         """
         # For DELETE, log all connected edges first (cascade logging)
         if operation == 'DELETE':
@@ -77,29 +80,133 @@ class TemporalLogger:
                     change_notes=f"Cascade delete from node {node_id}"
                 )
 
-        # For UPDATE or DELETE, close the previous version
-        if operation in ('UPDATE', 'DELETE'):
-            NodeVersion.objects.filter(
-                node_id=node_id,
-                valid_to__isnull=True
-            ).update(valid_to=timezone.now())
+        # Dispatch to correct model based on node label
+        if label == 'Claim':
+            # For UPDATE or DELETE, close the previous version
+            if operation in ('UPDATE', 'DELETE'):
+                ClaimVersion.objects.filter(
+                    node_id=node_id,
+                    valid_to__isnull=True
+                ).update(valid_to=timezone.now())
 
-        # For CREATE and UPDATE, create new version
-        if operation in ('CREATE', 'UPDATE'):
-            NodeVersion.objects.create(
-                node_id=node_id,
-                node_label=label,
-                content=properties.get('content'),
-                operation=operation,
-                changed_by=changed_by,
-                change_notes=change_notes
-            )
+            # For CREATE and UPDATE, create new version
+            if operation in ('CREATE', 'UPDATE'):
+                # Get user instance if user_id provided
+                user_instance = None
+                if user_id is not None:
+                    try:
+                        user_instance = User.objects.get(id=user_id)
+                    except User.DoesNotExist:
+                        pass  # user_instance remains None if user not found
+
+                # Calculate next version number
+                if operation == 'CREATE':
+                    version_num = 1
+                else:  # UPDATE
+                    # Get max version number for this entity
+                    last_version = ClaimVersion.objects.filter(
+                        node_id=node_id
+                    ).order_by('-version_number').first()
+                    version_num = (last_version.version_number + 1) if last_version else 1
+
+                ClaimVersion.objects.create(
+                    node_id=node_id,
+                    version_number=version_num,
+                    content=properties.get('content'),
+                    operation=operation,
+                    changed_by=changed_by,
+                    change_notes=change_notes
+                )
+
+                # Create UserAttribution entry on CREATE only (tracks original creator)
+                if operation == 'CREATE' and user_instance is not None:
+                    UserAttribution.objects.create(
+                        entity_uuid=node_id,
+                        user=user_instance,
+                        entity_type='claim',
+                        is_anonymous=False  # Default to public, user can toggle later
+                    )
+
+                # Create UserModificationAttribution entry on UPDATE only (tracks editors)
+                if operation == 'UPDATE' and user_instance is not None:
+                    UserModificationAttribution.objects.create(
+                        entity_uuid=node_id,
+                        version_number=version_num,
+                        user=user_instance,
+                        entity_type='claim',
+                        is_anonymous=False  # Default to public, user can toggle later
+                    )
+
+        elif label == 'Source':
+            # For UPDATE or DELETE, close the previous version
+            if operation in ('UPDATE', 'DELETE'):
+                SourceVersion.objects.filter(
+                    node_id=node_id,
+                    valid_to__isnull=True
+                ).update(valid_to=timezone.now())
+
+            # For CREATE and UPDATE, create new version
+            if operation in ('CREATE', 'UPDATE'):
+                # Get user instance if user_id provided
+                user_instance = None
+                if user_id is not None:
+                    try:
+                        user_instance = User.objects.get(id=user_id)
+                    except User.DoesNotExist:
+                        pass  # user_instance remains None if user not found
+
+                # Calculate next version number
+                if operation == 'CREATE':
+                    version_num = 1
+                else:  # UPDATE
+                    # Get max version number for this entity
+                    last_version = SourceVersion.objects.filter(
+                        node_id=node_id
+                    ).order_by('-version_number').first()
+                    version_num = (last_version.version_number + 1) if last_version else 1
+
+                SourceVersion.objects.create(
+                    node_id=node_id,
+                    version_number=version_num,
+                    url=properties.get('url'),
+                    title=properties.get('title'),
+                    author=properties.get('author'),
+                    publication_date=properties.get('publication_date'),
+                    source_type=properties.get('source_type'),
+                    content=properties.get('content'),
+                    operation=operation,
+                    changed_by=changed_by,
+                    change_notes=change_notes
+                )
+
+                # Create UserAttribution entry on CREATE only (tracks original creator)
+                if operation == 'CREATE' and user_instance is not None:
+                    UserAttribution.objects.create(
+                        entity_uuid=node_id,
+                        user=user_instance,
+                        entity_type='source',
+                        is_anonymous=False  # Default to public, user can toggle later
+                    )
+
+                # Create UserModificationAttribution entry on UPDATE only (tracks editors)
+                if operation == 'UPDATE' and user_instance is not None:
+                    UserModificationAttribution.objects.create(
+                        entity_uuid=node_id,
+                        version_number=version_num,
+                        user=user_instance,
+                        entity_type='source',
+                        is_anonymous=False  # Default to public, user can toggle later
+                    )
+
+        else:
+            raise ValueError(f"Unknown node label: {label}. Expected 'Claim' or 'Source'.")
 
     def log_edge_version(self, graph_name: str, edge_id: str, edge_type: str,
                         source_id: str, target_id: str,
                         properties: Dict[str, Any], operation: str,
                         changed_by: Optional[str] = None,
-                        change_notes: Optional[str] = None) -> None:
+                        change_notes: Optional[str] = None,
+                        user_id: Optional[int] = None) -> None:
         """
         Log an edge version to the temporal database.
 
@@ -115,8 +222,9 @@ class TemporalLogger:
             target_id: UUID of target node
             properties: Dict of edge properties (e.g., {'notes': '...'})
             operation: 'CREATE', 'UPDATE', or 'DELETE'
-            changed_by: Optional user identifier
+            changed_by: Optional user identifier (deprecated, use user_id)
             change_notes: Optional notes about the change
+            user_id: Optional User model ID for attribution tracking
         """
         # For UPDATE or DELETE, close the previous version
         if operation in ('UPDATE', 'DELETE'):
@@ -127,9 +235,28 @@ class TemporalLogger:
 
         # For CREATE and UPDATE, create new version
         if operation in ('CREATE', 'UPDATE'):
+            # Get user instance if user_id provided
+            user_instance = None
+            if user_id is not None:
+                try:
+                    user_instance = User.objects.get(id=user_id)
+                except User.DoesNotExist:
+                    pass  # user_instance remains None if user not found
+
+            # Calculate next version number
+            if operation == 'CREATE':
+                version_num = 1
+            else:  # UPDATE
+                # Get max version number for this entity
+                last_version = EdgeVersion.objects.filter(
+                    edge_id=edge_id
+                ).order_by('-version_number').first()
+                version_num = (last_version.version_number + 1) if last_version else 1
+
             EdgeVersion.objects.create(
                 edge_id=edge_id,
                 edge_type=edge_type,
+                version_number=version_num,
                 source_node_id=source_id,
                 target_node_id=target_id,
                 notes=properties.get('notes'),
@@ -139,6 +266,25 @@ class TemporalLogger:
                 changed_by=changed_by,
                 change_notes=change_notes
             )
+
+            # Create UserAttribution entry on CREATE only (tracks original creator)
+            if operation == 'CREATE' and user_instance is not None:
+                UserAttribution.objects.create(
+                    entity_uuid=edge_id,
+                    user=user_instance,
+                    entity_type='connection',
+                    is_anonymous=False  # Default to public, user can toggle later
+                )
+
+            # Create UserModificationAttribution entry on UPDATE only (tracks editors)
+            if operation == 'UPDATE' and user_instance is not None:
+                UserModificationAttribution.objects.create(
+                    entity_uuid=edge_id,
+                    version_number=version_num,
+                    user=user_instance,
+                    entity_type='connection',
+                    is_anonymous=False  # Default to public, user can toggle later
+                )
 
 
 # Global logger instance

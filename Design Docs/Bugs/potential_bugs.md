@@ -1,0 +1,1 @@
+verify frontend grouping logic doesn't break when edge appears in multiple composite_id sets.

@@ -96,6 +96,8 @@ function formatForCytoscape(nodes, edges) {
           source: source.properties.id || source.id.toString(),
           target: target.properties.id || target.id.toString(),
           type: edge.label || '',
+          composite_id: edge.properties.composite_id,
+          logic_type: edge.properties.logic_type,
           ...edge.properties
         }
       });

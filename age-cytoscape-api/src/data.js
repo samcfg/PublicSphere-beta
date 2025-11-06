@@ -31,6 +31,27 @@ class DataFormatter {
             edges: edges.length
         };
     }
+
+    static identifyCompoundEdgeGroups(edges) {
+        /**
+         * Groups edges by composite_id for bundling visualization
+         * Returns: Map<composite_id, Array<edge>>
+         * Only includes edges that have composite_id defined
+         */
+        const groups = new Map();
+
+        edges.forEach(edge => {
+            const compositeId = edge.data('composite_id');
+            if (compositeId) {
+                if (!groups.has(compositeId)) {
+                    groups.set(compositeId, []);
+                }
+                groups.get(compositeId).push(edge);
+            }
+        });
+
+        return groups;
+    }
 }
 
 window.DataFormatter = DataFormatter;

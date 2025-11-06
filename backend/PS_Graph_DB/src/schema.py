@@ -25,18 +25,30 @@ class BasicSchema:
                 label='Claim',
                 required_properties={'id': str},
                 optional_properties={'content': str}
+            ),
+            'Source': NodeSchema(
+                label='Source',
+                required_properties={'id': str},
+                optional_properties={
+                    'url': str,
+                    'title': str,
+                    'author': str,
+                    'publication_date': str,
+                    'source_type': str,  # 'web', 'book', 'paper', 'observation'
+                    'content': str       # quotes/excerpts
+                }
             )
         }
         
         self.edges = {
             'Connection': EdgeSchema(
                 type='Connection',
-                from_labels=['Claim'],
-                to_labels=['Claim'],
+                from_labels=['Claim', 'Source'],
+                to_labels=['Claim', 'Source'],
                 required_properties={'id': str},
                 optional_properties={
                     'notes': str,
-                    'logic_type': str,    # 'AND' or 'OR' for compound edges
+                    'logic_type': str,    # 'AND', 'OR', 'NOT', 'NAND'
                     'composite_id': str   # UUID shared across compound edge group
                 }
             )

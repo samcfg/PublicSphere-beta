@@ -7,14 +7,11 @@ The atomic units of structured reasoning: Sources
   process—we observe reality, form beliefs about it, and establish logical
   relationships between observations and beliefs. To achieve your vision of collaborative thought, the 
   interface should expose these three primitives directly: users should create,
-  manipulate, and connect discrete source and claim objects rather than burying this
-  logic in comment threads.
+  manipulate, and connect discrete source and claim objects.
 
-> what would be the best way to implement this primitive system?
 
 ● Event-sourced graph database would be optimal: each Source, Claim, and
-  Connection becomes an immutable node with a unique ID, and all operations (create,
-  modify, connect) are stored as events rather than state mutations... (path not chosen)
+  Connection becomes an immutable node with a unique ID, and Connections are edges.
 ● Composite connections solve the multi-premise logical
   arguments naturally—one Connection can aggregate multiple Sources into a single
   Claim with the logical operator built into the Connection object. The
@@ -22,7 +19,7 @@ The atomic units of structured reasoning: Sources
    network-level confidence propagation through graph traversal algorithms. Comments
   sections provide the human interpretive layer without cluttering the formal
   structure. Terminal Claims without incoming Connections become axioms/assumptions by
-   definition, making the epistemological foundation explicit rather than hidden. Falsifiability emerges from graph topology: falsifiable Claims must
+   definition, making the epistemological foundation explicit rather than hidden. Falsifiability emerges from graph topology.
    have potential Sources that could connect with negative/contradictory
   relationships. This creates a clean separation between the formal reasoning layer
   (the graph) and the contextual/interpretive layer (comments), where users can argue
@@ -179,4 +176,13 @@ Made the plan for node forking and merging.
 
 We integrated Django into the project to manage temporal version logging, creating backend/PS_Django_DB/ with a bookkeeper app containing NodeVersion and EdgeVersion models. Django is configured to use the same ostgreSQL publicsphere database as AGE, with UUIDs serving as the consistent identifier format. 
 Making logging.py wrapper. 
-Functional, modifying language.py to include 
+Made compound connections in the backend. 
+Got the hierarchy working with a cytoscape extension called Dagre. 
+Next is to plan the major steps before release, designing. 
+
+Made basic source nodes and negative connections together. 
+Thinking about security.
+added 30 second query timeout within database.py 
+Makng users. Admins can't see anon attributions. 
+Users made (phase 1 in plan.md)
+Superuser, Admin, Moderator hierarchy defined. 
