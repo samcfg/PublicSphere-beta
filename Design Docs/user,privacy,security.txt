@@ -36,8 +36,9 @@ Shows, claims, sources, connections, ratings and comments.
 non-anonymous contributions are public to anyone looking at user page. 
 ### Data 
 Only viewable for user to their own user page. Shows contributions, as well as other table entries with their data: User profile, user, and attributions. Ready for gdpr export. 
-# Moderation
 
+
+# Moderation
 Three Tiers of Access
 
   1. Superuser (Infrastructure Layer)

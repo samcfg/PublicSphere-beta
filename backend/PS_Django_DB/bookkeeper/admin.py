@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ClaimVersion, SourceVersion, EdgeVersion
+from .models import ClaimVersion, SourceVersion, EdgeVersion, RatingVersion, CommentVersion
 
 
 @admin.register(ClaimVersion)
@@ -59,6 +59,62 @@ class EdgeVersionAdmin(admin.ModelAdmin):
                       'notes', 'logic_type', 'composite_id', 'operation', 'timestamp',
                       'valid_from', 'valid_to', 'changed_by', 'change_notes')
     ordering = ('-timestamp',)
+
+    def has_add_permission(self, request):
+        """Prevent manual creation - versions only via logging.py"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deletion - maintain version audit trail"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Allow viewing but prevent editing"""
+        return False
+
+
+@admin.register(RatingVersion)
+class RatingVersionAdmin(admin.ModelAdmin):
+    """Read-only admin for rating version history - append-only audit trail"""
+    list_display = ('rating_id', 'version_number', 'user_id', 'entity_uuid', 'entity_type', 'dimension', 'score', 'operation', 'timestamp')
+    list_filter = ('entity_type', 'dimension', 'operation', 'timestamp')
+    search_fields = ('rating_id', 'entity_uuid', 'user_id')
+    readonly_fields = ('rating_id', 'version_number', 'user_id', 'entity_uuid', 'entity_type',
+                      'dimension', 'score', 'operation', 'timestamp', 'valid_from', 'valid_to',
+                      'change_notes')
+    ordering = ('-timestamp',)
+
+    def has_add_permission(self, request):
+        """Prevent manual creation - versions only via logging.py"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deletion - maintain version audit trail"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Allow viewing but prevent editing"""
+        return False
+
+
+@admin.register(CommentVersion)
+class CommentVersionAdmin(admin.ModelAdmin):
+    """Read-only admin for comment version history - append-only audit trail"""
+    list_display = ('comment_id', 'version_number', 'user_id', 'entity_uuid', 'entity_type', 'content_preview', 'is_deleted', 'operation', 'timestamp')
+    list_filter = ('entity_type', 'is_deleted', 'operation', 'timestamp')
+    search_fields = ('comment_id', 'entity_uuid', 'user_id', 'content')
+    readonly_fields = ('comment_id', 'version_number', 'user_id', 'entity_uuid', 'entity_type',
+                      'content', 'parent_comment_id', 'is_deleted', 'operation', 'timestamp',
+                      'valid_from', 'valid_to', 'change_notes')
+    ordering = ('-timestamp',)
+
+    def content_preview(self, obj):
+        """Show first 50 chars of content"""
+        preview = obj.content[:50]
+        if len(obj.content) > 50:
+            preview += '...'
+        return preview
+    content_preview.short_description = 'Content'
 
     def has_add_permission(self, request):
         """Prevent manual creation - versions only via logging.py"""

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'bookkeeper',
     'users',
     'graph',
+    'social',
 ]
 
 MIDDLEWARE = [

@@ -286,7 +286,6 @@
   - bookkeeper/models.py (add RatingVersion, CommentVersion)
   - bookkeeper/admin.py (protect rating/comment versions)
   - users/services.py (extend reputation calculation)
-  - logging.py (log rating/comment versions)
   - test_data.py (generate ratings/comments, test via DRF API)
   - settings.py (add social app to INSTALLED_APPS)
   - config/urls.py (add social/ app routes)

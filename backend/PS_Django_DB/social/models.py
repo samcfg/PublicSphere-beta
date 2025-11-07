@@ -1,0 +1,217 @@
+from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
+from users.models import User
+
+
+class Rating(models.Model):
+    """
+    User ratings on graph entities (claims, sources, connections).
+    Scores aggregate into global_strength values for reputation calculation.
+
+    Design: No graph DB changes—all Django. Ratings stored relationally,
+    aggregated on-demand or cached in Redis.
+    """
+    DIMENSION_CHOICES = [
+        ('confidence', 'Confidence'),
+        ('relevance', 'Relevance'),
+    ]
+
+    ENTITY_TYPE_CHOICES = [
+        ('claim', 'Claim'),
+        ('source', 'Source'),
+        ('connection', 'Connection'),
+        ('comment', 'Comment'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    entity_uuid = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID of the claim, source, or connection being rated"
+    )
+    entity_type = models.CharField(
+        max_length=20,
+        choices=ENTITY_TYPE_CHOICES
+    )
+    dimension = models.CharField(
+        max_length=20,
+        choices=DIMENSION_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Optional: What aspect is being rated (confidence or relevance)"
+    )
+    score = models.FloatField(
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Rating score from 0-100"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ratings'
+        verbose_name = 'Rating'
+        verbose_name_plural = 'Ratings'
+        indexes = [
+            models.Index(fields=['entity_uuid']),  # Entity lookup
+            models.Index(fields=['user']),  # User ratings
+            models.Index(fields=['entity_uuid', 'dimension']),  # Aggregation queries
+        ]
+        # One rating per user per entity (or per dimension if specified)
+        unique_together = [['user', 'entity_uuid', 'entity_type', 'dimension']]
+
+    def __str__(self):
+        return f"{self.user.username} rated {self.entity_type} {self.entity_uuid[:8]} ({self.dimension}): {self.score}"
+
+
+class Comment(models.Model):
+    """
+    Threaded comments on graph entities.
+    Supports nested replies via parent_comment_id (self-referencing FK).
+    Soft-delete via is_deleted flag (preserves structure, hides content).
+
+    Design: Comments provide human interpretive layer without cluttering
+    formal graph structure. Version history tracked in bookkeeper.CommentVersion.
+    """
+    ENTITY_TYPE_CHOICES = [
+        ('claim', 'Claim'),
+        ('source', 'Source'),
+        ('connection', 'Connection'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,  # Allow [deleted] display on user deletion
+        related_name='comments'
+    )
+    entity_uuid = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID of the claim, source, or connection being commented on"
+    )
+    entity_type = models.CharField(
+        max_length=20,
+        choices=ENTITY_TYPE_CHOICES
+    )
+    content = models.TextField(
+        help_text="Comment text content"
+    )
+    parent_comment = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+        help_text="If set, this is a reply to another comment"
+    )
+    is_deleted = models.BooleanField(
+        default=False,
+        help_text="Soft delete flag—hides content in UI, preserves structure"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'comments'
+        verbose_name = 'Comment'
+        verbose_name_plural = 'Comments'
+        indexes = [
+            models.Index(fields=['entity_uuid']),  # Entity comment lookup
+            models.Index(fields=['user']),  # User comments
+            models.Index(fields=['parent_comment']),  # Thread traversal
+            models.Index(fields=['timestamp']),  # Chronological ordering
+        ]
+
+    def __str__(self):
+        user_display = self.user.username if self.user else "[deleted]"
+        status = " (deleted)" if self.is_deleted else ""
+        return f"Comment by {user_display} on {self.entity_type} {self.entity_uuid[:8]}{status}"
+
+    def get_display_content(self):
+        """
+        Returns content for UI rendering.
+        - "[deleted]" if is_deleted is True
+        - actual content otherwise
+        """
+        if self.is_deleted:
+            return "[deleted]"
+        return self.content
+
+
+class FlaggedContent(models.Model):
+    """
+    Moderation flags for review.
+    Created by moderators/admins to mark entities for staff investigation.
+
+    Design: Moderators flag suspicious content → staff admins review queue
+    → take action (hide, verify, ignore).
+    """
+    ENTITY_TYPE_CHOICES = [
+        ('claim', 'Claim'),
+        ('source', 'Source'),
+        ('connection', 'Connection'),
+        ('comment', 'Comment'),
+        ('rating', 'Rating'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('reviewed', 'Reviewed'),
+        ('action_taken', 'Action Taken'),
+        ('dismissed', 'Dismissed'),
+    ]
+
+    entity_uuid = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID of the flagged entity"
+    )
+    entity_type = models.CharField(
+        max_length=20,
+        choices=ENTITY_TYPE_CHOICES
+    )
+    flagged_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='flags_created'
+    )
+    reason = models.TextField(
+        help_text="Explanation for why this content was flagged"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='flags_reviewed',
+        help_text="Staff admin who reviewed this flag"
+    )
+    resolution_notes = models.TextField(
+        blank=True,
+        default='',
+        help_text="Notes from staff admin review"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'flagged_content'
+        verbose_name = 'Flagged Content'
+        verbose_name_plural = 'Flagged Content'
+        indexes = [
+            models.Index(fields=['entity_uuid']),
+            models.Index(fields=['status']),  # Pending queue lookup
+            models.Index(fields=['flagged_by']),
+            models.Index(fields=['timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.entity_type} {self.entity_uuid[:8]} flagged by {self.flagged_by.username if self.flagged_by else '[deleted]'}"

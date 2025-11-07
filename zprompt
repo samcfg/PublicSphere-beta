@@ -1,2 +1,14 @@
 We should make sure that moderators only recieve appended attribution tables, where the anonymous ones 1
 user_id optional parameter in language? ramafications? 
+For entities that have user_id=null, this displays as "deleted" in UI. I think "anonymous" is better. 
+● Component libraries:
+  - shadcn/ui (headless, customizable,
+  Tailwind-based—very popular)
+  - Radix UI (primitives, accessibility-focused)
+  - Mantine (full-featured, good defaults)
+  - Ant Design (enterprise-grade, comprehensive)
+
+  Graph-specific:
+  - reactflow.dev (interactive node graphs, might
+  replace Cytoscape for React)
+

@@ -1,0 +1,388 @@
+"""
+Social interaction business logic.
+Handles ratings, comments, and moderation operations.
+"""
+from typing import Dict, List, Optional
+from django.db.models import Avg, Count, Q, StdDev
+from django.utils import timezone
+from social.models import Rating, Comment, FlaggedContent
+from users.models import User
+
+
+class RatingService:
+    """Service for rating operations and aggregation"""
+
+    @staticmethod
+    def rate_entity(user_id: int, entity_uuid: str, entity_type: str,
+                   score: float, dimension: Optional[str] = None) -> Rating:
+        """
+        Create or update a rating.
+
+        Args:
+            user_id: User making the rating
+            entity_uuid: UUID of entity being rated
+            entity_type: 'claim', 'source', 'connection', or 'comment'
+            score: Rating score (0-100)
+            dimension: Optional dimension ('confidence' or 'relevance')
+
+        Returns:
+            Rating instance (created or updated)
+        """
+        rating, created = Rating.objects.update_or_create(
+            user_id=user_id,
+            entity_uuid=entity_uuid,
+            entity_type=entity_type,
+            dimension=dimension,
+            defaults={'score': score}
+        )
+        return rating
+
+    @staticmethod
+    def get_entity_ratings(entity_uuid: str, dimension: Optional[str] = None) -> Dict:
+        """
+        Get aggregated ratings for an entity.
+
+        Args:
+            entity_uuid: UUID of entity
+            dimension: Optional filter by dimension
+
+        Returns:
+            Dict with: avg_score, count, stddev, distribution
+        """
+        query = Rating.objects.filter(entity_uuid=entity_uuid)
+        if dimension:
+            query = query.filter(dimension=dimension)
+
+        aggregates = query.aggregate(
+            avg_score=Avg('score'),
+            count=Count('id'),
+            stddev=StdDev('score')
+        )
+
+        # Score distribution (0-20, 20-40, 40-60, 60-80, 80-100)
+        distribution = {
+            '0-20': query.filter(score__gte=0, score__lt=20).count(),
+            '20-40': query.filter(score__gte=20, score__lt=40).count(),
+            '40-60': query.filter(score__gte=40, score__lt=60).count(),
+            '60-80': query.filter(score__gte=60, score__lt=80).count(),
+            '80-100': query.filter(score__gte=80, score__lte=100).count(),
+        }
+
+        return {
+            'avg_score': round(aggregates['avg_score'], 2) if aggregates['avg_score'] else None,
+            'count': aggregates['count'],
+            'stddev': round(aggregates['stddev'], 2) if aggregates['stddev'] else None,
+            'distribution': distribution
+        }
+
+    @staticmethod
+    def get_user_ratings(user_id: int, entity_type: Optional[str] = None) -> List[Rating]:
+        """
+        Get all ratings by a user.
+
+        Args:
+            user_id: User ID
+            entity_type: Optional filter by entity type
+
+        Returns:
+            List of Rating instances
+        """
+        query = Rating.objects.filter(user_id=user_id)
+        if entity_type:
+            query = query.filter(entity_type=entity_type)
+        return list(query.order_by('-timestamp'))
+
+    @staticmethod
+    def delete_rating(user_id: int, entity_uuid: str, entity_type: str,
+                     dimension: Optional[str] = None) -> bool:
+        """
+        Delete a user's rating.
+
+        Args:
+            user_id: User who created the rating
+            entity_uuid: UUID of rated entity
+            entity_type: Entity type
+            dimension: Optional dimension
+
+        Returns:
+            True if deleted, False if not found
+        """
+        try:
+            rating = Rating.objects.get(
+                user_id=user_id,
+                entity_uuid=entity_uuid,
+                entity_type=entity_type,
+                dimension=dimension
+            )
+            rating.delete()
+            return True
+        except Rating.DoesNotExist:
+            return False
+
+    @staticmethod
+    def get_controversial_entities(limit: int = 50) -> List[Dict]:
+        """
+        Find entities with high rating variance (controversial).
+
+        Args:
+            limit: Maximum number to return
+
+        Returns:
+            List of dicts with entity info and variance metrics
+        """
+        # Group by entity, calculate stddev
+        from django.db.models import F
+        controversial = (
+            Rating.objects
+            .values('entity_uuid', 'entity_type')
+            .annotate(
+                count=Count('id'),
+                avg_score=Avg('score'),
+                stddev=StdDev('score')
+            )
+            .filter(count__gte=5, stddev__isnull=False)  # At least 5 ratings
+            .order_by('-stddev')[:limit]
+        )
+
+        return list(controversial)
+
+
+class CommentService:
+    """Service for comment operations"""
+
+    @staticmethod
+    def create_comment(user_id: int, entity_uuid: str, entity_type: str,
+                      content: str, parent_comment_id: Optional[int] = None) -> Comment:
+        """
+        Create a new comment.
+
+        Args:
+            user_id: User creating comment
+            entity_uuid: UUID of entity being commented on
+            entity_type: 'claim', 'source', 'connection', or 'comment'
+            content: Comment text
+            parent_comment_id: If set, this is a reply
+
+        Returns:
+            Comment instance
+        """
+        comment = Comment.objects.create(
+            user_id=user_id,
+            entity_uuid=entity_uuid,
+            entity_type=entity_type,
+            content=content,
+            parent_comment_id=parent_comment_id
+        )
+        return comment
+
+    @staticmethod
+    def get_entity_comments(entity_uuid: str, include_deleted: bool = False) -> List[Comment]:
+        """
+        Get all comments for an entity (flat list, sorted by timestamp).
+
+        Args:
+            entity_uuid: UUID of entity
+            include_deleted: If True, include soft-deleted comments
+
+        Returns:
+            List of Comment instances
+        """
+        query = Comment.objects.filter(entity_uuid=entity_uuid)
+        if not include_deleted:
+            query = query.filter(is_deleted=False)
+        return list(query.order_by('timestamp'))
+
+    @staticmethod
+    def get_comment_thread(comment_id: int, include_deleted: bool = False) -> List[Comment]:
+        """
+        Get all replies to a comment (nested thread).
+
+        Args:
+            comment_id: Parent comment ID
+            include_deleted: If True, include soft-deleted comments
+
+        Returns:
+            List of Comment instances (replies)
+        """
+        query = Comment.objects.filter(parent_comment_id=comment_id)
+        if not include_deleted:
+            query = query.filter(is_deleted=False)
+        return list(query.order_by('timestamp'))
+
+    @staticmethod
+    def update_comment(comment_id: int, user_id: int, new_content: str) -> Optional[Comment]:
+        """
+        Update comment content (must be own comment).
+
+        Args:
+            comment_id: Comment ID
+            user_id: User making the request
+            new_content: New comment text
+
+        Returns:
+            Updated Comment instance or None if not found/unauthorized
+        """
+        try:
+            comment = Comment.objects.get(id=comment_id, user_id=user_id)
+            comment.content = new_content
+            comment.save()
+            return comment
+        except Comment.DoesNotExist:
+            return None
+
+    @staticmethod
+    def soft_delete_comment(comment_id: int, user_id: int, is_moderator: bool = False) -> bool:
+        """
+        Soft-delete a comment (user or moderator action).
+
+        Args:
+            comment_id: Comment ID
+            user_id: User making the request
+            is_moderator: If True, allows deleting others' comments
+
+        Returns:
+            True if deleted, False if not found/unauthorized
+        """
+        try:
+            if is_moderator:
+                comment = Comment.objects.get(id=comment_id)
+            else:
+                comment = Comment.objects.get(id=comment_id, user_id=user_id)
+
+            comment.is_deleted = True
+            comment.save()
+            return True
+        except Comment.DoesNotExist:
+            return False
+
+    @staticmethod
+    def hard_delete_comment(comment_id: int) -> bool:
+        """
+        Permanently delete a comment (staff admin only).
+
+        Args:
+            comment_id: Comment ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        try:
+            comment = Comment.objects.get(id=comment_id)
+            comment.delete()
+            return True
+        except Comment.DoesNotExist:
+            return False
+
+    @staticmethod
+    def get_user_comments(user_id: int, include_deleted: bool = False) -> List[Comment]:
+        """
+        Get all comments by a user.
+
+        Args:
+            user_id: User ID
+            include_deleted: If True, include soft-deleted comments
+
+        Returns:
+            List of Comment instances
+        """
+        query = Comment.objects.filter(user_id=user_id)
+        if not include_deleted:
+            query = query.filter(is_deleted=False)
+        return list(query.order_by('-timestamp'))
+
+
+class ModerationService:
+    """Service for moderation operations"""
+
+    @staticmethod
+    def flag_entity(flagged_by_id: int, entity_uuid: str, entity_type: str,
+                   reason: str) -> FlaggedContent:
+        """
+        Flag content for moderator review.
+
+        Args:
+            flagged_by_id: User/moderator flagging the content
+            entity_uuid: UUID of flagged entity
+            entity_type: Entity type
+            reason: Explanation for flag
+
+        Returns:
+            FlaggedContent instance
+        """
+        flag = FlaggedContent.objects.create(
+            flagged_by_id=flagged_by_id,
+            entity_uuid=entity_uuid,
+            entity_type=entity_type,
+            reason=reason
+        )
+        return flag
+
+    @staticmethod
+    def get_pending_flags(limit: Optional[int] = None) -> List[FlaggedContent]:
+        """
+        Get all pending moderation flags.
+
+        Args:
+            limit: Optional limit on results
+
+        Returns:
+            List of FlaggedContent instances
+        """
+        query = FlaggedContent.objects.filter(status='pending').order_by('timestamp')
+        if limit:
+            query = query[:limit]
+        return list(query)
+
+    @staticmethod
+    def resolve_flag(flag_id: int, reviewed_by_id: int, status: str,
+                    resolution_notes: str = '') -> Optional[FlaggedContent]:
+        """
+        Resolve a moderation flag (staff admin action).
+
+        Args:
+            flag_id: FlaggedContent ID
+            reviewed_by_id: Staff admin resolving the flag
+            status: New status ('reviewed', 'action_taken', 'dismissed')
+            resolution_notes: Optional notes from reviewer
+
+        Returns:
+            Updated FlaggedContent instance or None if not found
+        """
+        try:
+            flag = FlaggedContent.objects.get(id=flag_id)
+            flag.status = status
+            flag.reviewed_by_id = reviewed_by_id
+            flag.resolution_notes = resolution_notes
+            flag.reviewed_at = timezone.now()
+            flag.save()
+            return flag
+        except FlaggedContent.DoesNotExist:
+            return None
+
+    @staticmethod
+    def get_entity_flags(entity_uuid: str) -> List[FlaggedContent]:
+        """
+        Get all flags for a specific entity.
+
+        Args:
+            entity_uuid: UUID of entity
+
+        Returns:
+            List of FlaggedContent instances
+        """
+        return list(FlaggedContent.objects.filter(entity_uuid=entity_uuid).order_by('-timestamp'))
+
+
+def get_rating_service() -> RatingService:
+    """Get rating service instance"""
+    return RatingService()
+
+
+def get_comment_service() -> CommentService:
+    """Get comment service instance"""
+    return CommentService()
+
+
+def get_moderation_service() -> ModerationService:
+    """Get moderation service instance"""
+    return ModerationService()
