@@ -1,0 +1,480 @@
+/**
+ * Frontend API client for PublicSphere DRF backend.
+ * All functions return standardized {data, meta, error} responses.
+ * Pure functions - no classes, fully compatible with React hooks.
+ */
+
+const BASE_URL = '/api';
+
+/**
+ * Generic fetch wrapper with error handling
+ * @private
+ */
+async function apiFetch(url, options = {}) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+
+    const json = await response.json();
+
+    // Backend already returns {data, meta, error} format
+    return json;
+  } catch (error) {
+    // Network or parse errors
+    return {
+      data: null,
+      meta: { timestamp: new Date().toISOString(), source: 'client' },
+      error: error.message,
+    };
+  }
+}
+
+// ============================================================================
+// GRAPH API - Claims, Sources, Connections
+// ============================================================================
+
+/**
+ * Fetch all claims
+ * GET /api/claims/
+ */
+export async function fetchClaims() {
+  return apiFetch(`${BASE_URL}/claims/`);
+}
+
+/**
+ * Create a new claim
+ * POST /api/claims/
+ * @param {Object} data - {content: string}
+ */
+export async function createClaim(data) {
+  return apiFetch(`${BASE_URL}/claims/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get connections for a specific claim
+ * GET /api/claims/:id/
+ */
+export async function fetchClaimConnections(claimId) {
+  return apiFetch(`${BASE_URL}/claims/${claimId}/`);
+}
+
+/**
+ * Update claim properties
+ * PATCH /api/claims/:id/
+ * @param {string} claimId
+ * @param {Object} data - Properties to update
+ */
+export async function updateClaim(claimId, data) {
+  return apiFetch(`${BASE_URL}/claims/${claimId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Delete a claim
+ * DELETE /api/claims/:id/
+ */
+export async function deleteClaim(claimId) {
+  return apiFetch(`${BASE_URL}/claims/${claimId}/`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Fetch all sources
+ * GET /api/sources/
+ */
+export async function fetchSources() {
+  return apiFetch(`${BASE_URL}/sources/`);
+}
+
+/**
+ * Create a new source
+ * POST /api/sources/
+ * @param {Object} data - {url, title, author, publication_date, source_type, content}
+ */
+export async function createSource(data) {
+  return apiFetch(`${BASE_URL}/sources/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get connections for a specific source
+ * GET /api/sources/:id/
+ */
+export async function fetchSourceConnections(sourceId) {
+  return apiFetch(`${BASE_URL}/sources/${sourceId}/`);
+}
+
+/**
+ * Update source properties
+ * PATCH /api/sources/:id/
+ */
+export async function updateSource(sourceId, data) {
+  return apiFetch(`${BASE_URL}/sources/${sourceId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Delete a source
+ * DELETE /api/sources/:id/
+ */
+export async function deleteSource(sourceId) {
+  return apiFetch(`${BASE_URL}/sources/${sourceId}/`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Create a connection (single or compound)
+ * POST /api/connections/
+ * Single: {from_node_id, to_node_id, notes?, logic_type?, composite_id?}
+ * Compound: {source_node_ids: [ids], target_node_id, logic_type, notes?, composite_id?}
+ */
+export async function createConnection(data) {
+  return apiFetch(`${BASE_URL}/connections/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Update connection properties (individual or composite_id)
+ * PATCH /api/connections/:id/
+ */
+export async function updateConnection(connectionId, data) {
+  return apiFetch(`${BASE_URL}/connections/${connectionId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Delete connection (individual or composite_id)
+ * DELETE /api/connections/:id/
+ */
+export async function deleteConnection(connectionId) {
+  return apiFetch(`${BASE_URL}/connections/${connectionId}/`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Fetch complete graph (claims, sources, edges)
+ * GET /api/graph/
+ */
+export async function fetchGraphData() {
+  return apiFetch(`${BASE_URL}/graph/`);
+}
+
+// ============================================================================
+// USER API - Authentication, Profiles, Contributions
+// ============================================================================
+
+/**
+ * Register new user
+ * POST /api/users/register/
+ * @param {Object} data - {username, email, password}
+ */
+export async function registerUser(data) {
+  return apiFetch(`${BASE_URL}/users/register/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Login user
+ * POST /api/users/login/
+ * @param {Object} data - {username, password}
+ * @returns {data: {user, token}}
+ */
+export async function loginUser(data) {
+  return apiFetch(`${BASE_URL}/users/login/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Logout user
+ * POST /api/users/logout/
+ * @param {string} token - Auth token
+ */
+export async function logoutUser(token) {
+  return apiFetch(`${BASE_URL}/users/logout/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Get authenticated user's profile
+ * GET /api/users/profile/
+ * @param {string} token - Auth token
+ */
+export async function fetchUserProfile(token) {
+  return apiFetch(`${BASE_URL}/users/profile/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Update authenticated user's profile
+ * PUT /api/users/profile/
+ * @param {string} token - Auth token
+ * @param {Object} data - Profile fields to update
+ */
+export async function updateUserProfile(token, data) {
+  return apiFetch(`${BASE_URL}/users/profile/`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get public profile for any user
+ * GET /api/users/profile/:username/
+ */
+export async function fetchPublicProfile(username) {
+  return apiFetch(`${BASE_URL}/users/profile/${username}/`);
+}
+
+/**
+ * Get authenticated user's contributions
+ * GET /api/users/contributions/
+ * @param {string} token - Auth token
+ */
+export async function fetchUserContributions(token) {
+  return apiFetch(`${BASE_URL}/users/contributions/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Get attribution info for an entity
+ * GET /api/users/attribution/:uuid/?type=claim|source|connection
+ */
+export async function fetchEntityAttribution(entityUuid, entityType) {
+  return apiFetch(`${BASE_URL}/users/attribution/${entityUuid}/?type=${entityType}`);
+}
+
+/**
+ * Toggle anonymity for user's contribution
+ * POST /api/users/toggle-anonymity/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_uuid, entity_type, version_number?}
+ */
+export async function toggleAnonymity(token, data) {
+  return apiFetch(`${BASE_URL}/users/toggle-anonymity/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get leaderboard
+ * GET /api/users/leaderboard/?limit=100
+ */
+export async function fetchLeaderboard(limit = 100) {
+  return apiFetch(`${BASE_URL}/users/leaderboard/?limit=${limit}`);
+}
+
+// ============================================================================
+// SOCIAL API - Ratings, Comments, Moderation
+// ============================================================================
+
+/**
+ * Create or update rating
+ * POST /api/social/ratings/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_uuid, entity_type, dimension, score}
+ */
+export async function rateEntity(token, data) {
+  return apiFetch(`${BASE_URL}/social/ratings/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get aggregated ratings for entity
+ * GET /api/social/ratings/?entity=uuid&dimension=confidence|relevance
+ */
+export async function fetchEntityRatings(entityUuid, dimension = null) {
+  const url = dimension
+    ? `${BASE_URL}/social/ratings/?entity=${entityUuid}&dimension=${dimension}`
+    : `${BASE_URL}/social/ratings/?entity=${entityUuid}`;
+  return apiFetch(url);
+}
+
+/**
+ * Delete user's own rating
+ * DELETE /api/social/ratings/?entity=uuid&entity_type=type&dimension=dimension
+ * @param {string} token - Auth token
+ */
+export async function deleteRating(token, entityUuid, entityType, dimension = null) {
+  const url = dimension
+    ? `${BASE_URL}/social/ratings/?entity=${entityUuid}&entity_type=${entityType}&dimension=${dimension}`
+    : `${BASE_URL}/social/ratings/?entity=${entityUuid}&entity_type=${entityType}`;
+  return apiFetch(url, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Create comment
+ * POST /api/social/comments/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_uuid, entity_type, content, parent_comment?}
+ */
+export async function createComment(token, data) {
+  return apiFetch(`${BASE_URL}/social/comments/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get comments for entity
+ * GET /api/social/comments/?entity=uuid
+ */
+export async function fetchEntityComments(entityUuid) {
+  return apiFetch(`${BASE_URL}/social/comments/?entity=${entityUuid}`);
+}
+
+/**
+ * Update comment content
+ * PATCH /api/social/comments/:id/
+ * @param {string} token - Auth token
+ * @param {Object} data - {content}
+ */
+export async function updateComment(token, commentId, data) {
+  return apiFetch(`${BASE_URL}/social/comments/${commentId}/`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Delete comment (soft delete)
+ * DELETE /api/social/comments/:id/
+ * @param {string} token - Auth token
+ */
+export async function deleteComment(token, commentId) {
+  return apiFetch(`${BASE_URL}/social/comments/${commentId}/`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Flag entity for moderation (moderator only)
+ * POST /api/social/moderation/flag/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_uuid, entity_type, reason}
+ */
+export async function flagEntity(token, data) {
+  return apiFetch(`${BASE_URL}/social/moderation/flag/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get pending moderation flags (moderator only)
+ * GET /api/social/moderation/flags/pending/
+ * @param {string} token - Auth token
+ */
+export async function fetchPendingFlags(token) {
+  return apiFetch(`${BASE_URL}/social/moderation/flags/pending/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Resolve moderation flag (staff admin only)
+ * POST /api/social/moderation/flags/:id/resolve/
+ * @param {string} token - Auth token
+ * @param {Object} data - {status: 'reviewed'|'action_taken'|'dismissed', resolution_notes?}
+ */
+export async function resolveFlag(token, flagId, data) {
+  return apiFetch(`${BASE_URL}/social/moderation/flags/${flagId}/resolve/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get controversial entities
+ * GET /api/social/controversial/?limit=50
+ */
+export async function fetchControversialEntities(limit = 50) {
+  return apiFetch(`${BASE_URL}/social/controversial/?limit=${limit}`);
+}
+
+// ============================================================================
+// TEMPORAL API - Version History, Snapshots
+// ============================================================================
+
+/**
+ * Get all versions for a claim
+ * GET /api/temporal/claims/:node_id/versions/
+ */
+export async function fetchClaimVersions(nodeId) {
+  return apiFetch(`${BASE_URL}/temporal/claims/${nodeId}/versions/`);
+}
+
+/**
+ * Get all versions for a source
+ * GET /api/temporal/sources/:node_id/versions/
+ */
+export async function fetchSourceVersions(nodeId) {
+  return apiFetch(`${BASE_URL}/temporal/sources/${nodeId}/versions/`);
+}
+
+/**
+ * Get all versions for a connection
+ * GET /api/temporal/edges/:edge_id/versions/
+ */
+export async function fetchConnectionVersions(edgeId) {
+  return apiFetch(`${BASE_URL}/temporal/edges/${edgeId}/versions/`);
+}
+
+/**
+ * Get graph state at specific timestamp
+ * GET /api/temporal/snapshot/?timestamp=ISO8601
+ * @param {string} timestamp - ISO8601 timestamp
+ */
+export async function fetchGraphSnapshot(timestamp) {
+  return apiFetch(`${BASE_URL}/temporal/snapshot/?timestamp=${encodeURIComponent(timestamp)}`);
+}
+
+/**
+ * Get complete edit history for any entity
+ * GET /api/temporal/history/?entity_uuid=uuid&entity_type=claim|source|connection
+ */
+export async function fetchEntityHistory(entityUuid, entityType) {
+  return apiFetch(`${BASE_URL}/temporal/history/?entity_uuid=${entityUuid}&entity_type=${entityType}`);
+}

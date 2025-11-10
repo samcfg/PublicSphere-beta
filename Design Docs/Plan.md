@@ -155,7 +155,7 @@
 - **Authentication**: Session-based auth via Django sessions (built-in)
 - **CORS**: Not needed (same-origin: frontend served from Django, API on same domain)
 
-### Input Validation
+### Input Validation *only added cypher escape method and 
 - **language.py**: Validate UUIDs, content lengths, allowed characters; sanitize XSS
 - **schema.py**: Add validation rules (max lengths, regex patterns, enums for logic_type/source_type)
 - **social/services.py**: Sanitize comment/rating content (XSS prevention, length limits)

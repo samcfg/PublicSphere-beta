@@ -362,7 +362,7 @@ export function Graph({ data }) {
 }
 ```
 
-### Step 6: Convert modules/ui.js → components/UI.jsx
+### Step 6: Convert modules/ui.js → components/UI.jsx Make this part of a pages file?? 
 **Goal:** Convert UI controls to React components.
 
 **Key changes:**
@@ -457,7 +457,7 @@ root.render(
 
 **Note:** Vite handles all imports, CSS, and bundling from the single entry point.
 
-### Step 9: Configure Django to Serve Frontend
+### Step 9: Configure Django to Serve Frontend (How does Index work?)
 **Goal:** Point Django at `frontend/` directory, serve index.html at `/`.
 
 **In `backend/PS_Django_DB/config/settings.py`:**

@@ -1,0 +1,71 @@
+/**
+ * Design Tokens - Single Source of Truth
+ * CSS Custom Properties for colors, spacing, typography
+ * Light mode (default) and dark mode variants
+ */
+
+:root {
+  /* Background colors */
+  --bg-primary: #1a202c;
+  --bg-secondary: #2d3748;
+  --bg-tertiary: #4a5568;
+
+  /* Text colors */
+  --text-primary: #e2e8f0;
+  --text-secondary: #f7fafc;
+
+  /* Accent colors */
+  --accent-green: #68d391;
+  --accent-blue: #63b3ed;
+  --accent-blue-dark: #3182ce;
+  --accent-red: #e74c3c;
+
+  /* Border colors */
+  --border-color: #718096;
+
+  /* Status colors */
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+
+  /* Spacing scale (optional, can be extended) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 20px;
+  --spacing-xl: 32px;
+
+  /* Typography */
+  --font-family-base: Arial, sans-serif;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+}
+
+/* Dark mode variant - toggled via class on <html> element */
+.dark {
+  /* Background colors - lighter for dark mode */
+  --bg-primary: #0f1419;
+  --bg-secondary: #1a1f2e;
+  --bg-tertiary: #2a3040;
+
+  /* Text colors - darker for dark mode */
+  --text-primary: #cbd5e0;
+  --text-secondary: #e2e8f0;
+
+  /* Accent colors - can adjust saturation/brightness for dark mode */
+  --accent-green: #48bb78;
+  --accent-blue: #4299e1;
+  --accent-blue-dark: #2b6cb0;
+  --accent-red: #fc8181;
+
+  /* Border colors */
+  --border-color: #4a5568;
+
+  /* Status colors */
+  --success-bg: #2f855a;
+  --success-text: #c6f6d5;
+  --error-bg: #c53030;
+  --error-text: #fed7d7;
+}

@@ -3,12 +3,12 @@ User authentication and profile views.
 Provides REST API endpoints for user management.
 """
 from rest_framework import status, generics, permissions
-from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import login, logout
 from django.shortcuts import get_object_or_404
 
+from common.api_standards import standard_response, StandardResponseMixin
 from users.models import User, UserProfile, UserAttribution, UserModificationAttribution
 from users.serializers import (
     UserRegistrationSerializer,
@@ -36,11 +36,12 @@ class UserRegistrationView(APIView):
             user = serializer.save()
             # Create auth token
             token, created = Token.objects.get_or_create(user=user)
-            return Response({
-                'user': UserSerializer(user).data,
-                'token': token.key
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                data={'user': UserSerializer(user).data, 'token': token.key},
+                status_code=status.HTTP_201_CREATED,
+                source='users'
+            )
+        return standard_response(error=serializer.errors, status_code=status.HTTP_400_BAD_REQUEST, source='users')
 
 
 class UserLoginView(APIView):
@@ -56,11 +57,11 @@ class UserLoginView(APIView):
             user = serializer.validated_data['user']
             token, created = Token.objects.get_or_create(user=user)
             login(request, user)
-            return Response({
-                'user': UserSerializer(user).data,
-                'token': token.key
-            }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                data={'user': UserSerializer(user).data, 'token': token.key},
+                source='users'
+            )
+        return standard_response(error=serializer.errors, status_code=status.HTTP_400_BAD_REQUEST, source='users')
 
 
 class UserLogoutView(APIView):
@@ -74,10 +75,10 @@ class UserLogoutView(APIView):
         # Delete token
         request.user.auth_token.delete()
         logout(request)
-        return Response({'detail': 'Successfully logged out'}, status=status.HTTP_200_OK)
+        return standard_response(data={'detail': 'Successfully logged out'}, source='users')
 
 
-class UserProfileView(generics.RetrieveUpdateAPIView):
+class UserProfileView(StandardResponseMixin, generics.RetrieveUpdateAPIView):
     """
     Retrieve or update user profile.
     GET/PUT /api/users/profile/
@@ -91,7 +92,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return profile
 
 
-class UserProfileDetailView(generics.RetrieveAPIView):
+class UserProfileDetailView(StandardResponseMixin, generics.RetrieveAPIView):
     """
     Retrieve public profile for any user by username.
     GET /api/users/profile/<username>/

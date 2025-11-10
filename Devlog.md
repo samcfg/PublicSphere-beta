@@ -186,3 +186,7 @@ added 30 second query timeout within database.py
 Makng users. Admins can't see anon attributions. 
 Users made (phase 1 in plan.md)
 Superuser, Admin, Moderator hierarchy defined. 
+Executing the frontentRevemp plan with some modifications: 
+  Formatted all the views, in a standard way, and Using api formatting in Django_DB/common/api_standards for formatting errors and things. 
+  Adding tailwind 4
+Project now works Identically as a single-page whole graph app running react. 

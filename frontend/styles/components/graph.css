@@ -1,0 +1,47 @@
+/**
+ * Graph Component Styles
+ * Cytoscape-specific styling and graph UI elements
+ * NO positioning rules - those are controlled via Tailwind in Graph.jsx
+ */
+
+/* Cytoscape container base styles (non-positioning) */
+#cy {
+  border: 1px solid var(--bg-tertiary);
+  background-color: var(--bg-secondary);
+}
+
+/* Edge tooltip */
+#edge-tooltip {
+  position: absolute;
+  background-color: var(--bg-primary);
+  border: 2px solid var(--accent-green);
+  border-radius: 6px;
+  padding: var(--spacing-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  max-width: 300px;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+#edge-tooltip .tooltip-label {
+  font-weight: bold;
+  color: var(--accent-green);
+  margin-bottom: var(--spacing-sm);
+}
+
+#edge-tooltip .tooltip-content {
+  line-height: 1.4;
+}
+
+/* Cytoscape edge transitions (smooth hover effects) */
+.cy-edge {
+  transition: width 0.2s ease, line-color 0.2s ease;
+}
+
+/* Cytoscape node transitions */
+.cy-node {
+  transition: background-color 0.2s ease, border-width 0.2s ease;
+}

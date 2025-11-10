@@ -25,6 +25,7 @@ from social.services import (
     CommentService,
     ModerationService,
 )
+from common.api_standards import standard_response
 
 
 class RateEntityView(APIView):
@@ -47,16 +48,16 @@ class RateEntityView(APIView):
                 dimension=serializer.validated_data.get('dimension')
             )
             response_serializer = RatingSerializer(rating)
-            return Response({
-                'data': response_serializer.data,
-                'meta': {'source': 'social'},
-                'error': None
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            'data': None,
-            'meta': {'source': 'social'},
-            'error': {'code': 'validation_error', 'message': serializer.errors}
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                data=response_serializer.data,
+                status_code=status.HTTP_201_CREATED,
+                source='social'
+            )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
 
 
 class EntityRatingsView(APIView):
@@ -71,21 +72,17 @@ class EntityRatingsView(APIView):
         dimension = request.query_params.get('dimension')
 
         if not entity_uuid:
-            return Response({
-                'data': None,
-                'meta': {'source': 'social'},
-                'error': {'code': 'missing_parameter', 'message': 'entity parameter is required'}
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                error={'code': 'missing_parameter', 'message': 'entity parameter is required'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
 
         rating_service = RatingService()
         aggregates = rating_service.get_entity_ratings(entity_uuid, dimension)
 
         serializer = RatingAggregateSerializer(aggregates)
-        return Response({
-            'data': serializer.data,
-            'meta': {'source': 'social'},
-            'error': None
-        }, status=status.HTTP_200_OK)
+        return standard_response(data=serializer.data, source='social')
 
 
 class DeleteRatingView(APIView):
@@ -116,17 +113,13 @@ class DeleteRatingView(APIView):
         )
 
         if success:
-            return Response({
-                'data': {'deleted': True},
-                'meta': {'source': 'social'},
-                'error': None
-            }, status=status.HTTP_200_OK)
+            return standard_response(data={'deleted': True}, source='social')
         else:
-            return Response({
-                'data': None,
-                'meta': {'source': 'social'},
-                'error': {'code': 'not_found', 'message': 'Rating not found'}
-            }, status=status.HTTP_404_NOT_FOUND)
+            return standard_response(
+                error={'code': 'not_found', 'message': 'Rating not found'},
+                status_code=status.HTTP_404_NOT_FOUND,
+                source='social'
+            )
 
 
 class CommentEntityView(APIView):
@@ -149,16 +142,16 @@ class CommentEntityView(APIView):
                 parent_comment_id=serializer.validated_data.get('parent_comment').id if serializer.validated_data.get('parent_comment') else None
             )
             response_serializer = CommentSerializer(comment)
-            return Response({
-                'data': response_serializer.data,
-                'meta': {'source': 'social'},
-                'error': None
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            'data': None,
-            'meta': {'source': 'social'},
-            'error': {'code': 'validation_error', 'message': serializer.errors}
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                data=response_serializer.data,
+                status_code=status.HTTP_201_CREATED,
+                source='social'
+            )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
 
 
 class EntityCommentsView(APIView):
@@ -172,21 +165,17 @@ class EntityCommentsView(APIView):
         entity_uuid = request.query_params.get('entity')
 
         if not entity_uuid:
-            return Response({
-                'data': None,
-                'meta': {'source': 'social'},
-                'error': {'code': 'missing_parameter', 'message': 'entity parameter is required'}
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                error={'code': 'missing_parameter', 'message': 'entity parameter is required'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
 
         comment_service = CommentService()
         comments = comment_service.get_entity_comments(entity_uuid, include_deleted=False)
 
         serializer = CommentSerializer(comments, many=True)
-        return Response({
-            'data': serializer.data,
-            'meta': {'source': 'social', 'count': len(comments)},
-            'error': None
-        }, status=status.HTTP_200_OK)
+        return standard_response(data=serializer.data, source='social')
 
 
 class CommentDetailView(APIView):
@@ -209,22 +198,18 @@ class CommentDetailView(APIView):
             )
             if comment:
                 response_serializer = CommentSerializer(comment)
-                return Response({
-                    'data': response_serializer.data,
-                    'meta': {'source': 'social'},
-                    'error': None
-                }, status=status.HTTP_200_OK)
+                return standard_response(data=response_serializer.data, source='social')
             else:
-                return Response({
-                    'data': None,
-                    'meta': {'source': 'social'},
-                    'error': {'code': 'not_found', 'message': 'Comment not found or unauthorized'}
-                }, status=status.HTTP_404_NOT_FOUND)
-        return Response({
-            'data': None,
-            'meta': {'source': 'social'},
-            'error': {'code': 'validation_error', 'message': serializer.errors}
-        }, status=status.HTTP_400_BAD_REQUEST)
+                return standard_response(
+                    error={'code': 'not_found', 'message': 'Comment not found or unauthorized'},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    source='social'
+                )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
 
     def delete(self, request, comment_id):
         """Soft delete comment (own comment or moderator)"""
@@ -238,11 +223,7 @@ class CommentDetailView(APIView):
         )
 
         if success:
-            return Response({
-                'data': {'deleted': True},
-                'meta': {'source': 'social'},
-                'error': None
-            }, status=status.HTTP_200_OK)
+            return standard_response(data={'deleted': True}, source='social')
         else:
             return Response({
                 'data': None,
@@ -263,11 +244,11 @@ class FlagEntityView(APIView):
         # Verify user has moderator permissions
         is_moderator = request.user.groups.filter(name__in=['Moderator', 'Admin']).exists() or request.user.is_staff
         if not is_moderator:
-            return Response({
-                'data': None,
-                'meta': {'source': 'social'},
-                'error': {'code': 'permission_denied', 'message': 'Moderator permissions required'}
-            }, status=status.HTTP_403_FORBIDDEN)
+            return standard_response(
+                error={'code': 'permission_denied', 'message': 'Moderator permissions required'},
+                status_code=status.HTTP_403_FORBIDDEN,
+                source='social'
+            )
 
         serializer = FlagCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -279,16 +260,16 @@ class FlagEntityView(APIView):
                 reason=serializer.validated_data['reason']
             )
             response_serializer = FlagSerializer(flag)
-            return Response({
-                'data': response_serializer.data,
-                'meta': {'source': 'social'},
-                'error': None
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            'data': None,
-            'meta': {'source': 'social'},
-            'error': {'code': 'validation_error', 'message': serializer.errors}
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return standard_response(
+                data=response_serializer.data,
+                status_code=status.HTTP_201_CREATED,
+                source='social'
+            )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
 
 
 class PendingFlagsView(ListAPIView):
@@ -312,11 +293,7 @@ class PendingFlagsView(ListAPIView):
         """Wrap response in standard format"""
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'data': serializer.data,
-            'meta': {'source': 'social', 'count': len(serializer.data)},
-            'error': None
-        }, status=status.HTTP_200_OK)
+        return standard_response(data=serializer.data, source='social')
 
 
 class ResolveFlagView(APIView):
@@ -330,11 +307,11 @@ class ResolveFlagView(APIView):
     def post(self, request, flag_id):
         # Verify user has staff admin permissions
         if not request.user.is_staff:
-            return Response({
-                'data': None,
-                'meta': {'source': 'social'},
-                'error': {'code': 'permission_denied', 'message': 'Staff admin permissions required'}
-            }, status=status.HTTP_403_FORBIDDEN)
+            return standard_response(
+                error={'code': 'permission_denied', 'message': 'Staff admin permissions required'},
+                status_code=status.HTTP_403_FORBIDDEN,
+                source='social'
+            )
 
         serializer = FlagResolveSerializer(data=request.data)
         if serializer.is_valid():
@@ -347,22 +324,18 @@ class ResolveFlagView(APIView):
             )
             if flag:
                 response_serializer = FlagSerializer(flag)
-                return Response({
-                    'data': response_serializer.data,
-                    'meta': {'source': 'social'},
-                    'error': None
-                }, status=status.HTTP_200_OK)
+                return standard_response(data=response_serializer.data, source='social')
             else:
-                return Response({
-                    'data': None,
-                    'meta': {'source': 'social'},
-                    'error': {'code': 'not_found', 'message': 'Flag not found'}
-                }, status=status.HTTP_404_NOT_FOUND)
-        return Response({
-            'data': None,
-            'meta': {'source': 'social'},
-            'error': {'code': 'validation_error', 'message': serializer.errors}
-        }, status=status.HTTP_400_BAD_REQUEST)
+                return standard_response(
+                    error={'code': 'not_found', 'message': 'Flag not found'},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    source='social'
+                )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
 
 
 class ControlversialEntitiesView(APIView):
@@ -379,8 +352,4 @@ class ControlversialEntitiesView(APIView):
         rating_service = RatingService()
         controversial = rating_service.get_controversial_entities(limit=limit)
 
-        return Response({
-            'data': controversial,
-            'meta': {'source': 'social', 'count': len(controversial)},
-            'error': None
-        }, status=status.HTTP_200_OK)
+        return standard_response(data=controversial, source='social')
