@@ -1,24 +1,11 @@
 /**
  * Main Stylesheet Entry Point
  * Imported by main.jsx, processed by Vite
+ * Design tokens defined in variables.css
  */
 
-/* CSS Custom Properties (Design Tokens) */
-:root {
-  --bg-primary: #1a202c;
-  --bg-secondary: #2d3748;
-  --bg-tertiary: #4a5568;
-  --text-primary: #e2e8f0;
-  --text-secondary: #f7fafc;
-  --accent-green: #68d391;
-  --accent-blue: #63b3ed;
-  --accent-blue-dark: #3182ce;
-  --border-color: #718096;
-  --success-bg: #d4edda;
-  --success-text: #155724;
-  --error-bg: #f8d7da;
-  --error-text: #721c24;
-}
+@import './variables.css';
+@import './components/graph.css';
 
 /* Global Reset */
 html,
@@ -29,109 +16,9 @@ body {
 }
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: var(--font-family-base);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   display: flex;
   flex-direction: column;
-}
-
-/* Header Controls */
-.header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  z-index: 10;
-  background-color: transparent;
-  pointer-events: none;
-}
-
-.header h1,
-.header button {
-  pointer-events: auto;
-}
-
-h1 {
-  margin: 0 0 20px 0;
-}
-
-.controls {
-  margin-bottom: 0;
-}
-
-/* Cytoscape Container */
-#cy-container {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border: 1px solid var(--bg-tertiary);
-  background-color: var(--bg-secondary);
-}
-
-/* Status Bar */
-#status {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 10px 20px;
-  min-height: 20px;
-  z-index: 10;
-  background-color: transparent;
-  color: var(--text-secondary);
-  pointer-events: none;
-}
-
-#status.success {
-  background-color: var(--success-bg);
-  color: var(--success-text);
-}
-
-#status.error {
-  background-color: var(--error-bg);
-  color: var(--error-text);
-}
-
-/* Buttons */
-button {
-  padding: 10px 20px;
-  margin-right: 10px;
-  cursor: pointer;
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-button:hover {
-  background-color: var(--border-color);
-}
-
-/* Edge Tooltip */
-#edge-tooltip {
-  position: absolute;
-  background-color: var(--bg-primary);
-  border: 2px solid var(--accent-green);
-  border-radius: 6px;
-  padding: 12px;
-  color: var(--text-primary);
-  font-size: 14px;
-  max-width: 300px;
-  z-index: 1000;
-  display: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-}
-
-#edge-tooltip .tooltip-label {
-  font-weight: bold;
-  color: var(--accent-green);
-  margin-bottom: 8px;
-}
-
-#edge-tooltip .tooltip-content {
-  line-height: 1.4;
 }

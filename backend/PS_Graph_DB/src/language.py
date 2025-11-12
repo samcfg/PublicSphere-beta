@@ -21,6 +21,27 @@ class LanguageOperations:
     def __init__(self):
         self.current_graph = None
 
+    def _escape_cypher_string(self, value: str) -> str:
+        """
+        Escape string for safe Cypher interpolation.
+        Prevents injection by escaping special characters.
+        Order matters: backslash must be escaped first.
+
+        Args:
+            value: String to escape (can be None)
+
+        Returns:
+            Escaped string safe for Cypher query interpolation, or None if input is None
+        """
+        if value is None:
+            return None
+        # Escape backslashes first, then other special chars
+        return (value
+                .replace('\\', '\\\\')  # Escape backslashes first (prevents double-escape exploits)
+                .replace("'", "\\'")     # Escape single quotes
+                .replace('\n', '\\n')    # Escape newlines
+                .replace('\r', '\\r'))   # Escape carriage returns
+
     def _execute_with_logging(self,
                              cypher_query: str,
                              columns: List[str],
@@ -134,7 +155,7 @@ class LanguageOperations:
         # Build Cypher properties string
         cypher_props = f"id: '{claim_id}'"
         if content is not None:
-            escaped_content = content.replace("'", "\\'")
+            escaped_content = self._escape_cypher_string(content)
             cypher_props += f", content: '{escaped_content}'"
 
         # Build logging properties dict
@@ -175,27 +196,27 @@ class LanguageOperations:
         log_props = {}
 
         if url is not None:
-            escaped_url = url.replace("'", "\\'")
+            escaped_url = self._escape_cypher_string(url)
             cypher_props += f", url: '{escaped_url}'"
             log_props['url'] = url
         if title is not None:
-            escaped_title = title.replace("'", "\\'")
+            escaped_title = self._escape_cypher_string(title)
             cypher_props += f", title: '{escaped_title}'"
             log_props['title'] = title
         if author is not None:
-            escaped_author = author.replace("'", "\\'")
+            escaped_author = self._escape_cypher_string(author)
             cypher_props += f", author: '{escaped_author}'"
             log_props['author'] = author
         if publication_date is not None:
-            escaped_date = publication_date.replace("'", "\\'")
+            escaped_date = self._escape_cypher_string(publication_date)
             cypher_props += f", publication_date: '{escaped_date}'"
             log_props['publication_date'] = publication_date
         if source_type is not None:
-            escaped_type = source_type.replace("'", "\\'")
+            escaped_type = self._escape_cypher_string(source_type)
             cypher_props += f", source_type: '{escaped_type}'"
             log_props['source_type'] = source_type
         if content is not None:
-            escaped_content = content.replace("'", "\\'")
+            escaped_content = self._escape_cypher_string(content)
             cypher_props += f", content: '{escaped_content}'"
             log_props['content'] = content
 
@@ -233,7 +254,7 @@ class LanguageOperations:
         # Build Cypher properties string
         cypher_props = f"id: '{connection_id}'"
         if notes is not None:
-            escaped_notes = notes.replace("'", "\\'")
+            escaped_notes = self._escape_cypher_string(notes)
             cypher_props += f", notes: '{escaped_notes}'"
         if logic_type is not None:
             cypher_props += f", logic_type: '{logic_type}'"
@@ -503,12 +524,12 @@ class LanguageOperations:
         set_clauses = []
         for field, value in fields.items():
             if isinstance(value, str):
-                escaped_value = value.replace("'", "\\'")
+                escaped_value = self._escape_cypher_string(value)
                 set_clauses.append(f"n.{field} = '{escaped_value}'")
             elif isinstance(value, (int, float)):
                 set_clauses.append(f"n.{field} = {value}")
             else:
-                escaped_value = str(value).replace("'", "\\'")
+                escaped_value = self._escape_cypher_string(str(value))
                 set_clauses.append(f"n.{field} = '{escaped_value}'")
 
         set_clause = ", ".join(set_clauses)
@@ -570,12 +591,12 @@ class LanguageOperations:
                 set_clauses = []
                 for field, value in fields.items():
                     if isinstance(value, str):
-                        escaped_value = value.replace("'", "\\'")
+                        escaped_value = self._escape_cypher_string(value)
                         set_clauses.append(f"r.{field} = '{escaped_value}'")
                     elif isinstance(value, (int, float)):
                         set_clauses.append(f"r.{field} = {value}")
                     else:
-                        escaped_value = str(value).replace("'", "\\'")
+                        escaped_value = self._escape_cypher_string(str(value))
                         set_clauses.append(f"r.{field} = '{escaped_value}'")
 
                 set_clause = ", ".join(set_clauses)
@@ -605,12 +626,12 @@ class LanguageOperations:
         set_clauses = []
         for field, value in fields.items():
             if isinstance(value, str):
-                escaped_value = value.replace("'", "\\'")
+                escaped_value = self._escape_cypher_string(value)
                 set_clauses.append(f"r.{field} = '{escaped_value}'")
             elif isinstance(value, (int, float)):
                 set_clauses.append(f"r.{field} = {value}")
             else:
-                escaped_value = str(value).replace("'", "\\'")
+                escaped_value = self._escape_cypher_string(str(value))
                 set_clauses.append(f"r.{field} = '{escaped_value}'")
 
         set_clause = ", ".join(set_clauses)

@@ -4,6 +4,63 @@
  * Light mode (default) and dark mode variants
  */
 
+/* Font Face Declarations */
+@font-face {
+  font-family: 'IM Fell French Canon';
+  src: url('/assets/fonts/IM_FELL_French_Canon_Roman.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IM Fell French Canon';
+  src: url('/assets/fonts/IM_FELL_French_Canon_Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IM Fell French Canon SC';
+  src: url('/assets/fonts/IM_FELL_French_Canon_Roman_SC.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Libre Baskerville';
+  src: url('/assets/fonts/LibreBaskerville-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Libre Baskerville';
+  src: url('/assets/fonts/LibreBaskerville-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Libre Baskerville';
+  src: url('/assets/fonts/LibreBaskerville-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cascadia Code NF';
+  src: url('/assets/fonts/CascadiaCodeNF-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Background colors */
   --bg-primary: #1a202c;
@@ -29,7 +86,7 @@
   --error-bg: #f8d7da;
   --error-text: #721c24;
 
-  /* Spacing scale (optional, can be extended) */
+  /* Spacing scale */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
@@ -37,7 +94,8 @@
   --spacing-xl: 32px;
 
   /* Typography */
-  --font-family-base: Arial, sans-serif;
+  --font-family-base: 'Libre Baskerville', Georgia, serif;
+  --font-family-heading: 'IM Fell French Canon', 'Times New Roman', serif;
   --font-size-sm: 12px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
@@ -68,4 +126,10 @@
   --success-text: #c6f6d5;
   --error-bg: #c53030;
   --error-text: #fed7d7;
+}
+
+/* Dyslexia-friendly mode (test with Cascadia Code) */
+.dyslexia-mode {
+  --font-family-base: 'Cascadia Code NF', monospace;
+  --font-family-heading: 'Cascadia Code NF', monospace;
 }

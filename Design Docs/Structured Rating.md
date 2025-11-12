@@ -25,3 +25,7 @@ ONNECTION: "Pfizer trial data" --[supports]--> "Vaccines are safe"
 
   Instead of "I rate this 60%", users click:
   - "I challenge this on methodological grounds" → selects challenge type → explains
+
+11/11
+We have "dimensions" in the comments field to build out, for people to chose whether they 
+are ranking accuracy, usefulness, etc. 

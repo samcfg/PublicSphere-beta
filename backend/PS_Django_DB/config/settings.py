@@ -27,6 +27,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Security Settings (Production)
+# TODO: Set DEBUG=False and configure ALLOWED_HOSTS for production deployment
+SECURE_SSL_REDIRECT = False  # Set to True in production (forces HTTPS)
+SESSION_COOKIE_SECURE = False  # Set to True in production (HTTPS-only session cookies)
+CSRF_COOKIE_SECURE = False  # Set to True in production (HTTPS-only CSRF cookies)
+SECURE_HSTS_SECONDS = 0  # Set to 31536000 (1 year) in production (HSTS header)
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
+X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking (blocks iframe embedding)
+
 
 # Application definition
 
@@ -150,4 +159,12 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',   # Unauthenticated users: 100 requests per hour
+        'user': '1000/hour',  # Authenticated users: 1000 requests per hour
+    },
 }

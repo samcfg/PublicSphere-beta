@@ -1,38 +1,102 @@
 /**
  * Graph Component Styles
  * Cytoscape-specific styling and graph UI elements
- * NO positioning rules - those are controlled via Tailwind in Graph.jsx
+ * All styles specific to the graph page/view
  */
 
-/* Cytoscape container base styles (non-positioning) */
-#cy {
+/* Cytoscape container - light gray background */
+#cy-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
   border: 1px solid var(--bg-tertiary);
-  background-color: var(--bg-secondary);
+  background-color: #d0d0d0;
 }
 
-/* Edge tooltip */
-#edge-tooltip {
+/* Header Controls */
+.header {
   position: absolute;
-  background-color: var(--bg-primary);
-  border: 2px solid var(--accent-green);
-  border-radius: 6px;
-  padding: var(--spacing-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  max-width: 300px;
-  z-index: 1000;
-  display: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  z-index: 10;
+  background-color: transparent;
+  pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header h1,
+.header button {
   pointer-events: auto;
 }
 
-#edge-tooltip .tooltip-label {
+.header h1 {
+  margin: 0;
+  color: #000000;
+  font-family: 'IM Fell French Canon SC', var(--font-family-heading);
+  font-weight: normal;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+}
+
+/* Buttons */
+.header button,
+.controls button {
+  padding: 10px 20px;
+  cursor: pointer;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.header button:hover,
+.controls button:hover {
+  background-color: var(--border-color);
+}
+
+/* Status Bar */
+#status {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 20px;
+  min-height: 20px;
+  z-index: 10;
+  background-color: transparent;
+  color: #000000;
+  pointer-events: none;
+}
+
+/* Edge tooltip */
+.edge-tooltip {
+  background-color: var(--bg-primary);
+  border: 2px solid var(--accent-green);
+  border-radius: 4px;
+  padding: 6px;
+  color: var(--text-primary);
+  font-size: 10px;
+  max-width: 150px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.edge-tooltip .tooltip-label {
   font-weight: bold;
   color: var(--accent-green);
   margin-bottom: var(--spacing-sm);
 }
 
-#edge-tooltip .tooltip-content {
+.edge-tooltip .tooltip-content {
   line-height: 1.4;
 }
 

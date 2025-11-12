@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 /**
  * UI controls and status display component
  * Handles graph control buttons, status messages, and will expand to include
@@ -12,6 +14,30 @@
  * @param {Function} props.onFitScreen - Callback for fitting graph to screen
  */
 export function GraphControls({ onLoadGraph, onResetView, onFitScreen }) {
+  const [dyslexiaMode, setDyslexiaMode] = useState(false);
+
+  // Load preference from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('dyslexiaMode');
+    if (saved === 'true') {
+      setDyslexiaMode(true);
+      document.documentElement.classList.add('dyslexia-mode');
+    }
+  }, []);
+
+  const toggleDyslexiaMode = () => {
+    const newMode = !dyslexiaMode;
+    setDyslexiaMode(newMode);
+
+    if (newMode) {
+      document.documentElement.classList.add('dyslexia-mode');
+    } else {
+      document.documentElement.classList.remove('dyslexia-mode');
+    }
+
+    localStorage.setItem('dyslexiaMode', newMode.toString());
+  };
+
   return (
     <div className="header">
       <h1>Map of an Argument</h1>
@@ -24,6 +50,9 @@ export function GraphControls({ onLoadGraph, onResetView, onFitScreen }) {
         </button>
         <button id="fit-btn" onClick={onFitScreen}>
           Fit to Screen
+        </button>
+        <button id="dyslexia-btn" onClick={toggleDyslexiaMode}>
+          {dyslexiaMode ? 'Serif Font' : 'Dyslexia Font'}
         </button>
       </div>
     </div>

@@ -175,3 +175,11 @@ Server analytics: anonymized logs (zeroed IP octets or daily hash) for traffic m
 - OWASP.org (input validation)
 - Check if libraries are trusted (know versions, know supply chain)
 - Cloudflare free tier for DDoS
+
+Actual dependency monitoring ran: 
+cd frontend
+pnpm audit
+
+cd backend
+uv run bandit -r PS_Django_DB/ PS_Graph_DB/ -ll
+uv run pip-audit
