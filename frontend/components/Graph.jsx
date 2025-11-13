@@ -35,21 +35,30 @@ export const Graph = forwardRef(({ data }, ref) => {
     }
   }));
 
-  // Initialize Cytoscape instance
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Get CSS custom properties for styling
+  // Helper to read CSS variables
+  const getColors = () => {
     const rootStyles = getComputedStyle(document.documentElement);
-    const colors = {
+    return {
       bgPrimary: rootStyles.getPropertyValue('--bg-primary').trim(),
       textPrimary: rootStyles.getPropertyValue('--text-primary').trim(),
       textSecondary: rootStyles.getPropertyValue('--text-secondary').trim(),
       accentGreen: rootStyles.getPropertyValue('--accent-green').trim(),
       accentBlue: rootStyles.getPropertyValue('--accent-blue').trim(),
-      accentBlueDark: rootStyles.getPropertyValue('--accent-blue-dark').trim()
+      accentBlueDark: rootStyles.getPropertyValue('--accent-blue-dark').trim(),
+      nodeDefault: rootStyles.getPropertyValue('--node-default').trim(),
+      nodeSource: rootStyles.getPropertyValue('--node-source').trim(),
+      nodeText: rootStyles.getPropertyValue('--node-text').trim()
     };
+  };
+
+  // Initialize Cytoscape instance
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const colors = getColors();
+
     // Extract first font from CSS variable (Cytoscape doesn't support font stacks)
+    const rootStyles = getComputedStyle(document.documentElement);
     const fontFamilyVar = rootStyles.getPropertyValue('--font-family-base').trim();
     const fontFamily = fontFamilyVar.split(',')[0].replace(/['"]/g, '').trim();
 
@@ -62,9 +71,9 @@ export const Graph = forwardRef(({ data }, ref) => {
         {
           selector: 'node',
           style: {
-            'background-color': '#ffffff',
+            'background-color': colors.nodeDefault,
             'label': 'data(content)',
-            'color': '#1a1a1a',
+            'color': colors.nodeText,
             'text-valign': 'center',
             'text-halign': 'center',
             'font-family': fontFamily,
@@ -77,13 +86,15 @@ export const Graph = forwardRef(({ data }, ref) => {
             'min-width': '80px',
             'min-height': '40px',
             'padding': '10px',
-            'shape': 'rectangle'
+            'shape': 'round-rectangle',
+            'border-width': 1,
+            'border-color': colors.accentBlue
           }
         },
         {
           selector: 'node[label = "Source"]',
           style: {
-            'background-color': '#ffffff'
+            'border-color': colors.accentGreen
           }
         },
         {
@@ -108,23 +119,36 @@ export const Graph = forwardRef(({ data }, ref) => {
           selector: 'edge.highlighted',
           style: {
             'width': 5,
-            'line-color': colors.textSecondary,
-            'target-arrow-color': colors.textSecondary
+            'line-color': '#ffffff',
+            'target-arrow-color': '#ffffff'
+          }
+        },
+        {
+          selector: 'node.hovered',
+          style: {
+            'overlay-color': colors.accentBlue,
+            'overlay-opacity': 0.3,
+            'overlay-padding': 8,
+            'transition-property': 'overlay-opacity, overlay-padding',
+            'transition-duration': '0.2s',
+            'transition-timing-function': 'ease-out'
+          }
+        },
+        {
+          selector: 'node[label = "Source"].hovered',
+          style: {
+            'overlay-color': colors.accentGreen
           }
         }
-      ],
-
-      layout: {
-        name: 'cose',
-        animate: true,
-        animationDuration: 1000
-      }
+      ]
     });
 
     // Setup interaction handlers
     const cleanupEdgeTooltip = setupEdgeTooltip(cyRef.current, setActiveEdgeTooltip);
     setupCompoundEdgeHighlighting(cyRef.current);
+    setupNodeHover(cyRef.current);
     setupBundlingRecalculation(cyRef.current);
+    setupBackgroundSync(cyRef.current);
 
     // Cleanup on unmount
     return () => {
@@ -148,6 +172,43 @@ export const Graph = forwardRef(({ data }, ref) => {
       applyLayout(cyRef.current, 'dagre');
     }
   }, [data]); // Re-run when data changes
+
+  // Listen for theme changes and update node colors
+  useEffect(() => {
+    if (!cyRef.current) return;
+
+    const updateTheme = () => {
+      const colors = getColors();
+
+      cyRef.current.style()
+        .selector('node')
+        .style({
+          'background-color': colors.nodeDefault,
+          'color': colors.nodeText
+        })
+        .selector('node[label = "Source"]')
+        .style({
+          'background-color': colors.nodeSource
+        })
+        .update();
+    };
+
+    // Watch for data-theme attribute changes on <html>
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          updateTheme();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+
+    return () => observer.disconnect();
+  }, []); // Run once on mount
 
   return (
     <>
@@ -247,6 +308,22 @@ function setupCompoundEdgeHighlighting(cy) {
   });
 }
 
+function setupNodeHover(cy) {
+  /**
+   * Add hover effect to nodes using addClass/removeClass pattern
+   * Provides smooth overlay glow on hover with automatic transitions
+   */
+  cy.on('mouseover', 'node', (event) => {
+    const node = event.target;
+    node.addClass('hovered');
+  });
+
+  cy.on('mouseout', 'node', (event) => {
+    const node = event.target;
+    node.removeClass('hovered');
+  });
+}
+
 function setupBundlingRecalculation(cy) {
   /**
    * Recalculate compound edge bundling when nodes are repositioned
@@ -257,18 +334,43 @@ function setupBundlingRecalculation(cy) {
   });
 }
 
+function setupBackgroundSync(cy) {
+  /**
+   * Sync background grid with pan/zoom transformations
+   */
+  function updateBackground() {
+    const zoom = cy.zoom();
+    const pan = cy.pan();
+    const container = cy.container();
+
+    // Calculate grid size scaled by zoom
+    const gridSize = 20 * zoom;
+
+    // Calculate background position offset by pan
+    const bgX = pan.x % gridSize;
+    const bgY = pan.y % gridSize;
+
+    container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+    container.style.backgroundPosition = `${bgX}px ${bgY}px`;
+  }
+
+  // Update on pan and zoom events
+  cy.on('pan zoom', updateBackground);
+
+  // Initial update
+  updateBackground();
+}
+
 function applyLayout(cy, layoutName = 'dagre') {
   const layoutOptions = layoutName === 'dagre' ? {
     name: 'dagre',
     rankDir: 'BT',           // Bottom-to-Top: premises below, conclusions above
     nodeSep: 80,             // Horizontal spacing between nodes at same rank
     rankSep: 120,            // Vertical spacing between ranks
-    animate: true,
-    animationDuration: 1000
+    animate: false
   } : {
     name: layoutName,
-    animate: true,
-    animationDuration: 1000
+    animate: false
   };
 
   const layout = cy.layout(layoutOptions);

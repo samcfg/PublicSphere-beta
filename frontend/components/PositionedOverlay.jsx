@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 
 /**
  * Reusable overlay component that tracks Cytoscape element position
  * Automatically updates position on zoom, pan, and element movement
  * Scales with graph zoom level to maintain visual consistency
+ * Uses direct DOM manipulation for smooth 60fps tracking
  *
  * @param {Object} props
  * @param {Object} props.cytoElement - Cytoscape element (node or edge) to track
@@ -13,11 +14,10 @@ import { useState, useEffect } from 'react';
  * @param {Object} props.offset - Optional {x, y} pixel offset from element position (scaled with zoom)
  */
 export function PositionedOverlay({ cytoElement, cy, getPosition, children, offset = { x: 0, y: 0 } }) {
-  const [position, setPosition] = useState(null);
-  const [zoom, setZoom] = useState(1);
+  const overlayRef = useRef(null);
 
   useEffect(() => {
-    if (!cytoElement || !cy) return;
+    if (!cytoElement || !cy || !overlayRef.current) return;
 
     const updatePosition = () => {
       // Determine position based on element type
@@ -34,11 +34,13 @@ export function PositionedOverlay({ cytoElement, cy, getPosition, children, offs
       const containerRect = cy.container().getBoundingClientRect();
       const currentZoom = cy.zoom();
 
-      setPosition({
-        x: containerRect.left + rendered.x + offset.x * currentZoom,
-        y: containerRect.top + rendered.y + offset.y * currentZoom
-      });
-      setZoom(currentZoom);
+      const x = containerRect.left + rendered.x + offset.x * currentZoom;
+      const y = containerRect.top + rendered.y + offset.y * currentZoom;
+
+      // Direct DOM manipulation - no React re-render
+      overlayRef.current.style.left = `${x}px`;
+      overlayRef.current.style.top = `${y}px`;
+      overlayRef.current.style.transform = `scale(${currentZoom})`;
     };
 
     // Initial position
@@ -56,15 +58,14 @@ export function PositionedOverlay({ cytoElement, cy, getPosition, children, offs
     };
   }, [cytoElement, cy, getPosition, offset.x, offset.y]);
 
-  if (!position) return null;
-
   return (
     <div
+      ref={overlayRef}
       style={{
         position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        transform: `scale(${zoom})`,
+        left: 0,
+        top: 0,
+        transform: 'scale(1)',
         transformOrigin: 'top left',
         zIndex: 1000,
         pointerEvents: 'auto'

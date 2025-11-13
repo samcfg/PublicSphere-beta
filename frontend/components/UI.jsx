@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import '../styles/components/button.css';
 
 /**
  * UI controls and status display component
@@ -12,8 +13,9 @@ import { useState, useEffect } from 'react';
  * @param {Function} props.onLoadGraph - Callback for loading graph data
  * @param {Function} props.onResetView - Callback for resetting graph view
  * @param {Function} props.onFitScreen - Callback for fitting graph to screen
+ * @param {Object} props.graphStats - Graph statistics {nodeCount, edgeCount}
  */
-export function GraphControls({ onLoadGraph, onResetView, onFitScreen }) {
+export function GraphControls({ onLoadGraph, onResetView, onFitScreen, graphStats }) {
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
 
   // Load preference from localStorage on mount
@@ -40,20 +42,33 @@ export function GraphControls({ onLoadGraph, onResetView, onFitScreen }) {
 
   return (
     <div className="header">
-      <h1>Map of an Argument</h1>
+      <div className="title-section">
+        <h1>Map of an Argument</h1>
+        {graphStats && (
+          <>
+            <div className="graph-stats">
+              {graphStats.nodeCount} nodes · {graphStats.edgeCount} connections
+            </div>
+            <hr className="title-divider" />
+          </>
+        )}
+      </div>
       <div className="controls">
-        <button id="load-btn" onClick={onLoadGraph}>
-          Load Graph
-        </button>
-        <button id="reset-btn" onClick={onResetView}>
-          Reset View
-        </button>
-        <button id="fit-btn" onClick={onFitScreen}>
-          Fit to Screen
-        </button>
-        <button id="dyslexia-btn" onClick={toggleDyslexiaMode}>
-          {dyslexiaMode ? 'Serif Font' : 'Dyslexia Font'}
-        </button>
+        <div className="box">
+          <button id="reset-btn" onClick={onResetView}>
+            Reset View
+          </button>
+        </div>
+        <div className="box">
+          <button id="fit-btn" onClick={onFitScreen}>
+            Fit to Screen
+          </button>
+        </div>
+        <div className="box">
+          <button id="dyslexia-btn" onClick={toggleDyslexiaMode}>
+            {dyslexiaMode ? 'Serif Font' : 'Dyslexia Font'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -97,13 +112,15 @@ export function EdgeTooltip() {
  * @param {Function} props.onFitScreen - Callback for fitting graph to screen
  * @param {string} props.statusMessage - Current status message
  * @param {string} props.statusType - Status message type
+ * @param {Object} props.graphStats - Graph statistics {nodeCount, edgeCount}
  */
 export function UI({
   onLoadGraph,
   onResetView,
   onFitScreen,
   statusMessage,
-  statusType
+  statusType,
+  graphStats
 }) {
   return (
     <>
@@ -111,6 +128,7 @@ export function UI({
         onLoadGraph={onLoadGraph}
         onResetView={onResetView}
         onFitScreen={onFitScreen}
+        graphStats={graphStats}
       />
 
       <StatusBar message={statusMessage} type={statusType} />

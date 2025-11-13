@@ -76,9 +76,18 @@
   --accent-blue: #63b3ed;
   --accent-blue-dark: #3182ce;
   --accent-red: #e74c3c;
+  --accent-orange: #ffa366;
 
   /* Border colors */
   --border-color: #718096;
+
+  /* Graph-specific colors */
+  --graph-bg: #e8e4dc;
+  --graph-grid: rgba(180, 130, 100, 0.08);
+  --graph-text: #000000;
+  --node-default: #ffffff;
+  --node-source: #ffe0cc;
+  --node-text: #1a1a1a;
 
   /* Status colors */
   --success-bg: #d4edda;
@@ -96,32 +105,42 @@
   /* Typography */
   --font-family-base: 'Libre Baskerville', Georgia, serif;
   --font-family-heading: 'IM Fell French Canon', 'Times New Roman', serif;
+  --font-family-ui: Arial, sans-serif;
   --font-size-sm: 12px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
 }
 
-/* Dark mode variant - toggled via class on <html> element */
-.dark {
-  /* Background colors - lighter for dark mode */
-  --bg-primary: #0f1419;
-  --bg-secondary: #1a1f2e;
-  --bg-tertiary: #2a3040;
+/* Dark mode variant - toggled via data-theme attribute on <html> element */
+[data-theme="dark"] {
+  /* Background colors - same as light mode */
+  --bg-primary: #1a202c;
+  --bg-secondary: #2d3748;
+  --bg-tertiary: #4a5568;
 
-  /* Text colors - darker for dark mode */
-  --text-primary: #cbd5e0;
-  --text-secondary: #e2e8f0;
+  /* Text colors - orange for dark mode */
+  --text-primary: #ff8c42;
+  --text-secondary: #ffa366;
 
-  /* Accent colors - can adjust saturation/brightness for dark mode */
+  /* Accent colors - slightly muted for dark mode */
   --accent-green: #48bb78;
   --accent-blue: #4299e1;
   --accent-blue-dark: #2b6cb0;
   --accent-red: #fc8181;
+  --accent-orange: #ff8c42;
 
-  /* Border colors */
-  --border-color: #4a5568;
+  /* Border colors - darker */
+  --border-color: #2d3748;
 
-  /* Status colors */
+  /* Graph-specific colors - darker engineering paper aesthetic */
+  --graph-bg: #1a1f2e;
+  --graph-grid: rgba(100, 150, 180, 0.12);
+  --graph-text: #b0b8c0;
+  --node-default: #2d3748;
+  --node-source: #3d2a1f;
+  --node-text: #e2e8f0;
+
+  /* Status colors - adjusted for dark backgrounds */
   --success-bg: #2f855a;
   --success-text: #c6f6d5;
   --error-bg: #c53030;

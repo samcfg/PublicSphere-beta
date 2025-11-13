@@ -1,0 +1,45 @@
+/* Dark/Light mode toggle */
+.moon-toggle {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.moon-toggle:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.moon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: rgb(216, 216, 216);
+  border-radius: 50%;
+  height: 50px;
+  width: 50px;
+  overflow: hidden;
+}
+
+.shadow {
+  width: 50px;
+  height: 50px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--bg-primary);
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+
+/* Light mode: minimal coverage */
+.shadow[data-mode="light"] {
+  transform: translate3d(8px, -8px, 0);
+}
+
+/* Dark mode: full coverage */
+.shadow[data-mode="dark"] {
+  transform: translate3d(36px, -36px, 0);
+}

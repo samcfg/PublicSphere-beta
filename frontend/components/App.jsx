@@ -1,86 +1,92 @@
-import { useRef, useState, useEffect } from 'react';
-import { useGraphData } from '../hooks/useGraphData.js';
-import { formatForCytoscape } from '../utilities/formatters.js';
-import { Graph } from './Graph.jsx';
-import { UI } from './UI.jsx';
+import { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { fetchUserProfile } from '../APInterface/api.js';
+import { Navbar } from './Navbar.jsx';
+import { Login } from './Login.jsx';
+import { Signup } from './Signup.jsx';
 
 /**
- * Root application component
- * Orchestrates data flow between API, formatting, and visualization
+ * Root layout component
+ * Manages auth state and provides navbar + login modal for all pages
  */
 export function App() {
-  const { data, loading, error, refetch } = useGraphData();
-  const graphRef = useRef(null); // Reference to Graph component for imperative methods
-  const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType] = useState('info');
-  const [formattedData, setFormattedData] = useState(null);
+  const location = useLocation();
+  const [showLogin, setShowLogin] = useState(false);
+  const [isLoginVisible, setIsLoginVisible] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authToken, setAuthToken] = useState(null);
 
-  // Update status message based on loading/error state
+  // Determine if we're on the graph page
+  const isGraphPage = location.pathname === '/graph';
+
+  // Check authentication on mount
   useEffect(() => {
-    if (loading) {
-      setStatusMessage('Loading graph data...');
-      setStatusType('loading');
-    } else if (error) {
-      setStatusMessage(`Error: ${error}`);
-      setStatusType('error');
-    } else if (data) {
-      // Calculate stats for status display
-      const elements = formattedData?.elements || [];
-      const nodes = elements.filter(el => !el.data.source && !el.data.target);
-      const edges = elements.filter(el => el.data.source && el.data.target);
-
-      setStatusMessage(
-        `Loaded ${elements.length} elements (${nodes.length} nodes, ${edges.length} edges)`
-      );
-      setStatusType('success');
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      fetchUserProfile(token).then(response => {
+        if (response.data && !response.error) {
+          setAuthToken(token);
+          setIsLoggedIn(true);
+        } else {
+          localStorage.removeItem('authToken');
+        }
+      });
     }
-  }, [loading, error, data, formattedData]);
+  }, []);
 
-  // Format data when raw API response changes
-  useEffect(() => {
-    if (!data) {
-      setFormattedData(null);
-      return;
-    }
-
-    try {
-      const formatted = formatForCytoscape(data);
-      setFormattedData(formatted);
-    } catch (err) {
-      console.error('Error formatting graph data:', err);
-      setStatusMessage(`Formatting error: ${err.message}`);
-      setStatusType('error');
-    }
-  }, [data]);
-
-  // Control handlers
-  const handleLoadGraph = () => {
-    refetch(); // Trigger data refresh
-  };
-
-  const handleResetView = () => {
-    if (graphRef.current) {
-      graphRef.current.resetView();
+  const handleUserClick = () => {
+    if (!showLogin) {
+      setShowLogin(true);
+      setTimeout(() => setIsLoginVisible(true), 10);
+    } else {
+      setIsLoginVisible(false);
+      setTimeout(() => setShowLogin(false), 100);
     }
   };
 
-  const handleFitScreen = () => {
-    if (graphRef.current) {
-      graphRef.current.fitToScreen();
-    }
+  const handleAuthSuccess = (data) => {
+    setAuthToken(data.token);
+    setIsLoggedIn(true);
+    setIsLoginVisible(false);
+    setTimeout(() => {
+      setShowLogin(false);
+      setIsSignup(false);
+    }, 100);
   };
 
   return (
-    <>
-      <UI
-        onLoadGraph={handleLoadGraph}
-        onResetView={handleResetView}
-        onFitScreen={handleFitScreen}
-        statusMessage={statusMessage}
-        statusType={statusType}
+    <div className={isGraphPage ? 'graph-page' : ''}>
+      <Navbar
+        onUserClick={handleUserClick}
+        isLoggedIn={isLoggedIn}
       />
 
-      <Graph ref={graphRef} data={formattedData} />
-    </>
+      {showLogin && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '20px',
+          transform: 'translateY(-50%)',
+          zIndex: 1001,
+          opacity: isLoginVisible ? 1 : 0,
+          transition: 'opacity 0.1s ease-in-out'
+        }}>
+          {isSignup ? (
+            <Signup
+              onToggleMode={() => setIsSignup(false)}
+              onSignupSuccess={handleAuthSuccess}
+            />
+          ) : (
+            <Login
+              onToggleMode={() => setIsSignup(true)}
+              onLoginSuccess={handleAuthSuccess}
+            />
+          )}
+        </div>
+      )}
+
+      <Outlet />
+    </div>
   );
 }
