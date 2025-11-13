@@ -6,8 +6,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { App } from './components/App.jsx';
-import { Home } from './components/Home.jsx';
-import { GraphPage } from './components/GraphPage.jsx';
+import { Home } from './pages/Home.jsx';
+import { GraphPage } from './pages/GraphPage.jsx';
 import './styles/main.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

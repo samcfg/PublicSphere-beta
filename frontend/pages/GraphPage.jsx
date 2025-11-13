@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
 import { useGraphData } from '../hooks/useGraphData.js';
 import { formatForCytoscape } from '../utilities/formatters.js';
-import { Graph } from './Graph.jsx';
-import { UI } from './UI.jsx';
+import { Graph } from '../components/graph/Graph.jsx';
+import { GraphControls } from '../components/graph/GraphControls.jsx';
 
 /**
  * Graph page component
@@ -11,24 +11,13 @@ import { UI } from './UI.jsx';
 export function GraphPage() {
   const { data, loading, error, refetch } = useGraphData();
   const graphRef = useRef(null); // Reference to Graph component for imperative methods
-  const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType] = useState('info');
   const [formattedData, setFormattedData] = useState(null);
   const [graphStats, setGraphStats] = useState(null);
 
-  // Update status message and graph stats based on loading/error state
+  // Calculate graph stats when data changes
   useEffect(() => {
-    if (loading) {
-      setStatusMessage('Loading graph data...');
-      setStatusType('loading');
-      setGraphStats(null);
-    } else if (error) {
-      setStatusMessage(`Error: ${error}`);
-      setStatusType('error');
-      setGraphStats(null);
-    } else if (data) {
-      // Calculate stats for status display
-      const elements = formattedData?.elements || [];
+    if (data && formattedData) {
+      const elements = formattedData.elements || [];
       const nodes = elements.filter(el => !el.data.source && !el.data.target);
       const edges = elements.filter(el => el.data.source && el.data.target);
 
@@ -36,13 +25,10 @@ export function GraphPage() {
         nodeCount: nodes.length,
         edgeCount: edges.length
       });
-
-      setStatusMessage(
-        `Loaded ${elements.length} elements (${nodes.length} nodes, ${edges.length} edges)`
-      );
-      setStatusType('success');
+    } else {
+      setGraphStats(null);
     }
-  }, [loading, error, data, formattedData]);
+  }, [data, formattedData]);
 
   // Format data when raw API response changes
   useEffect(() => {
@@ -56,8 +42,6 @@ export function GraphPage() {
       setFormattedData(formatted);
     } catch (err) {
       console.error('Error formatting graph data:', err);
-      setStatusMessage(`Formatting error: ${err.message}`);
-      setStatusType('error');
     }
   }, [data]);
 
@@ -80,12 +64,10 @@ export function GraphPage() {
 
   return (
     <>
-      <UI
+      <GraphControls
         onLoadGraph={handleLoadGraph}
         onResetView={handleResetView}
         onFitScreen={handleFitScreen}
-        statusMessage={statusMessage}
-        statusType={statusType}
         graphStats={graphStats}
       />
 

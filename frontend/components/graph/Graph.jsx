@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import cytoscape from 'cytoscape';
 import cytoscapeDagre from 'cytoscape-dagre';
-import { PositionedOverlay } from './PositionedOverlay.jsx';
+import { OnClickEdge, setupEdgeTooltip } from './OnClickEdge.jsx';
 
 // Register dagre layout extension
 cytoscape.use(cytoscapeDagre);
@@ -218,19 +218,7 @@ export const Graph = forwardRef(({ data }, ref) => {
         id="cy-container"
       />
 
-      {activeEdgeTooltip && cyRef.current && (
-        <PositionedOverlay
-          cytoElement={activeEdgeTooltip.edge}
-          cy={cyRef.current}
-          offset={{ x: 20, y: -10 }}
-        >
-          <div className="edge-tooltip">
-            <div className="tooltip-content">
-              {activeEdgeTooltip.notes}
-            </div>
-          </div>
-        </PositionedOverlay>
-      )}
+      <OnClickEdge activeEdgeTooltip={activeEdgeTooltip} cy={cyRef.current} />
     </>
   );
 });
@@ -238,41 +226,6 @@ export const Graph = forwardRef(({ data }, ref) => {
 // ============================================================================
 // Helper Functions (moved outside component to avoid recreation on each render)
 // ============================================================================
-
-function setupEdgeTooltip(cy, setActiveEdgeTooltip) {
-  // Click on edge to show tooltip
-  cy.on('tap', 'edge', (event) => {
-    const edge = event.target;
-    const notes = edge.data('notes') || 'No notes available';
-
-    setActiveEdgeTooltip({ edge, notes });
-
-    event.stopPropagation();
-    event.preventDefault();
-  });
-
-  // Click on cytoscape background to hide tooltip
-  cy.on('tap', (event) => {
-    if (event.target === cy) {
-      setActiveEdgeTooltip(null);
-    }
-  });
-
-  // Click outside graph to hide tooltip
-  const hideTooltip = (event) => {
-    const container = cy.container();
-    if (!container.contains(event.target)) {
-      setActiveEdgeTooltip(null);
-    }
-  };
-
-  document.addEventListener('click', hideTooltip);
-
-  // Return cleanup function
-  return () => {
-    document.removeEventListener('click', hideTooltip);
-  };
-}
 
 function setupCompoundEdgeHighlighting(cy) {
   /**
