@@ -1,5 +1,4 @@
-# 9/3
- It seems that the best way to find analogs to my ideas is to find software that uses the same backend as I design as ideal. I'm not sure of the best way to do this other than asking AI. 
+# 9/3 
 ## Transcript 1
 The atomic units of structured reasoning: Sources
   (evidence/observations), Claims (assertions/conclusions), and Connections
@@ -9,9 +8,6 @@ The atomic units of structured reasoning: Sources
   interface should expose these three primitives directly: users should create,
   manipulate, and connect discrete source and claim objects.
 
-
-● Event-sourced graph database would be optimal: each Source, Claim, and
-  Connection becomes an immutable node with a unique ID, and Connections are edges.
 ● Composite connections solve the multi-premise logical
   arguments naturally—one Connection can aggregate multiple Sources into a single
   Claim with the logical operator built into the Connection object. The
@@ -190,3 +186,13 @@ Executing the frontentRevemp plan with some modifications:
   Formatted all the views, in a standard way, and Using api formatting in Django_DB/common/api_standards for formatting errors and things. 
   Adding tailwind 4
 Project now works Identically as a single-page whole graph app running react. 
+Decided to use cytoscape for production, adding custom react elements as graph overlays that appear on click and track the graph position. 
+11/14
+Make DOM node popup
+Make node creation
+- wired to user
+- Questions as prompts? 
+  - i.e. Is this a statement or evidence? 
+  - Do you have a link for the evidence/ what is your empyrical statement? 
+  - Notes? 
+Make node page

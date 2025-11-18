@@ -1,4 +1,5 @@
 // From Uiverse.io by SelfMadeSystem
+import { Link } from 'react-router-dom';
 import '../styles/components/navbar.css';
 import { DarkModeToggle } from './darkmode.jsx';
 
@@ -6,12 +7,14 @@ export function Navbar({ onUserClick, isLoggedIn }) {
   return (
     <div className="nav">
       <div className="container">
-        <div className="btn">Home</div>
+        <Link to="/" className="btn">Home</Link>
         <div className="btn">Contact</div>
         <div className="btn">About</div>
-        <div className="btn" onClick={onUserClick}>
-          {isLoggedIn ? 'User' : 'Login'}
-        </div>
+        {isLoggedIn ? (
+          <Link to="/user" className="btn">User</Link>
+        ) : (
+          <div className="btn" onClick={onUserClick}>Login</div>
+        )}
         <svg
           className="outline"
           overflow="visible"

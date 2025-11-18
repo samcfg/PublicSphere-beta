@@ -1,22 +1,153 @@
 # Future Development Plan
 
-This document consolidates Phase 4 (Frontend Maturity) and Phase 5 (Deployment) from Plan.md. 
+This document consolidates Phase 4 (Frontend Maturity) and Phase 5 (Deployment) from Plan.md.
 ---
+
+## Current Frontend Architecture
+
+```
+frontend/
+├── index.html                       # Root HTML entry point
+├── main.jsx                         # React app entry point (ReactDOM.createRoot)
+│
+├── pages/
+│   ├── Home.jsx                     # Homepage component
+│   ├── GraphPage.jsx                # Full graph view page
+│  *├── UserPage.jsx                 # User profile page
+│  *├── NodePage.jsx                 # Individual node detail page
+│  *├── TermsOfService.jsx           # Legal: Terms of Service
+│  *├── PrivacyPolicy.jsx            # Legal: Privacy Policy
+│  *├── ModerationPolicy.jsx         # Legal: Content Moderation Policy
+│  *└── ModerationPanel.jsx          # Admin/moderator interface
+│   └── [test*.html]                 # Legacy test files (to be removed)
+│
+├── components/
+│   ├── App.jsx                      # Root React component (routing, state)
+│   ├── Navbar.jsx                   # Navigation bar component
+│   ├── Login.jsx                    # Login form component
+│   ├── Signup.jsx                   # User registration component
+│   ├── darkmode.jsx                 # Dark mode toggle component
+│   │
+│  *├── home/
+│  *│   ├── FeaturedContent.jsx      # Highlighted claims/discussions
+│  *│   ├── RecentActivity.jsx       # Recent graph changes
+│  *│   ├── SourceCard.jsx           # Comments thread for nodes
+│  *│   └── ConnectionCard.jsx       # Display sources with clickable links
+│   │
+│  *├── node/
+│  *│   ├── NodeCreationForm.jsx     # Create new claims/sources
+│  *│   ├── NodeEditor.jsx           # Edit existing nodes
+│  *│   ├── NodeRating.jsx           # Rating widget for nodes
+│  *│   ├── NodeComments.jsx         # Comments thread for nodes
+│  *│   └── NodeCard.jsx             # Display sources with clickable links
+│   │
+│  *├── connection/
+│  *│   ├── ConnectionCreationForm.jsx  # Create new edges
+│  *│   ├── ConnectionRating.jsx     # Rating widget for connections
+│  *│   └── ConnectionComments.jsx   # Comments thread for connections
+│   │
+│  *├── user/
+│  *│   ├── UserProfile.jsx          # User profile display
+│  *│   ├── UserContributions.jsx    # User's created nodes/edges
+│  *│   ├── UserReputation.jsx       # Reputation score/badges
+│  *│   └── UserSettings.jsx         # Account settings
+│   │
+│   └── graph/
+│       ├── Graph.jsx                # Cytoscape graph renderer (useRef + useEffect)
+│       ├── GraphControls.jsx        # Graph interaction controls
+│       ├── PositionedOverlay.jsx    # Custom React overlay for graph elements
+│      *├── OnClickNode.jsx          # Node interaction popup component
+│       └── OnClickEdge.jsx          # Edge interaction popup component
+│
+├── hooks/
+│   └── useGraphData.js              # Custom hook for fetching graph data from DRF
+│
+├── APInterface/
+│   └── api.js                       # DRF endpoint client functions
+│
+├── utilities/
+│   ├── formatters.js                # Data transformation (AGE → Cytoscape)
+│   ├── data.js                      # Data processing utilities
+│   ├── permissions.js               # Permission checks (canEdit, canDelete, canModerate)
+│   └── validators.js                # Form validation (username, email, password, URL, content length)
+│
+├── styles/
+│   ├── main.css                     # Tailwind CSS entry point (@tailwind directives)
+│   ├── variables.css                # CSS custom properties (design tokens)
+│   └── components/                  # Component-specific styles
+│       ├── auth.css
+│       ├── button.css
+│       ├── darkmode.css
+│       ├── graph.css
+│       ├── login.css
+│       ├── navbar.css
+│       └── signup.css
+│
+├── assets/
+│   └── fonts/                       # Self-hosted web fonts
+│       ├── CascadiaCodeNF-Regular.woff2
+│       ├── IM_FELL_French_Canon_*.woff2
+│       ├── LibreBaskerville-*.woff2
+│       └── [license files]
+│
+├── static/
+│   └── vendor/                      # Third-party libraries (legacy, use npm packages instead)
+│       ├── cytoscape.min.js
+│       ├── cytoscape-dagre.js
+│       └── dagre.min.js
+│
+├── dist/                            # Vite build output (generated, served by Django in production)
+│   └── [Generated bundles]
+│
+├── package.json                     # npm/pnpm dependencies and scripts
+├── pnpm-lock.yaml                   # Dependency lock file
+├── vite.config.js                   # Vite bundler configuration (React plugin, proxy)
+├── tailwind.config.js               # Tailwind CSS configuration
+├── .npmrc                           # npm configuration
+└── README.md                        # Frontend documentation
+```
+
+  hooks/ (missing):
+  - *useAuth.js - Authentication state/context hook
+  - *useNodeData.js - Fetch individual node data
+  - *useUserData.js - Fetch user profile data
+  - *useComments.js - Comments CRUD operations
+  - *useRatings.js - Rating submission/aggregation
+
+  utilities/ (missing):
+  - *graphTraversal.js - Context navigation utilities (depth traversal)
+
+  components/common/ (new subfolder for reusable UI):
+  - *Modal.jsx - Reusable modal component ?
+  - *Dropdown.jsx - Dropdown menus
+  - *Tooltip.jsx - Tooltips for graph elements
+  - *LoadingSpinner.jsx - Loading states
+  - *ErrorBoundary.jsx - Error handling wrapper
+
+  components/moderation/ (new subfolder):
+  - *FlaggedContentList.jsx - Review flagged items
+  - *ModerationActions.jsx - Deactivate/delete controls
+  - *AuditLog.jsx - View ModerationLog entries
+
+
+
+
 
 ## Phase 4: Frontend Maturity
 **Goal:** Make UI. 
-optimize performance, add context navigation, enable email notifications.
   1. Login sidebar (enables auth for everything else)
-  2. Node detail panel (container for ratings/comments)
-  3. Rating widget (simpler than comments)
-  4. Comments thread (most complex)
-  5. Homepage (once graph interaction works)
-  6. User profile (once contributions tracked)
-  7. Moderation panel (last, admin-only)
+  2. Node and edge DOS on click (has ratings/comments, sidebar to test it/for expansion )
+     1. Rating widget (simpler than comments)
+     2. Comments thread
+     3. Expanded view with clickable links for sources, display all fields
+     4. Suggest other connections? 
+  3. Homepage (once graph interaction works)
+  4. User profile (once contributions tracked)
 
 
-### Node DOS
-- https://www.npmjs.com/package/react-comments-section
+
+optimize performance, add context navigation, enable email notifications.
+
 
 ### Email Service
 - **settings.py**: Configure SendGrid API (free tier: 100 emails/day)
@@ -61,7 +192,7 @@ optimize performance, add context navigation, enable email notifications.
   - Indexes: `admin_user`, `target_user`, `timestamp`, `action`
   - Purpose: Immutable audit log of all enforcement actions with required justification
 
-**Admin Configuration:**
+## **Admin Configuration:**
 - **users/admin.py**: Override `UserAdmin` with hybrid enforcement
   - **Option B (Primary)**: Custom bulk actions with intermediate forms
     - `deactivate_users_with_reason()`: Shows intermediate page requiring reason text before deactivating

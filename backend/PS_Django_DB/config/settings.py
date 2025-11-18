@@ -151,7 +151,7 @@ AUTH_USER_MODEL = 'users.User'
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'users.tokens.ExpiringTokenAuthentication',  # Custom token auth with 15-day expiration
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -164,7 +164,10 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',   # Unauthenticated users: 100 requests per hour
-        'user': '1000/hour',  # Authenticated users: 1000 requests per hour
+        'anon': '100000/hour',   # Unauthenticated users: 100000 requests per hour
+        'user': '100000/hour',  # Authenticated users: 100000 requests per hour (dev - high for attribution fetching)
     },
 }
+
+# Token Expiration Settings
+TOKEN_EXPIRATION_DAYS = 15  # Auth tokens expire after 15 days

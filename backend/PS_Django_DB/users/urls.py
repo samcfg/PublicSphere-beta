@@ -11,7 +11,8 @@ from users.views import (
     UserContributionsView,
     EntityAttributionView,
     ToggleAnonymityView,
-    LeaderboardView
+    LeaderboardView,
+    BatchAttributionView
 )
 
 app_name = 'users'
@@ -32,5 +33,6 @@ urlpatterns = [
 
     # Attribution
     path('attribution/<str:entity_uuid>/', EntityAttributionView.as_view(), name='entity-attribution'),
+    path('attributions/batch/', BatchAttributionView.as_view(), name='batch-attribution'),
     path('toggle-anonymity/', ToggleAnonymityView.as_view(), name='toggle-anonymity'),
 ]

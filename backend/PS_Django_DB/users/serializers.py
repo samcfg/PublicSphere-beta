@@ -11,6 +11,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for user registration"""
     password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
     password_confirm = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -23,17 +24,19 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return data
 
     def validate_email(self, value):
-        """Ensure email is unique"""
-        if User.objects.filter(email=value).exists():
+        """Ensure email is unique if provided"""
+        # Only validate uniqueness if email is provided and non-empty
+        if value and User.objects.filter(email=value).exists():
             raise serializers.ValidationError("A user with this email already exists")
         return value
 
     def create(self, validated_data):
         """Create user with hashed password"""
         validated_data.pop('password_confirm')
+        email = validated_data.get('email', '')
         user = User.objects.create_user(
             username=validated_data['username'],
-            email=validated_data['email'],
+            email=email,
             password=validated_data['password']
         )
         # Create associated UserProfile
@@ -67,7 +70,7 @@ class UserLoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     """Serializer for user profile display"""
     username = serializers.CharField(source='user.username', read_only=True)
-    email = serializers.EmailField(source='user.email', read_only=True)
+    email = serializers.SerializerMethodField()
     date_joined = serializers.DateTimeField(source='user.date_joined', read_only=True)
 
     class Meta:
@@ -95,13 +98,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'last_updated'
         ]
 
+    def get_email(self, obj):
+        """Return email only if it exists and is not empty"""
+        return obj.user.email if obj.user.email else None
+
 
 class UserSerializer(serializers.ModelSerializer):
     """Basic user serializer"""
+    email = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'date_joined']
         read_only_fields = ['id', 'date_joined']
+
+    def get_email(self, obj):
+        """Return email only if it exists and is not empty"""
+        return obj.email if obj.email else None
 
 
 class UserAttributionSerializer(serializers.ModelSerializer):

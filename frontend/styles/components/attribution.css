@@ -1,0 +1,75 @@
+/**
+ * User attribution styles
+ * Minimal badge design for displaying creator info
+ */
+
+.user-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-family-ui);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  border-radius: 8px;
+  border: 1px solid var(--attr-border);
+  color: var(--attr-text);
+}
+
+.user-attribution.loading,
+.user-attribution.error {
+  color: var(--attr-text-muted);
+  font-style: italic;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Icon styling */
+.attribution-icon {
+  flex-shrink: 0;
+}
+
+/* Type-specific styling */
+.user-attribution.user {
+  background: var(--attr-user-bg);
+  border-color: var(--attr-user);
+  color: var(--attr-text);
+}
+
+.user-attribution.user .attribution-icon {
+  color: var(--attr-user);
+}
+
+.user-attribution.anonymous {
+  background: var(--attr-anon-bg);
+  border-color: var(--attr-anon);
+  color: var(--attr-text);
+}
+
+.user-attribution.anonymous .attribution-icon {
+  color: var(--attr-anon);
+}
+
+.user-attribution.deleted {
+  background: transparent;
+  color: var(--attr-deleted);
+  border-color: var(--attr-border);
+  opacity: 0.6;
+}
+
+.user-attribution.deleted .attribution-icon {
+  color: var(--attr-deleted);
+}
+
+/* Text styling */
+.attribution-text {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.attribution-timestamp {
+  font-weight: 400;
+  opacity: 0.75;
+  font-size: 0.9em;
+}

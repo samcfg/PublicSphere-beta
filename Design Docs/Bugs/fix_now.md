@@ -1,1 +1,3 @@
 fix all Cypher in language.py plus check database.py/schema.py so that they all use parameterized cypher code to prevent injection attacks: instead of building queries like f"CREATE (c:Claim {{content: '{user_input'}})" (where malicious input becomes part of the query structure), you write "CREATE (c:Claim {content: $content})" and pass {"content": user_input} separately—the database driver treats $content as pure data that can never become executable code, no  matter what the user types.
+
+The subtitle in cytoscape blocks proper clickability of the cytoscape graph

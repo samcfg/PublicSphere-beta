@@ -2,6 +2,7 @@ import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 're
 import cytoscape from 'cytoscape';
 import cytoscapeDagre from 'cytoscape-dagre';
 import { OnClickEdge, setupEdgeTooltip } from './OnClickEdge.jsx';
+import { OnClickNode, setupNodeTooltip } from './OnClickNode.jsx';
 
 // Register dagre layout extension
 cytoscape.use(cytoscapeDagre);
@@ -18,7 +19,8 @@ cytoscape.use(cytoscapeDagre);
 export const Graph = forwardRef(({ data }, ref) => {
   const containerRef = useRef(null); // DOM container for Cytoscape
   const cyRef = useRef(null); // Cytoscape instance
-  const [activeEdgeTooltip, setActiveEdgeTooltip] = useState(null); // {edge: cytoscapeEdge, notes: string}
+  const [activeEdgeTooltip, setActiveEdgeTooltip] = useState(null); // {edge: cytoscapeEdge, clickOffset: {x, y}}
+  const [activeNodeTooltip, setActiveNodeTooltip] = useState(null); // {node: cytoscapeNode, clickOffset: {x, y}}
 
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
@@ -86,7 +88,7 @@ export const Graph = forwardRef(({ data }, ref) => {
             'min-width': '80px',
             'min-height': '40px',
             'padding': '10px',
-            'shape': 'round-rectangle',
+            'shape': 'rectangle',
             'border-width': 1,
             'border-color': colors.accentBlue
           }
@@ -145,6 +147,7 @@ export const Graph = forwardRef(({ data }, ref) => {
 
     // Setup interaction handlers
     const cleanupEdgeTooltip = setupEdgeTooltip(cyRef.current, setActiveEdgeTooltip);
+    const cleanupNodeTooltip = setupNodeTooltip(cyRef.current, setActiveNodeTooltip);
     setupCompoundEdgeHighlighting(cyRef.current);
     setupNodeHover(cyRef.current);
     setupBundlingRecalculation(cyRef.current);
@@ -153,6 +156,7 @@ export const Graph = forwardRef(({ data }, ref) => {
     // Cleanup on unmount
     return () => {
       cleanupEdgeTooltip?.();
+      cleanupNodeTooltip?.();
       if (cyRef.current) {
         cyRef.current.destroy();
       }
@@ -218,7 +222,17 @@ export const Graph = forwardRef(({ data }, ref) => {
         id="cy-container"
       />
 
-      <OnClickEdge activeEdgeTooltip={activeEdgeTooltip} cy={cyRef.current} />
+      <OnClickEdge
+        key={activeEdgeTooltip?.edge?.id()}
+        activeEdgeTooltip={activeEdgeTooltip}
+        cy={cyRef.current}
+      />
+
+      <OnClickNode
+        key={activeNodeTooltip?.node?.id()}
+        activeNodeTooltip={activeNodeTooltip}
+        cy={cyRef.current}
+      />
     </>
   );
 });

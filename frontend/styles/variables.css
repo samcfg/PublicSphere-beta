@@ -89,6 +89,16 @@
   --node-source: #ffe0cc;
   --node-text: #1a1a1a;
 
+  /* Attribution colors (for use on node backgrounds) */
+  --attr-text: #2d3748;
+  --attr-text-muted: #718096;
+  --attr-border: #cbd5e0;
+  --attr-user: #3182ce;
+  --attr-user-bg: rgba(49, 130, 206, 0.12);
+  --attr-anon: #805ad5;
+  --attr-anon-bg: rgba(128, 90, 213, 0.08);
+  --attr-deleted: #a0aec0;
+
   /* Status colors */
   --success-bg: #d4edda;
   --success-text: #155724;
@@ -139,6 +149,16 @@
   --node-default: #2d3748;
   --node-source: #3d2a1f;
   --node-text: #e2e8f0;
+
+  /* Attribution colors (for use on node backgrounds) */
+  --attr-text: #e2e8f0;
+  --attr-text-muted: #a0aec0;
+  --attr-border: #4a5568;
+  --attr-user: #63b3ed;
+  --attr-user-bg: rgba(99, 179, 237, 0.15);
+  --attr-anon: #b794f4;
+  --attr-anon-bg: rgba(183, 148, 244, 0.12);
+  --attr-deleted: #718096;
 
   /* Status colors - adjusted for dark backgrounds */
   --success-bg: #2f855a;

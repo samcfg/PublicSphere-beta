@@ -8,26 +8,4 @@ For entities that have user_id=null, this displays as "deleted" in UI. I think "
   - Mantine (full-featured, good defaults)
   - Ant Design (enterprise-grade, comprehensive)
 
-  Graph-specific:
-  - reactflow.dev (interactive node graphs, might
-  replace Cytoscape for React)
-
-
-  1. Create styles/variables.css: Move :root color variables
-  from index.html into this file, add .dark variant block
-  with alternate colors for future dark mode.
-  2. Fix styles/main.css: Replace current content with proper
-   Tailwind v4 directives (@import "tailwindcss"; then
-  @import "./variables.css";).
-  3. Create tailwind.config.js: Extend theme to reference CSS
-   variables as Tailwind tokens (e.g., colors: { primary: 
-  'var(--accent-blue)' }), set content paths for purging.
-  4. Create postcss.config.js: Configure Tailwind +
-  Autoprefixer processing.
-  5. Create styles/components/graph.css: Extract
-  graph-specific styles (tooltip, controls, cytoscape
-  container) from index.html, using CSS variables for colors.
-  6. Update index.html: Remove inline <style> block, import
-  only main.css (which cascades to variables + Tailwind +
-  component styles).
 

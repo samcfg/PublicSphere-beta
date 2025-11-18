@@ -1,39 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { fetchUserProfile } from '../APInterface/api.js';
+import { useAuth } from '../utilities/AuthContext.jsx';
 import { Navbar } from './Navbar.jsx';
 import { Login } from './Login.jsx';
 import { Signup } from './Signup.jsx';
+import { RateLimitModal } from './common/RateLimitModal.jsx';
 
 /**
  * Root layout component
- * Manages auth state and provides navbar + login modal for all pages
+ * Provides navbar + login modal for all pages
  */
 export function App() {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [isLoginVisible, setIsLoginVisible] = useState(false);
   const [isSignup, setIsSignup] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authToken, setAuthToken] = useState(null);
+  const [showRateLimitModal, setShowRateLimitModal] = useState(false);
 
   // Determine if we're on the graph page
   const isGraphPage = location.pathname === '/graph';
-
-  // Check authentication on mount
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      fetchUserProfile(token).then(response => {
-        if (response.data && !response.error) {
-          setAuthToken(token);
-          setIsLoggedIn(true);
-        } else {
-          localStorage.removeItem('authToken');
-        }
-      });
-    }
-  }, []);
 
   const handleUserClick = () => {
     if (!showLogin) {
@@ -45,9 +31,7 @@ export function App() {
     }
   };
 
-  const handleAuthSuccess = (data) => {
-    setAuthToken(data.token);
-    setIsLoggedIn(true);
+  const handleAuthSuccess = () => {
     setIsLoginVisible(false);
     setTimeout(() => {
       setShowLogin(false);
@@ -55,11 +39,21 @@ export function App() {
     }, 100);
   };
 
+  // Listen for rate limit events from API
+  useEffect(() => {
+    const handleRateLimit = () => {
+      setShowRateLimitModal(true);
+    };
+
+    window.addEventListener('api:ratelimit', handleRateLimit);
+    return () => window.removeEventListener('api:ratelimit', handleRateLimit);
+  }, []);
+
   return (
     <div className={isGraphPage ? 'graph-page' : ''}>
       <Navbar
         onUserClick={handleUserClick}
-        isLoggedIn={isLoggedIn}
+        isLoggedIn={isAuthenticated}
       />
 
       {showLogin && (
@@ -84,6 +78,10 @@ export function App() {
             />
           )}
         </div>
+      )}
+
+      {showRateLimitModal && (
+        <RateLimitModal onClose={() => setShowRateLimitModal(false)} />
       )}
 
       <Outlet />

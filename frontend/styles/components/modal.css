@@ -1,0 +1,90 @@
+/**
+ * Modal styles - using modal1.css aesthetic
+ */
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  width: 400px;
+  flex-direction: column;
+  gap: 25px;
+  padding: 2rem;
+  border-radius: 15px;
+  background: #e3e3e3;
+  box-shadow: 16px 16px 32px #c8c8c8,
+        -16px -16px 32px #fefefe;
+  font-family: var(--font-family-ui);
+  animation: modalSlideIn 0.2s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-30px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-title {
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: bold;
+  font-size: x-large;
+  margin: 0;
+  text-align: center;
+}
+
+.modal-content {
+  color: #333;
+  text-align: center;
+  line-height: 1.6;
+  max-width: 300px;
+}
+
+.modal-content p {
+  margin: 0.5rem 0;
+}
+
+.modal-button {
+  height: 45px;
+  width: 120px;
+  border-radius: 5px;
+  border: 2px solid #000;
+  cursor: pointer;
+  background-color: transparent;
+  transition: 0.3s;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 2px;
+  font-weight: 600;
+  color: #000;
+}
+
+.modal-button:hover {
+  background-color: #000;
+  color: #fff;
+}
+
+.modal-button:active {
+  transform: scale(0.98);
+}

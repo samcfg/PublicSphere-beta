@@ -6,6 +6,10 @@
 
 @import './variables.css';
 @import './components/graph.css';
+@import './components/user.css';
+@import './components/attribution.css';
+@import './components/modal.css';
+@import './components/comments-rating.css';
 
 /* Global Reset */
 html,

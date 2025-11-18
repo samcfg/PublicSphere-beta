@@ -8,6 +8,7 @@ const BASE_URL = '/api';
 
 /**
  * Generic fetch wrapper with error handling
+ * Detects rate limiting (429) and dispatches global event
  * @private
  */
 async function apiFetch(url, options = {}) {
@@ -19,6 +20,12 @@ async function apiFetch(url, options = {}) {
       },
       ...options,
     });
+
+    // Check for rate limit (429 Too Many Requests)
+    if (response.status === 429) {
+      // Dispatch global event for rate limit modal
+      window.dispatchEvent(new CustomEvent('api:ratelimit'));
+    }
 
     const json = await response.json();
 
@@ -293,6 +300,19 @@ export async function toggleAnonymity(token, data) {
  */
 export async function fetchLeaderboard(limit = 100) {
   return apiFetch(`${BASE_URL}/users/leaderboard/?limit=${limit}`);
+}
+
+/**
+ * Get attributions for multiple entities in one batch request
+ * POST /api/users/attributions/batch/
+ * @param {Array} entities - [{uuid: string, type: 'claim'|'source'|'connection'}, ...]
+ * @returns {Object} {uuid: {creator: {...}, editors: [...]}, ...}
+ */
+export async function fetchBatchAttributions(entities) {
+  return apiFetch(`${BASE_URL}/users/attributions/batch/`, {
+    method: 'POST',
+    body: JSON.stringify({ entities }),
+  });
 }
 
 // ============================================================================

@@ -33,7 +33,7 @@
 }
 
 .title-section {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .header h1 {
@@ -72,8 +72,6 @@
   pointer-events: auto;
 }
 
-/* Old button styles removed - using button.css now */
-
 /* Status Bar */
 #status {
   position: absolute;
@@ -88,27 +86,97 @@
   pointer-events: none;
 }
 
-/* Edge tooltip */
-.edge-tooltip {
-  background-color: var(--bg-primary);
-  border: 2px solid var(--accent-green);
+/* Edge tooltip container */
+.graph-tooltip-container {
+  position: relative;
+  pointer-events: auto;
+  display: inline-block;
+}
+
+/* Color highlight layer - animates first, wraps tooltip with padding */
+.graph-tooltip-highlight {
+  position: relative;
+  background-color: var(--accent-green);
+  border-radius: 4px;
+  padding: 4px;
+  animation: tooltipHighlight 0.15s ease-out forwards;
+}
+
+@keyframes tooltipHighlight {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) scale(0);
+  }
+  100% {
+    transform: translate(0, 0) scale(1.1);
+  }
+}
+
+/* Graph tooltip - animates with slight delay, theme-aware colors */
+.graph-tooltip {
+  position: relative;
+  background-color: var(--node-default);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 6px;
-  color: var(--text-primary);
+  color: var(--node-text);
   font-size: 10px;
   max-width: 150px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  pointer-events: auto;
+  animation: tooltipAppear 0.15s ease-out 0.05s both;
 }
 
-.edge-tooltip .tooltip-label {
+@keyframes tooltipAppear {
+  0% {
+    transform: scale(0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.graph-tooltip .tooltip-label {
   font-weight: bold;
   color: var(--accent-green);
   margin-bottom: var(--spacing-sm);
 }
 
-.edge-tooltip .tooltip-content {
+.graph-tooltip .tooltip-content {
   line-height: 1.4;
+}
+
+.graph-tooltip .tooltip-attribution {
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  opacity: 0.3;
+}
+
+/* Node frame content wrapper - remove default backgrounds, let GraphClick layers show */
+.node-frame-content {
+  /* Dimensions set via inline styles in OnClickNode */
+  min-width: 150px;
+}
+
+/* Adjust green highlight for right frame - make left edge flush */
+.node-frame-right .graph-tooltip-highlight {
+  padding-left: 0;
+  margin-left: 2px; /* Half of removed padding (4px / 2) to keep right border position */
+}
+
+/* Adjust green highlight for bottom frame - make top edge flush */
+.node-frame-bottom .graph-tooltip-highlight {
+  padding-top: 0;
+  margin-top: 2px; /* Half of removed padding (4px / 2) to keep bottom border position */
+}
+
+/* Remove size constraints on graph-tooltip for frames - let frameEdges control dimensions */
+.node-frame-right .graph-tooltip,
+.node-frame-bottom .graph-tooltip {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  padding: 0; /* Remove padding - frameEdges define exact dimensions */
+  box-sizing: border-box;
 }
 
 /* Cytoscape edge transitions (smooth hover effects) */

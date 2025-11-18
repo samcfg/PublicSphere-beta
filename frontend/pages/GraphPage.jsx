@@ -3,13 +3,14 @@ import { useGraphData } from '../hooks/useGraphData.js';
 import { formatForCytoscape } from '../utilities/formatters.js';
 import { Graph } from '../components/graph/Graph.jsx';
 import { GraphControls } from '../components/graph/GraphControls.jsx';
+import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 
 /**
  * Graph page component
  * Orchestrates data flow between API, formatting, and visualization
  */
 export function GraphPage() {
-  const { data, loading, error, refetch } = useGraphData();
+  const { data, attributions, loading, error, refetch } = useGraphData();
   const graphRef = useRef(null); // Reference to Graph component for imperative methods
   const [formattedData, setFormattedData] = useState(null);
   const [graphStats, setGraphStats] = useState(null);
@@ -63,7 +64,7 @@ export function GraphPage() {
   };
 
   return (
-    <>
+    <AttributionProvider attributions={attributions}>
       <GraphControls
         onLoadGraph={handleLoadGraph}
         onResetView={handleResetView}
@@ -72,6 +73,6 @@ export function GraphPage() {
       />
 
       <Graph ref={graphRef} data={formattedData} />
-    </>
+    </AttributionProvider>
   );
 }

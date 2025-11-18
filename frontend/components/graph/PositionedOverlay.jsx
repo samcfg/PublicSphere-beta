@@ -12,14 +12,20 @@ import { useRef, useEffect } from 'react';
  * @param {Function} props.getPosition - Optional function to compute position from element (defaults to renderedPosition for nodes, renderedMidpoint for edges)
  * @param {React.ReactNode} props.children - Content to render in overlay
  * @param {Object} props.offset - Optional {x, y} pixel offset from element position (scaled with zoom)
+ * @param {boolean} props.passThrough - If true, wrapper has pointerEvents: none (default false)
  */
-export function PositionedOverlay({ cytoElement, cy, getPosition, children, offset = { x: 0, y: 0 } }) {
+export function PositionedOverlay({ cytoElement, cy, getPosition, children, offset = { x: 0, y: 0 }, passThrough = false }) {
   const overlayRef = useRef(null);
 
   useEffect(() => {
     if (!cytoElement || !cy || !overlayRef.current) return;
 
+    const offsetX = offset.x;
+    const offsetY = offset.y;
+
     const updatePosition = () => {
+      if (!overlayRef.current) return;
+
       // Determine position based on element type
       let rendered;
       if (getPosition) {
@@ -34,8 +40,8 @@ export function PositionedOverlay({ cytoElement, cy, getPosition, children, offs
       const containerRect = cy.container().getBoundingClientRect();
       const currentZoom = cy.zoom();
 
-      const x = containerRect.left + rendered.x + offset.x * currentZoom;
-      const y = containerRect.top + rendered.y + offset.y * currentZoom;
+      const x = containerRect.left + rendered.x + offsetX * currentZoom;
+      const y = containerRect.top + rendered.y + offsetY * currentZoom;
 
       // Direct DOM manipulation - no React re-render
       overlayRef.current.style.left = `${x}px`;
@@ -68,7 +74,7 @@ export function PositionedOverlay({ cytoElement, cy, getPosition, children, offs
         transform: 'scale(1)',
         transformOrigin: 'top left',
         zIndex: 1000,
-        pointerEvents: 'auto'
+        pointerEvents: passThrough ? 'none' : 'auto'
       }}
     >
       {children}

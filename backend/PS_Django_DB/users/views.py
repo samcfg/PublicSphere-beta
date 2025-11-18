@@ -5,6 +5,7 @@ Provides REST API endpoints for user management.
 from rest_framework import status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
+from rest_framework.response import Response
 from django.contrib.auth import login, logout
 from django.shortcuts import get_object_or_404
 
@@ -21,6 +22,7 @@ from users.serializers import (
     LeaderboardEntrySerializer
 )
 from users.services import UserContributionService
+from users.tokens import refresh_token, get_token_expiration_time
 
 
 class UserRegistrationView(APIView):
@@ -34,10 +36,14 @@ class UserRegistrationView(APIView):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            # Create auth token
-            token, created = Token.objects.get_or_create(user=user)
+            # Create fresh auth token (auto-expires in 15 days)
+            token = refresh_token(user)
             return standard_response(
-                data={'user': UserSerializer(user).data, 'token': token.key},
+                data={
+                    'user': UserSerializer(user).data,
+                    'token': token.key,
+                    'expires_at': get_token_expiration_time(token).isoformat()
+                },
                 status_code=status.HTTP_201_CREATED,
                 source='users'
             )
@@ -55,10 +61,16 @@ class UserLoginView(APIView):
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            token, created = Token.objects.get_or_create(user=user)
+            # Always refresh token on login (delete old, create new)
+            # This ensures 15-day expiration starts from login time
+            token = refresh_token(user)
             login(request, user)
             return standard_response(
-                data={'user': UserSerializer(user).data, 'token': token.key},
+                data={
+                    'user': UserSerializer(user).data,
+                    'token': token.key,
+                    'expires_at': get_token_expiration_time(token).isoformat()
+                },
                 source='users'
             )
         return standard_response(error=serializer.errors, status_code=status.HTTP_400_BAD_REQUEST, source='users')
@@ -213,3 +225,60 @@ class LeaderboardView(APIView):
         leaderboard = service.get_leaderboard(limit=limit)
         serializer = LeaderboardEntrySerializer(leaderboard, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BatchAttributionView(APIView):
+    """
+    Get attributions for multiple entities in one request.
+    POST /api/users/attributions/batch/
+    Body: {
+        "entities": [
+            {"uuid": "...", "type": "claim"},
+            {"uuid": "...", "type": "source"},
+            {"uuid": "...", "type": "connection"}
+        ]
+    }
+    Returns: {entity_uuid: {creator: {...}, editors: [...]}, ...}
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        entities = request.data.get('entities', [])
+
+        if not isinstance(entities, list):
+            return Response(
+                {'error': 'entities must be a list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result = {}
+        for entity in entities:
+            entity_uuid = entity.get('uuid')
+            entity_type = entity.get('type')
+
+            if not entity_uuid or entity_type not in ['claim', 'source', 'connection']:
+                continue
+
+            # Get creator
+            try:
+                attribution = UserAttribution.objects.get(
+                    entity_uuid=entity_uuid,
+                    entity_type=entity_type
+                )
+                creator_data = UserAttributionSerializer(attribution).data
+            except UserAttribution.DoesNotExist:
+                creator_data = None
+
+            # Get editors
+            modifications = UserModificationAttribution.objects.filter(
+                entity_uuid=entity_uuid,
+                entity_type=entity_type
+            ).order_by('version_number')
+            editors_data = UserModificationAttributionSerializer(modifications, many=True).data
+
+            result[entity_uuid] = {
+                'creator': creator_data,
+                'editors': editors_data
+            }
+
+        return Response(result, status=status.HTTP_200_OK)

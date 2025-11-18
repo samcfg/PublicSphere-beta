@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import '../../styles/components/button.css';
+// Contains title and buttons
 
 /**
  * Control buttons for graph operations

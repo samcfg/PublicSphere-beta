@@ -10,6 +10,7 @@
   stroke-dasharray: 0 0 10 40 10 40;
   transition: 0.5s;
   stroke: var(--text-primary);
+  stroke-width: 2.5;
 }
 
 .nav {
@@ -45,6 +46,7 @@
   cursor: pointer;
   transition: 0.1s;
   font-family: var(--font-family-ui);
+  text-decoration: none;
 }
 
 .btn:hover {

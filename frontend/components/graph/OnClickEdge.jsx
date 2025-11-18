@@ -1,25 +1,54 @@
 import { PositionedOverlay } from './PositionedOverlay.jsx';
+import { UserAttribution } from '../common/UserAttribution.jsx';
+import { CommentsRating } from '../common/CommentsRating.jsx';
 
 /**
- * Edge tooltip component that displays edge notes on click
- * Shows a positioned overlay with edge data when an edge is clicked
+ * Edge tooltip component that displays edge data on click
+ * Shows attribution, logic type, and notes
  *
  * @param {Object} props
- * @param {Object} props.activeEdgeTooltip - {edge: cytoscapeEdge, notes: string} or null
+ * @param {Object} props.activeEdgeTooltip - {edge: cytoscapeEdge, clickOffset: {x, y}} or null
  * @param {Object} props.cy - Cytoscape instance
  */
 export function OnClickEdge({ activeEdgeTooltip, cy }) {
   if (!activeEdgeTooltip || !cy) return null;
 
+  const edge = activeEdgeTooltip.edge;
+  const edgeId = edge.data('id');
+  const logicType = edge.data('logic_type');
+  const notes = edge.data('notes');
+  const clickOffset = activeEdgeTooltip.clickOffset || { x: 0, y: 0 };
+
+  // Calculate animation start position
+  const startX = clickOffset.x / 2;
+  const startY = clickOffset.y / 2;
+
   return (
     <PositionedOverlay
-      cytoElement={activeEdgeTooltip.edge}
+      cytoElement={edge}
       cy={cy}
       offset={{ x: 20, y: -10 }}
     >
-      <div className="edge-tooltip">
-        <div className="tooltip-content">
-          {activeEdgeTooltip.notes}
+      <div
+        className="graph-tooltip-container"
+        style={{
+          '--start-x': `${startX}px`,
+          '--start-y': `${startY}px`
+        }}
+      >
+        <div className="graph-tooltip-highlight">
+          <div className="graph-tooltip">
+            <div className="tooltip-content">
+              <div className="tooltip-attribution">
+                <UserAttribution entityUuid={edgeId} entityType="connection" showTimestamp={true} />
+              </div>
+              {logicType && <div><strong>Logic:</strong> {logicType}</div>}
+              {notes && <div><strong>Notes:</strong> {notes}</div>}
+              <div className="tooltip-comments-rating">
+                <CommentsRating entityUuid={edgeId} entityType="connection" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </PositionedOverlay>
@@ -38,9 +67,19 @@ export function setupEdgeTooltip(cy, setActiveEdgeTooltip) {
   // Click on edge to show tooltip
   cy.on('tap', 'edge', (event) => {
     const edge = event.target;
-    const notes = edge.data('notes') || 'No notes available';
 
-    setActiveEdgeTooltip({ edge, notes });
+    // Capture rendered click position relative to the container position
+    // The container will be positioned at edge.renderedMidpoint() + offset
+    const renderedClick = event.renderedPosition;
+    const edgeMidpoint = edge.renderedMidpoint();
+    const containerOffset = { x: 20, y: -10 }; // Must match GraphClick offset
+
+    const clickOffset = {
+      x: renderedClick.x - (edgeMidpoint.x + containerOffset.x),
+      y: renderedClick.y - (edgeMidpoint.y + containerOffset.y)
+    };
+
+    setActiveEdgeTooltip({ edge, clickOffset });
 
     event.stopPropagation();
     event.preventDefault();

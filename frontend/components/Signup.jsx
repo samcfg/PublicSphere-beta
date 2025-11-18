@@ -1,9 +1,11 @@
 // From Uiverse.io by JkHuger
 import { useState } from 'react';
-import { registerUser } from '../APInterface/api.js';
-import '../styles/components/auth.css';
+import { useAuth } from '../utilities/AuthContext.jsx';
+import { validateUsername, validateEmail, validatePassword, validatePasswordMatch } from '../utilities/validators.js';
+import '../styles/components/modal1.css';
 
 export function Signup({ onToggleMode, onSignupSuccess }) {
+  const { register } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,25 +18,34 @@ export function Signup({ onToggleMode, onSignupSuccess }) {
     setError('');
 
     // Frontend validation
-    if (!username || !password) {
-      setError('Username and password are required');
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      setError(usernameValidation.error);
       return;
     }
 
-    if (password !== passwordConfirm) {
-      setError('Passwords do not match');
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      setError(emailValidation.error);
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.error);
+      return;
+    }
+
+    const passwordMatchValidation = validatePasswordMatch(password, passwordConfirm);
+    if (!passwordMatchValidation.valid) {
+      setError(passwordMatchValidation.error);
       return;
     }
 
     setIsLoading(true);
 
-    // Call API
-    const response = await registerUser({
+    // Call register from AuthContext
+    const response = await register({
       username,
       email: email || '',
       password,
@@ -55,10 +66,9 @@ export function Signup({ onToggleMode, onSignupSuccess }) {
         setError(response.error);
       }
     } else {
-      // Success - save token and notify parent
-      localStorage.setItem('authToken', response.data.token);
+      // Success - notify parent to close modal
       if (onSignupSuccess) {
-        onSignupSuccess(response.data);
+        onSignupSuccess();
       }
     }
   };
