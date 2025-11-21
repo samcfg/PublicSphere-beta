@@ -10,6 +10,7 @@
 @import './components/attribution.css';
 @import './components/modal.css';
 @import './components/comments-rating.css';
+@import './components/checkbox.css';
 
 /* Global Reset */
 html,

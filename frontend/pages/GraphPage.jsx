@@ -10,10 +10,16 @@ import { AttributionProvider } from '../utilities/AttributionContext.jsx';
  * Orchestrates data flow between API, formatting, and visualization
  */
 export function GraphPage() {
-  const { data, attributions, loading, error, refetch } = useGraphData();
+  const { data, attributions: initialAttributions, loading, error, refetch } = useGraphData();
   const graphRef = useRef(null); // Reference to Graph component for imperative methods
   const [formattedData, setFormattedData] = useState(null);
   const [graphStats, setGraphStats] = useState(null);
+  const [attributions, setAttributions] = useState({});
+
+  // Sync attributions from hook
+  useEffect(() => {
+    setAttributions(initialAttributions);
+  }, [initialAttributions]);
 
   // Calculate graph stats when data changes
   useEffect(() => {
@@ -46,6 +52,20 @@ export function GraphPage() {
     }
   }, [data]);
 
+  // Attribution cache updater for local graph manipulation
+  const updateAttributions = (modifications) => {
+    setAttributions(prev => {
+      const next = {...prev};
+      if (modifications.add) {
+        Object.assign(next, modifications.add);
+      }
+      if (modifications.remove) {
+        modifications.remove.forEach(uuid => delete next[uuid]);
+      }
+      return next;
+    });
+  };
+
   // Control handlers
   const handleLoadGraph = () => {
     refetch(); // Trigger data refresh
@@ -72,7 +92,12 @@ export function GraphPage() {
         graphStats={graphStats}
       />
 
-      <Graph ref={graphRef} data={formattedData} />
+      <Graph
+        ref={graphRef}
+        data={formattedData}
+        updateAttributions={updateAttributions}
+        onGraphChange={refetch}
+      />
     </AttributionProvider>
   );
 }

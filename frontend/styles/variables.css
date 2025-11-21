@@ -116,6 +116,8 @@
   --font-family-base: 'Libre Baskerville', Georgia, serif;
   --font-family-heading: 'IM Fell French Canon', 'Times New Roman', serif;
   --font-family-ui: Arial, sans-serif;
+  --font-family-tooltip: 'Lato', Arial, sans-serif;
+  --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
@@ -128,9 +130,9 @@
   --bg-secondary: #2d3748;
   --bg-tertiary: #4a5568;
 
-  /* Text colors - orange for dark mode */
-  --text-primary: #ff8c42;
-  --text-secondary: #ffa366;
+  /* Text colors - cream/beige for dark mode */
+  --text-primary: #f5f0e6;
+  --text-secondary: #e8dfd0;
 
   /* Accent colors - slightly muted for dark mode */
   --accent-green: #48bb78;

@@ -18,8 +18,8 @@ export function App() {
   const [isSignup, setIsSignup] = useState(false);
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
 
-  // Determine if we're on the graph page
-  const isGraphPage = location.pathname === '/graph';
+  // Determine if we're on a graph page (full graph or context view)
+  const isGraphPage = location.pathname === '/graph' || location.pathname === '/context';
 
   const handleUserClick = () => {
     if (!showLogin) {

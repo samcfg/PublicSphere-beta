@@ -1,0 +1,227 @@
+/**
+ * Node Creation Panel - styled to match graph nodes
+ * Appears as a floating node-like form on the right
+ */
+
+.node-creation-panel {
+  /* Positioned by PositionedOverlay - scales with graph zoom */
+}
+
+/* Green highlight wrapper - matches node tooltip */
+.node-creation-highlight {
+  background-color: var(--accent-green);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+/* Inner panel - matches node appearance */
+.node-creation-inner {
+  background-color: var(--node-default);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--attr-text);
+  font-family: var(--font-family-tooltip);
+  font-size: var(--font-size-base);
+  width: 280px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Header */
+.node-creation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--attr-border);
+}
+
+.node-creation-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent-green);
+}
+
+.node-creation-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--attr-text);
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.node-creation-close:hover {
+  opacity: 1;
+}
+
+/* Context info - what we're connecting to */
+.node-creation-context {
+  font-size: 11px;
+  color: var(--attr-text);
+  opacity: 0.7;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.node-creation-context strong {
+  opacity: 1;
+}
+
+/* Form content */
+.node-creation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Form field groups */
+.node-creation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-creation-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+
+/* Type selector buttons */
+.node-creation-type-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.node-creation-type-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--attr-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--attr-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.node-creation-type-btn:hover {
+  border-color: var(--accent-green);
+}
+
+.node-creation-type-btn.selected {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #000;
+}
+
+/* Radio options for relationship */
+.node-creation-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.node-creation-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.node-creation-option input[type="radio"] {
+  margin: 0;
+}
+
+.node-creation-option em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent-green);
+}
+
+/* Text inputs */
+.node-creation-input,
+.node-creation-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--attr-border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family-base);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.node-creation-input:focus,
+.node-creation-textarea:focus {
+  outline: none;
+  border-color: var(--accent-green);
+}
+
+.node-creation-textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+/* Footer actions */
+.node-creation-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--attr-border);
+}
+
+.node-creation-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--attr-border);
+  background: transparent;
+  color: var(--attr-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.node-creation-btn:hover {
+  border-color: var(--accent-green);
+}
+
+.node-creation-btn-primary {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #000;
+}
+
+.node-creation-btn-primary:hover {
+  background: var(--accent-green);
+  opacity: 0.9;
+}
+
+.node-creation-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Error message */
+.node-creation-error {
+  padding: 8px;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: 4px;
+  color: #c00;
+  font-size: 11px;
+}

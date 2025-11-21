@@ -9,6 +9,7 @@ from users.views import (
     UserProfileView,
     UserProfileDetailView,
     UserContributionsView,
+    UserContributionsListView,
     EntityAttributionView,
     ToggleAnonymityView,
     LeaderboardView,
@@ -29,6 +30,7 @@ urlpatterns = [
 
     # Contributions
     path('contributions/', UserContributionsView.as_view(), name='contributions'),
+    path('contributions/list/', UserContributionsListView.as_view(), name='contributions-list'),
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
 
     # Attribution

@@ -1,5 +1,4 @@
 /**
- * Frontend API client for PublicSphere DRF backend.
  * All functions return standardized {data, meta, error} responses.
  * Pure functions - no classes, fully compatible with React hooks.
  */
@@ -13,12 +12,13 @@ const BASE_URL = '/api';
  */
 async function apiFetch(url, options = {}) {
   try {
+    const { headers: optionHeaders, ...restOptions } = options;
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...optionHeaders,
       },
-      ...options,
+      ...restOptions,
     });
 
     // Check for rate limit (429 Too Many Requests)
@@ -56,11 +56,13 @@ export async function fetchClaims() {
 /**
  * Create a new claim
  * POST /api/claims/
+ * @param {string} token - Auth token
  * @param {Object} data - {content: string}
  */
-export async function createClaim(data) {
+export async function createClaim(token, data) {
   return apiFetch(`${BASE_URL}/claims/`, {
     method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -89,10 +91,12 @@ export async function updateClaim(claimId, data) {
 /**
  * Delete a claim
  * DELETE /api/claims/:id/
+ * @param {string} token - Auth token
  */
-export async function deleteClaim(claimId) {
+export async function deleteClaim(token, claimId) {
   return apiFetch(`${BASE_URL}/claims/${claimId}/`, {
     method: 'DELETE',
+    headers: { 'Authorization': `Token ${token}` },
   });
 }
 
@@ -107,11 +111,13 @@ export async function fetchSources() {
 /**
  * Create a new source
  * POST /api/sources/
+ * @param {string} token - Auth token
  * @param {Object} data - {url, title, author, publication_date, source_type, content}
  */
-export async function createSource(data) {
+export async function createSource(token, data) {
   return apiFetch(`${BASE_URL}/sources/`, {
     method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -138,22 +144,26 @@ export async function updateSource(sourceId, data) {
 /**
  * Delete a source
  * DELETE /api/sources/:id/
+ * @param {string} token - Auth token
  */
-export async function deleteSource(sourceId) {
+export async function deleteSource(token, sourceId) {
   return apiFetch(`${BASE_URL}/sources/${sourceId}/`, {
     method: 'DELETE',
+    headers: { 'Authorization': `Token ${token}` },
   });
 }
 
 /**
  * Create a connection (single or compound)
  * POST /api/connections/
+ * @param {string} token - Auth token
  * Single: {from_node_id, to_node_id, notes?, logic_type?, composite_id?}
  * Compound: {source_node_ids: [ids], target_node_id, logic_type, notes?, composite_id?}
  */
-export async function createConnection(data) {
+export async function createConnection(token, data) {
   return apiFetch(`${BASE_URL}/connections/`, {
     method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -262,12 +272,36 @@ export async function fetchPublicProfile(username) {
 }
 
 /**
- * Get authenticated user's contributions
+ * Get authenticated user's contributions (counts only)
  * GET /api/users/contributions/
  * @param {string} token - Auth token
  */
 export async function fetchUserContributions(token) {
   return apiFetch(`${BASE_URL}/users/contributions/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Get authenticated user's contributions with full details
+ * GET /api/users/contributions/list/
+ * @param {string} token - Auth token
+ * @returns {Object} {claims: [...], sources: [...], connections: [...]}
+ */
+export async function fetchUserContributionsList(token) {
+  return apiFetch(`${BASE_URL}/users/contributions/list/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
+}
+
+/**
+ * Get authenticated user's social contributions (comments and ratings)
+ * GET /api/social/contributions/
+ * @param {string} token - Auth token
+ * @returns {Object} {comments: [...], ratings: [...]}
+ */
+export async function fetchUserSocialContributions(token) {
+  return apiFetch(`${BASE_URL}/social/contributions/`, {
     headers: { 'Authorization': `Token ${token}` },
   });
 }
@@ -288,6 +322,20 @@ export async function fetchEntityAttribution(entityUuid, entityType) {
  */
 export async function toggleAnonymity(token, data) {
   return apiFetch(`${BASE_URL}/users/toggle-anonymity/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Toggle anonymity for user's social contribution (comment or rating)
+ * POST /api/social/toggle-anonymity/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_id: int, entity_type: 'comment'|'rating'}
+ */
+export async function toggleSocialAnonymity(token, data) {
+  return apiFetch(`${BASE_URL}/social/toggle-anonymity/`, {
     method: 'POST',
     headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
@@ -335,24 +383,26 @@ export async function rateEntity(token, data) {
 
 /**
  * Get aggregated ratings for entity
- * GET /api/social/ratings/?entity=uuid&dimension=confidence|relevance
+ * GET /api/social/ratings/entity/?entity=uuid&dimension=confidence|relevance
+ * @param {string} token - Optional auth token to get user's own rating
  */
-export async function fetchEntityRatings(entityUuid, dimension = null) {
+export async function fetchEntityRatings(entityUuid, dimension = null, token = null) {
   const url = dimension
-    ? `${BASE_URL}/social/ratings/?entity=${entityUuid}&dimension=${dimension}`
-    : `${BASE_URL}/social/ratings/?entity=${entityUuid}`;
-  return apiFetch(url);
+    ? `${BASE_URL}/social/ratings/entity/?entity=${entityUuid}&dimension=${dimension}`
+    : `${BASE_URL}/social/ratings/entity/?entity=${entityUuid}`;
+  const options = token ? { headers: { 'Authorization': `Token ${token}` } } : {};
+  return apiFetch(url, options);
 }
 
 /**
  * Delete user's own rating
- * DELETE /api/social/ratings/?entity=uuid&entity_type=type&dimension=dimension
+ * DELETE /api/social/ratings/delete/?entity=uuid&entity_type=type&dimension=dimension
  * @param {string} token - Auth token
  */
 export async function deleteRating(token, entityUuid, entityType, dimension = null) {
   const url = dimension
-    ? `${BASE_URL}/social/ratings/?entity=${entityUuid}&entity_type=${entityType}&dimension=${dimension}`
-    : `${BASE_URL}/social/ratings/?entity=${entityUuid}&entity_type=${entityType}`;
+    ? `${BASE_URL}/social/ratings/delete/?entity=${entityUuid}&entity_type=${entityType}&dimension=${dimension}`
+    : `${BASE_URL}/social/ratings/delete/?entity=${entityUuid}&entity_type=${entityType}`;
   return apiFetch(url, {
     method: 'DELETE',
     headers: { 'Authorization': `Token ${token}` },
@@ -375,10 +425,13 @@ export async function createComment(token, data) {
 
 /**
  * Get comments for entity
- * GET /api/social/comments/?entity=uuid
+ * GET /api/social/comments/entity/?entity=uuid&sort=timestamp|score
  */
-export async function fetchEntityComments(entityUuid) {
-  return apiFetch(`${BASE_URL}/social/comments/?entity=${entityUuid}`);
+export async function fetchEntityComments(entityUuid, sort = null) {
+  const url = sort
+    ? `${BASE_URL}/social/comments/entity/?entity=${entityUuid}&sort=${sort}`
+    : `${BASE_URL}/social/comments/entity/?entity=${entityUuid}`;
+  return apiFetch(url);
 }
 
 /**

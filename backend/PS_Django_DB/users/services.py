@@ -3,8 +3,9 @@ User contribution queries and reputation calculations.
 Provides service layer for user analytics and profile metrics.
 """
 from typing import Dict, List, Optional
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Subquery, OuterRef
 from users.models import User, UserProfile, UserAttribution, UserModificationAttribution
+from bookkeeper.models import ClaimVersion, SourceVersion, EdgeVersion
 
 
 class UserContributionService:
@@ -115,22 +116,130 @@ class UserContributionService:
         ]
 
     @staticmethod
-    def get_user_created_entities(user_id: int, entity_type: Optional[str] = None) -> List[str]:
+    def get_user_created_entities(user_id: int) -> Dict:
         """
-        Get list of entity UUIDs created by a user.
+        Get all entities created by a user with their content.
 
         Args:
             user_id: User ID
-            entity_type: Optional filter by 'claim', 'source', or 'connection'
 
         Returns:
-            List of entity UUIDs
+            Dict with keys: claims, sources, connections
+            Each containing list of entity dicts with content and attribution info
         """
-        query = UserAttribution.objects.filter(user_id=user_id)
-        if entity_type:
-            query = query.filter(entity_type=entity_type)
+        # Get all attributions for user, grouped by type
+        attributions = UserAttribution.objects.filter(user_id=user_id)
 
-        return list(query.values_list('entity_uuid', flat=True))
+        claim_attrs = {a.entity_uuid: a for a in attributions.filter(entity_type='claim')}
+        source_attrs = {a.entity_uuid: a for a in attributions.filter(entity_type='source')}
+        connection_attrs = {a.entity_uuid: a for a in attributions.filter(entity_type='connection')}
+
+        # Helper to get latest version via subquery
+        def get_latest_versions(model, id_field, uuids):
+            if not uuids:
+                return []
+            # Subquery to find max version_number for each entity
+            latest_version_subq = model.objects.filter(
+                **{id_field: OuterRef(id_field)}
+            ).order_by('-version_number').values('version_number')[:1]
+
+            return model.objects.filter(
+                **{f'{id_field}__in': uuids},
+                version_number=Subquery(latest_version_subq)
+            )
+
+        # Fetch latest versions for each type
+        claim_versions = get_latest_versions(ClaimVersion, 'node_id', list(claim_attrs.keys()))
+        source_versions = get_latest_versions(SourceVersion, 'node_id', list(source_attrs.keys()))
+        edge_versions = get_latest_versions(EdgeVersion, 'edge_id', list(connection_attrs.keys()))
+
+        # Build node lookup for resolving connection endpoints
+        # Collect all node IDs referenced by connections
+        endpoint_ids = set()
+        for edge in edge_versions:
+            endpoint_ids.add(edge.source_node_id)
+            endpoint_ids.add(edge.target_node_id)
+
+        # Fetch latest versions of all endpoint nodes
+        node_lookup = {}
+        if endpoint_ids:
+            # Check claims
+            claim_endpoint_subq = ClaimVersion.objects.filter(
+                node_id=OuterRef('node_id')
+            ).order_by('-version_number').values('version_number')[:1]
+
+            for claim in ClaimVersion.objects.filter(
+                node_id__in=endpoint_ids,
+                version_number=Subquery(claim_endpoint_subq)
+            ):
+                node_lookup[claim.node_id] = {
+                    'type': 'claim',
+                    'display': claim.content[:100] if claim.content else '[No content]'
+                }
+
+            # Check sources
+            source_endpoint_subq = SourceVersion.objects.filter(
+                node_id=OuterRef('node_id')
+            ).order_by('-version_number').values('version_number')[:1]
+
+            for source in SourceVersion.objects.filter(
+                node_id__in=endpoint_ids,
+                version_number=Subquery(source_endpoint_subq)
+            ):
+                node_lookup[source.node_id] = {
+                    'type': 'source',
+                    'display': source.title or source.url or '[No title]'
+                }
+
+        # Build response
+        claims = []
+        for claim in claim_versions:
+            attr = claim_attrs.get(claim.node_id)
+            claims.append({
+                'uuid': claim.node_id,
+                'content': claim.content,
+                'is_anonymous': attr.is_anonymous if attr else False,
+                'created_at': attr.timestamp.isoformat() if attr else None,
+            })
+
+        sources = []
+        for source in source_versions:
+            attr = source_attrs.get(source.node_id)
+            sources.append({
+                'uuid': source.node_id,
+                'title': source.title,
+                'url': source.url,
+                'author': source.author,
+                'source_type': source.source_type,
+                'is_anonymous': attr.is_anonymous if attr else False,
+                'created_at': attr.timestamp.isoformat() if attr else None,
+            })
+
+        connections = []
+        for edge in edge_versions:
+            attr = connection_attrs.get(edge.edge_id)
+            source_node = node_lookup.get(edge.source_node_id, {'type': 'unknown', 'display': '[Unknown]'})
+            target_node = node_lookup.get(edge.target_node_id, {'type': 'unknown', 'display': '[Unknown]'})
+
+            connections.append({
+                'uuid': edge.edge_id,
+                'source_node_id': edge.source_node_id,
+                'source_node_type': source_node['type'],
+                'source_node_display': source_node['display'],
+                'target_node_id': edge.target_node_id,
+                'target_node_type': target_node['type'],
+                'target_node_display': target_node['display'],
+                'notes': edge.notes,
+                'logic_type': edge.logic_type,
+                'is_anonymous': attr.is_anonymous if attr else False,
+                'created_at': attr.timestamp.isoformat() if attr else None,
+            })
+
+        return {
+            'claims': claims,
+            'sources': sources,
+            'connections': connections,
+        }
 
     @staticmethod
     def get_user_edited_entities(user_id: int, entity_type: Optional[str] = None) -> List[str]:

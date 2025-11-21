@@ -1,5 +1,16 @@
-# 9/3 
-## Transcript 1
+## Foundations: 
+### Philosophy of Epistemology
+Based on the fundemental epistemological state: the operations of observation, logical operation, and claim support formal logic
+
+### Data structure
+graph database connected to hybrid relational one which acts as a 
+bookkeeper. 
+
+### UI
+Must immediately show the logic that it represents, minimizing friction. Show. 
+
+## 9/3 
+### Transcript 1
 The atomic units of structured reasoning: Sources
   (evidence/observations), Claims (assertions/conclusions), and Connections
   (logical relationships). This trinity mirrors the fundamental epistemological
@@ -196,3 +207,4 @@ Make node creation
   - Do you have a link for the evidence/ what is your empyrical statement? 
   - Notes? 
 Make node page
+Things always get wonky in the frontend. The API needs to be strong to keep things organized. 

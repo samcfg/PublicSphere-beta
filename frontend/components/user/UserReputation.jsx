@@ -8,6 +8,8 @@ import { fetchUserProfile } from '../../APInterface/api.js';
  * Design spec: "Reputation is two words 'value' 'type'"
  * - value = upvotes/downvotes + admin incidents (Phase 2 - ratings not yet implemented)
  * - type = sum(contribution type * number) e.g., "prolific reader" or "effective contributor"
+ * 
+ * USE THIS FOR CALCULATION: get_user_contributions()
  */
 export function UserReputation() {
   const { token } = useAuth();

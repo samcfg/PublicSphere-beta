@@ -1,0 +1,605 @@
+/* CommentsRating - Tab-based display adapted from Uiverse.io by Spacious74 */
+
+.comments-rating-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-tooltip);
+  font-size: var(--font-size-xs);
+  width: 100%;
+  border: none;
+}
+
+/* Tab bar */
+.cr-tabs {
+  position: relative;
+  display: flex;
+  border-radius: 0;
+  background-color: var(--accent-green);
+  box-sizing: border-box;
+  padding: 0.5rem 1rem 0 1rem;
+  box-shadow: none;
+}
+
+.cr-tabs .cr-tab input {
+  display: none;
+}
+
+.cr-tabs .cr-tab .tab-label {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  border: none;
+  padding: 0.5rem 0.8rem;
+  color: var(--attr-text);
+  transition: all 0.15s ease-in-out;
+  position: relative;
+  font-size: var(--font-size-sm);
+}
+
+.cr-tabs .cr-tab input:checked + .tab-label {
+  background-color: var(--node-default);
+  font-weight: 600;
+  z-index: 1;
+}
+
+.cr-tabs .cr-tab input + .tab-label:hover {
+  color: #fff;
+}
+
+.cr-tabs .cr-tab input:checked + .tab-label:hover {
+  color: var(--attr-text);
+}
+
+/* Curved corner effect for active tab */
+.cr-tabs .cr-tab input:checked + .tab-label::after,
+.cr-tabs .cr-tab input:checked + .tab-label::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: var(--accent-green);
+  bottom: 0;
+}
+
+.cr-tabs .cr-tab input:checked + .tab-label::after {
+  right: -10px;
+  border-bottom-left-radius: 300px;
+  box-shadow: -3px 3px 0px 3px var(--node-default);
+}
+
+.cr-tabs .cr-tab input:checked + .tab-label::before {
+  left: -10px;
+  border-bottom-right-radius: 300px;
+  box-shadow: 3px 3px 0px 3px var(--node-default);
+}
+
+/* Tab icons */
+.tab-icon {
+  font-size: var(--font-size-sm);
+}
+
+.tab-summary {
+  white-space: nowrap;
+}
+
+/* Content panel - dropdown from tabs */
+.cr-content {
+  background-color: var(--graph-bg);
+  border-radius: 0 0 0.5rem 0.5rem;
+  padding: var(--spacing-md);
+  color: var(--attr-text);
+  min-height: 60px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* No content selected state */
+.cr-content-empty {
+  display: none;
+}
+
+/* Loading state */
+.cr-loading {
+  color: var(--attr-text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: var(--spacing-md);
+}
+
+/* Ratings content */
+.rating-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--attr-border);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.user-rating {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--attr-border);
+  color: var(--attr-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Comments content */
+.no-comments {
+  color: var(--attr-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.comment-item {
+  padding: var(--spacing-sm);
+  background-color: var(--node-default);
+  border-radius: 8px;
+  border: 1px solid var(--attr-border);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--attr-user);
+}
+
+.comment-timestamp {
+  color: var(--attr-text-muted);
+}
+
+.comment-content {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.comment-replies {
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--attr-text-muted);
+  font-style: italic;
+}
+
+/* Rating input row */
+.rating-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.rating-input-row input[type="number"] {
+  width: 70px;
+  padding: 4px 8px;
+  border: 1px solid var(--attr-border);
+  border-radius: 4px;
+  background: var(--node-default);
+  color: var(--attr-text);
+  font-size: var(--font-size-sm);
+}
+
+.rating-input-row button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent-blue);
+  color: white;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.rating-input-row button:hover:not(:disabled) {
+  background: var(--accent-green);
+}
+
+.rating-input-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Rating distribution */
+.rating-distribution {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--attr-border);
+}
+
+.rating-distribution .stat-row {
+  font-size: var(--font-size-sm);
+  padding: 2px 0;
+}
+
+/* Comments section */
+.comments-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* New comment input */
+.new-comment-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--attr-border);
+}
+
+.new-comment-container textarea,
+.reply-input-container textarea {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--attr-border);
+  border-radius: 6px;
+  background: var(--node-default);
+  color: var(--attr-text);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-sm);
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.new-comment-container textarea:focus,
+.reply-input-container textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.new-comment-actions,
+.reply-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+}
+
+.submit-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent-blue);
+  color: white;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--accent-green);
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--attr-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--attr-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cancel-btn:hover {
+  background: var(--attr-border);
+}
+
+.login-prompt {
+  text-align: center;
+  padding: var(--spacing-sm);
+  color: var(--attr-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+/* Sort controls */
+.comments-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+}
+
+.sort-label {
+  font-size: var(--font-size-sm);
+  color: var(--attr-text-muted);
+}
+
+.comments-sort button {
+  padding: 4px 10px;
+  border: 1px solid var(--attr-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--attr-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.comments-sort button:hover {
+  background: var(--attr-border);
+}
+
+.comments-sort button.active {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: white;
+}
+
+/* Comment item with voting */
+.comment-item {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--node-default);
+  border-radius: 8px;
+  border: 1px solid var(--attr-border);
+}
+
+.comment-item.comment-reply {
+  border-left: 2px solid var(--accent-blue);
+}
+
+/* Vote controls */
+.comment-vote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 24px;
+}
+
+.vote-btn {
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--attr-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.vote-btn:hover:not(:disabled) {
+  background: var(--attr-border);
+}
+
+.vote-btn.upvote:hover:not(:disabled),
+.vote-btn.upvote.active {
+  color: var(--accent-green);
+}
+
+.vote-btn.downvote:hover:not(:disabled),
+.vote-btn.downvote.active {
+  color: var(--accent-red, #e74c3c);
+}
+
+.vote-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Comment body */
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.comment-dot {
+  color: var(--attr-text-muted);
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--attr-user);
+}
+
+.comment-timestamp {
+  color: var(--attr-text-muted);
+}
+
+.comment-content {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Comment actions */
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.action-btn {
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--attr-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.action-btn:hover {
+  background: var(--attr-border);
+  color: var(--attr-text);
+}
+
+.reply-count {
+  font-size: var(--font-size-sm);
+  color: var(--attr-text-muted);
+}
+
+/* Reply input */
+.reply-input-container {
+  margin-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+/* Nested thread structure */
+.comment-thread-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.comment-replies-container {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 2px solid var(--attr-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+/* Collapse toggle */
+.collapse-toggle {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--attr-text-muted);
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.collapse-toggle:hover {
+  background: var(--attr-border);
+  color: var(--attr-text);
+}
+
+/* Collapsed comment state */
+.comment-item.collapsed {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--graph-bg);
+  border: 1px dashed var(--attr-border);
+}
+
+.comment-collapsed {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--attr-text-muted);
+}
+
+.comment-collapsed .comment-author {
+  font-weight: 600;
+  color: var(--attr-user);
+}
+
+.collapsed-info {
+  font-style: italic;
+}
+
+/* Clickable thread line for collapsing */
+.comment-replies-container {
+  position: relative;
+}
+
+.comment-replies-container::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: pointer;
+}
+
+/* Edit input container */
+.edit-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.edit-input-container textarea {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--accent-blue);
+  border-radius: 6px;
+  background: var(--node-default);
+  color: var(--attr-text);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-sm);
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.edit-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+}
+
+/* Delete confirmation styling */
+.action-btn.delete-confirm {
+  color: var(--accent-red, #e74c3c);
+}
+
+.action-btn.delete-confirm:hover {
+  background: var(--accent-red, #e74c3c);
+  color: white;
+}
+
+/* Own comment indicator */
+.comment-author {
+  font-weight: 600;
+  color: var(--attr-user);
+}
+
+.comment-item .comment-author:first-child {
+  /* "you" gets slightly different styling if desired */
+}

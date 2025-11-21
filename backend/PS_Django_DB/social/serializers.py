@@ -48,24 +48,31 @@ class CommentSerializer(serializers.ModelSerializer):
     username = serializers.SerializerMethodField()
     display_content = serializers.CharField(source='get_display_content', read_only=True)
     reply_count = serializers.SerializerMethodField()
+    is_own = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = [
             'id', 'username', 'entity_uuid', 'entity_type', 'content',
-            'display_content', 'parent_comment', 'is_deleted', 'timestamp', 'reply_count'
+            'display_content', 'parent_comment', 'is_deleted', 'is_anonymous',
+            'timestamp', 'reply_count', 'is_own'
         ]
-        read_only_fields = ['id', 'username', 'timestamp', 'is_deleted', 'display_content', 'reply_count']
+        read_only_fields = ['id', 'username', 'timestamp', 'is_deleted', 'is_anonymous', 'display_content', 'reply_count', 'is_own']
 
     def get_username(self, obj):
-        """Return username or [deleted] if user is None"""
-        if obj.user is None:
-            return '[deleted]'
-        return obj.user.username
+        """Return sanitized username respecting is_anonymous flag"""
+        return obj.get_display_name()
 
     def get_reply_count(self, obj):
         """Count non-deleted replies"""
         return obj.replies.filter(is_deleted=False).count()
+
+    def get_is_own(self, obj):
+        """Check if this comment belongs to the requesting user"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and obj.user:
+            return obj.user.id == request.user.id
+        return False
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -172,3 +179,4 @@ class RatingAggregateSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     stddev = serializers.FloatField(allow_null=True)
     distribution = serializers.DictField()
+    user_score = serializers.FloatField(allow_null=True)

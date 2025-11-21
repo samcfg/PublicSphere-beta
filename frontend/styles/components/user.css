@@ -284,3 +284,142 @@
   color: var(--text-secondary);
   font-family: var(--font-family-ui);
 }
+
+/* Contributions table styles */
+.contributions-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.contributions-tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.contributions-tab:hover {
+  color: var(--text-primary);
+}
+
+.contributions-tab.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+}
+
+.contributions-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.contributions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-sm);
+  background: var(--bg-secondary);
+}
+
+.contributions-table thead {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.contributions-table th {
+  padding: 0.5rem 1rem;
+  text-align: left;
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+}
+
+.contributions-table td {
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.contributions-table tbody tr {
+  transition: background-color 0.15s;
+}
+
+.contributions-table tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+.table-content-cell {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-url-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  max-width: 250px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table-url-link:hover {
+  text-decoration: underline;
+  color: var(--accent-blue-dark);
+}
+
+.table-node-type {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.15rem;
+}
+
+.table-node-display {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge.public {
+  background: rgba(104, 211, 145, 0.2);
+  color: var(--accent-green);
+}
+
+.status-badge.anonymous {
+  background: var(--attr-anon-bg);
+  color: var(--attr-anon);
+}
+
+.empty-message {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-family: var(--font-family-ui);
+  font-style: italic;
+}

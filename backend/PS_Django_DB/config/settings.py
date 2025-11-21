@@ -32,6 +32,7 @@ ALLOWED_HOSTS = []
 SECURE_SSL_REDIRECT = False  # Set to True in production (forces HTTPS)
 SESSION_COOKIE_SECURE = False  # Set to True in production (HTTPS-only session cookies)
 CSRF_COOKIE_SECURE = False  # Set to True in production (HTTPS-only CSRF cookies)
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']  # Vite dev server
 SECURE_HSTS_SECONDS = 0  # Set to 31536000 (1 year) in production (HSTS header)
 SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
 X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking (blocks iframe embedding)

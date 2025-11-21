@@ -14,9 +14,11 @@ cytoscape.use(cytoscapeDagre);
  *
  * @param {Object} props
  * @param {Object} props.data - Cytoscape elements: {elements: [{data: {...}}, ...]}
+ * @param {Function} props.updateAttributions - Function to update attribution cache locally
+ * @param {Function} props.onGraphChange - Fallback refetch function for complex updates
  * @param {React.Ref} ref - Forward ref for imperative method access
  */
-export const Graph = forwardRef(({ data }, ref) => {
+export const Graph = forwardRef(({ data, updateAttributions, onGraphChange }, ref) => {
   const containerRef = useRef(null); // DOM container for Cytoscape
   const cyRef = useRef(null); // Cytoscape instance
   const [activeEdgeTooltip, setActiveEdgeTooltip] = useState(null); // {edge: cytoscapeEdge, clickOffset: {x, y}}
@@ -80,7 +82,7 @@ export const Graph = forwardRef(({ data }, ref) => {
             'text-halign': 'center',
             'font-family': fontFamily,
             'font-size': '12px',
-            'font-weight': 'bold',
+            'font-weight': 'normal',
             'text-wrap': 'wrap',
             'text-max-width': '200px',
             'width': 'label',
@@ -232,6 +234,9 @@ export const Graph = forwardRef(({ data }, ref) => {
         key={activeNodeTooltip?.node?.id()}
         activeNodeTooltip={activeNodeTooltip}
         cy={cyRef.current}
+        updateAttributions={updateAttributions}
+        onGraphChange={onGraphChange}
+        onClose={() => setActiveNodeTooltip(null)}
       />
     </>
   );

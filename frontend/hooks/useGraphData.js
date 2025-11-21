@@ -35,16 +35,33 @@ export function useGraphData() {
 
     // Extract all entity UUIDs from graph data
     const entities = [];
-    if (response.data?.elements) {
-      response.data.elements.forEach(element => {
-        if (element.data?.id && element.data?.type) {
-          entities.push({
-            uuid: element.data.id,
-            type: element.data.type === 'claim' ? 'claim' :
-                  element.data.type === 'source' ? 'source' :
-                  element.data.label === 'Source' ? 'source' :
-                  'connection'
-          });
+
+    // Add claims - structure is { claim: { properties: { id: "uuid" } } }
+    if (response.data?.claims) {
+      response.data.claims.forEach(item => {
+        const uuid = item?.claim?.properties?.id;
+        if (uuid) {
+          entities.push({ uuid, type: 'claim' });
+        }
+      });
+    }
+
+    // Add sources - structure is { source: { properties: { id: "uuid" } } }
+    if (response.data?.sources) {
+      response.data.sources.forEach(item => {
+        const uuid = item?.source?.properties?.id;
+        if (uuid) {
+          entities.push({ uuid, type: 'source' });
+        }
+      });
+    }
+
+    // Add edges - structure is { connection: { properties: { id: "uuid" } } }
+    if (response.data?.edges) {
+      response.data.edges.forEach(item => {
+        const uuid = item?.connection?.properties?.id;
+        if (uuid) {
+          entities.push({ uuid, type: 'connection' });
         }
       });
     }
@@ -52,8 +69,12 @@ export function useGraphData() {
     // Batch fetch attributions
     if (entities.length > 0) {
       const attrResponse = await fetchBatchAttributions(entities);
-      if (!attrResponse.error && attrResponse.data) {
-        setAttributions(attrResponse.data);
+
+      // Handle both wrapped and unwrapped response formats
+      const attributionData = attrResponse.data || attrResponse;
+
+      if (!attrResponse.error && attributionData && typeof attributionData === 'object') {
+        setAttributions(attributionData);
       }
     }
 

@@ -24,6 +24,7 @@ from social.services import (
     RatingService,
     CommentService,
     ModerationService,
+    SocialAnonymityService,
 )
 from common.api_standards import standard_response
 
@@ -79,7 +80,8 @@ class EntityRatingsView(APIView):
             )
 
         rating_service = RatingService()
-        aggregates = rating_service.get_entity_ratings(entity_uuid, dimension)
+        user_id = request.user.id if request.user.is_authenticated else None
+        aggregates = rating_service.get_entity_ratings(entity_uuid, dimension, user_id)
 
         serializer = RatingAggregateSerializer(aggregates)
         return standard_response(data=serializer.data, source='social')
@@ -141,7 +143,7 @@ class CommentEntityView(APIView):
                 content=serializer.validated_data['content'],
                 parent_comment_id=serializer.validated_data.get('parent_comment').id if serializer.validated_data.get('parent_comment') else None
             )
-            response_serializer = CommentSerializer(comment)
+            response_serializer = CommentSerializer(comment, context={'request': request})
             return standard_response(
                 data=response_serializer.data,
                 status_code=status.HTTP_201_CREATED,
@@ -163,6 +165,7 @@ class EntityCommentsView(APIView):
 
     def get(self, request):
         entity_uuid = request.query_params.get('entity')
+        sort = request.query_params.get('sort', 'timestamp')
 
         if not entity_uuid:
             return standard_response(
@@ -171,10 +174,14 @@ class EntityCommentsView(APIView):
                 source='social'
             )
 
-        comment_service = CommentService()
-        comments = comment_service.get_entity_comments(entity_uuid, include_deleted=False)
+        # Validate sort parameter
+        if sort not in ['timestamp', 'score']:
+            sort = 'timestamp'
 
-        serializer = CommentSerializer(comments, many=True)
+        comment_service = CommentService()
+        comments = comment_service.get_entity_comments(entity_uuid, include_deleted=False, sort=sort)
+
+        serializer = CommentSerializer(comments, many=True, context={'request': request})
         return standard_response(data=serializer.data, source='social')
 
 
@@ -197,7 +204,7 @@ class CommentDetailView(APIView):
                 new_content=serializer.validated_data['content']
             )
             if comment:
-                response_serializer = CommentSerializer(comment)
+                response_serializer = CommentSerializer(comment, context={'request': request})
                 return standard_response(data=response_serializer.data, source='social')
             else:
                 return standard_response(
@@ -353,3 +360,103 @@ class ControlversialEntitiesView(APIView):
         controversial = rating_service.get_controversial_entities(limit=limit)
 
         return standard_response(data=controversial, source='social')
+
+
+class UserSocialContributionsView(APIView):
+    """
+    Get authenticated user's social contributions (comments and ratings).
+    GET /api/social/contributions/
+    Returns: {comments: [...], ratings: [...]}
+    Format matches /api/users/contributions/list/ for consistency
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        comment_service = CommentService()
+        rating_service = RatingService()
+
+        # Get user's comments (exclude soft-deleted)
+        comments = comment_service.get_user_comments(request.user.id, include_deleted=False)
+
+        # Get user's ratings
+        ratings = rating_service.get_user_ratings(request.user.id)
+
+        # Format comments similarly to graph contributions
+        comments_data = []
+        for comment in comments:
+            comments_data.append({
+                'id': comment.id,
+                'entity_uuid': comment.entity_uuid,
+                'entity_type': comment.entity_type,
+                'content': comment.content,
+                'parent_comment': comment.parent_comment_id,
+                'is_anonymous': comment.is_anonymous,
+                'created_at': comment.timestamp.isoformat(),
+            })
+
+        # Format ratings similarly to graph contributions
+        ratings_data = []
+        for rating in ratings:
+            ratings_data.append({
+                'id': rating.id,
+                'entity_uuid': rating.entity_uuid,
+                'entity_type': rating.entity_type,
+                'dimension': rating.dimension,
+                'score': rating.score,
+                'is_anonymous': rating.is_anonymous,
+                'created_at': rating.timestamp.isoformat(),
+            })
+
+        return standard_response(
+            data={
+                'comments': comments_data,
+                'ratings': ratings_data,
+            },
+            source='social'
+        )
+
+
+class ToggleSocialAnonymityView(APIView):
+    """
+    Toggle anonymity for user's social contributions (comments/ratings).
+    POST /api/social/toggle-anonymity/
+    Body: {entity_id: int, entity_type: 'comment'|'rating'}
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        entity_id = request.data.get('entity_id')
+        entity_type = request.data.get('entity_type')
+
+        if not entity_id or not entity_type:
+            return standard_response(
+                error={'code': 'validation_error', 'message': 'entity_id and entity_type are required'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
+
+        if entity_type not in ['comment', 'rating']:
+            return standard_response(
+                error={'code': 'validation_error', 'message': 'entity_type must be comment or rating'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
+
+        anonymity_service = SocialAnonymityService()
+
+        if entity_type == 'comment':
+            success = anonymity_service.toggle_comment_anonymity(entity_id, request.user.id)
+        else:  # rating
+            success = anonymity_service.toggle_rating_anonymity(entity_id, request.user.id)
+
+        if success:
+            return standard_response(
+                data={'toggled': True},
+                source='social'
+            )
+        else:
+            return standard_response(
+                error={'code': 'not_found', 'message': 'Entity not found or unauthorized'},
+                status_code=status.HTTP_404_NOT_FOUND,
+                source='social'
+            )

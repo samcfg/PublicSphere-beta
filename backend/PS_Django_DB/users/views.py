@@ -130,6 +130,19 @@ class UserContributionsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class UserContributionsListView(APIView):
+    """
+    Get detailed contribution list with content for authenticated user.
+    GET /api/users/contributions/list/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        service = UserContributionService()
+        contributions = service.get_user_created_entities(request.user.id)
+        return standard_response(data=contributions, source='users')
+
+
 class EntityAttributionView(APIView):
     """
     Get attribution info for a specific entity.
@@ -231,6 +244,7 @@ class BatchAttributionView(APIView):
     """
     Get attributions for multiple entities in one request.
     POST /api/users/attributions/batch/
+
     Body: {
         "entities": [
             {"uuid": "...", "type": "claim"},
@@ -239,8 +253,12 @@ class BatchAttributionView(APIView):
         ]
     }
     Returns: {entity_uuid: {creator: {...}, editors: [...]}, ...}
+
+    Note: CSRF exempt via empty authentication_classes (read-only batch fetch).
+    POST is used instead of GET to accommodate large entity lists in request body.
     """
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []  # No auth required = no CSRF checks
 
     def post(self, request):
         entities = request.data.get('entities', [])

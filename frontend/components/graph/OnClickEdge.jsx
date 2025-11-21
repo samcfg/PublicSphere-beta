@@ -37,16 +37,21 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
         }}
       >
         <div className="graph-tooltip-highlight">
-          <div className="graph-tooltip">
-            <div className="tooltip-content">
+          <div className="graph-tooltip" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', boxShadow: 'none' }}>
+            <div className="tooltip-content" style={{ flex: '1 1 auto' }}>
               <div className="tooltip-attribution">
                 <UserAttribution entityUuid={edgeId} entityType="connection" showTimestamp={true} />
               </div>
               {logicType && <div><strong>Logic:</strong> {logicType}</div>}
               {notes && <div><strong>Notes:</strong> {notes}</div>}
-              <div className="tooltip-comments-rating">
-                <CommentsRating entityUuid={edgeId} entityType="connection" />
-              </div>
+            </div>
+            <div className="tooltip-comments-rating" style={{
+              marginTop: 'auto',
+              marginLeft: '-8px',
+              marginRight: '-8px',
+              marginBottom: '-8px'
+            }}>
+              <CommentsRating entityUuid={edgeId} entityType="connection" />
             </div>
           </div>
         </div>

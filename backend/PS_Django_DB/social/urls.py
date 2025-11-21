@@ -14,6 +14,8 @@ from social.views import (
     PendingFlagsView,
     ResolveFlagView,
     ControlversialEntitiesView,
+    UserSocialContributionsView,
+    ToggleSocialAnonymityView,
 )
 
 app_name = 'social'
@@ -36,4 +38,8 @@ urlpatterns = [
 
     # Analytics endpoints
     path('controversial/', ControlversialEntitiesView.as_view(), name='controversial'),  # GET: controversial entities
+
+    # User contributions
+    path('contributions/', UserSocialContributionsView.as_view(), name='user_social_contributions'),  # GET: user's comments and ratings
+    path('toggle-anonymity/', ToggleSocialAnonymityView.as_view(), name='toggle_social_anonymity'),  # POST: toggle anonymity for comments/ratings
 ]

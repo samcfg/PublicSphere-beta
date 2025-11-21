@@ -48,6 +48,10 @@ class Rating(models.Model):
         validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
         help_text="Rating score from 0-100"
     )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="If True, display as [anonymous] in public queries"
+    )
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -63,7 +67,18 @@ class Rating(models.Model):
         unique_together = [['user', 'entity_uuid', 'entity_type', 'dimension']]
 
     def __str__(self):
-        return f"{self.user.username} rated {self.entity_type} {self.entity_uuid[:8]} ({self.dimension}): {self.score}"
+        user_display = self.get_display_name()
+        return f"{user_display} rated {self.entity_type} {self.entity_uuid[:8]} ({self.dimension}): {self.score}"
+
+    def get_display_name(self):
+        """
+        Returns the display name for UI rendering.
+        - [anonymous] if is_anonymous is True
+        - username otherwise
+        """
+        if self.is_anonymous:
+            return "[anonymous]"
+        return self.user.username if self.user else "[deleted]"
 
 
 class Comment(models.Model):
@@ -111,6 +126,10 @@ class Comment(models.Model):
         default=False,
         help_text="Soft delete flag—hides content in UI, preserves structure"
     )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="If True, display as [anonymous] in public queries"
+    )
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -125,9 +144,22 @@ class Comment(models.Model):
         ]
 
     def __str__(self):
-        user_display = self.user.username if self.user else "[deleted]"
+        user_display = self.get_display_name()
         status = " (deleted)" if self.is_deleted else ""
         return f"Comment by {user_display} on {self.entity_type} {self.entity_uuid[:8]}{status}"
+
+    def get_display_name(self):
+        """
+        Returns the display name for UI rendering.
+        - [deleted] if user is None (account deleted)
+        - [anonymous] if is_anonymous is True
+        - username otherwise
+        """
+        if self.user is None:
+            return "[deleted]"
+        if self.is_anonymous:
+            return "[anonymous]"
+        return self.user.username
 
     def get_display_content(self):
         """

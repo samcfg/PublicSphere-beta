@@ -44,7 +44,9 @@ export function UserAttribution({ entityUuid, entityType, showTimestamp = false 
       return;
     }
 
-    setAttribution(response.data);
+    // Handle both wrapped and unwrapped response formats
+    const attributionData = response.data || response;
+    setAttribution(attributionData);
     setLoading(false);
   };
 

@@ -32,10 +32,10 @@ How it works: In backend, this anonymity is saved in a boolean at the level of t
 User can also toggle anon on their contributions table (retroactive). 
 Disclimer: *Please assume good faith for anonymous users. There are many good reasons for wanting anonymity. Anonymous users take on extra responsibility for good conduct: admins have been instructed to more readily suspend or delete anon profiles for misconduct.  
 ### Contributions 
-Shows, claims, sources, connections, ratings and comments. 
+Shows a user's claims, sources, connections, ratings and comments. 
 non-anonymous contributions are public to anyone looking at user page. 
 ### Data 
-Only viewable for user to their own user page. Shows contributions, as well as other table entries with their data: User profile, user, and attributions. Ready for gdpr export. 
+Only viewable for user to their own user page. Shows contributions, as well as other table entries with their data: User profile, user. Ready for gdpr export. 
 
 
 # Moderation

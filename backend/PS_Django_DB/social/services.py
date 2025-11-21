@@ -3,7 +3,8 @@ Social interaction business logic.
 Handles ratings, comments, and moderation operations.
 """
 from typing import Dict, List, Optional
-from django.db.models import Avg, Count, Q, StdDev
+from django.db.models import Avg, Count, Q, StdDev, OuterRef, Subquery, CharField
+from django.db.models.functions import Cast
 from django.utils import timezone
 from social.models import Rating, Comment, FlaggedContent
 from users.models import User
@@ -38,16 +39,17 @@ class RatingService:
         return rating
 
     @staticmethod
-    def get_entity_ratings(entity_uuid: str, dimension: Optional[str] = None) -> Dict:
+    def get_entity_ratings(entity_uuid: str, dimension: Optional[str] = None, user_id: Optional[int] = None) -> Dict:
         """
         Get aggregated ratings for an entity.
 
         Args:
             entity_uuid: UUID of entity
             dimension: Optional filter by dimension
+            user_id: Optional user ID to include their rating
 
         Returns:
-            Dict with: avg_score, count, stddev, distribution
+            Dict with: avg_score, count, stddev, distribution, user_score
         """
         query = Rating.objects.filter(entity_uuid=entity_uuid)
         if dimension:
@@ -68,11 +70,25 @@ class RatingService:
             '80-100': query.filter(score__gte=80, score__lte=100).count(),
         }
 
+        # Get current user's rating if authenticated
+        user_score = None
+        if user_id:
+            try:
+                user_rating = Rating.objects.get(
+                    user_id=user_id,
+                    entity_uuid=entity_uuid,
+                    dimension=dimension
+                )
+                user_score = user_rating.score
+            except Rating.DoesNotExist:
+                pass
+
         return {
             'avg_score': round(aggregates['avg_score'], 2) if aggregates['avg_score'] else None,
             'count': aggregates['count'],
             'stddev': round(aggregates['stddev'], 2) if aggregates['stddev'] else None,
-            'distribution': distribution
+            'distribution': distribution,
+            'user_score': user_score
         }
 
     @staticmethod
@@ -176,13 +192,14 @@ class CommentService:
         return comment
 
     @staticmethod
-    def get_entity_comments(entity_uuid: str, include_deleted: bool = False) -> List[Comment]:
+    def get_entity_comments(entity_uuid: str, include_deleted: bool = False, sort: str = 'timestamp') -> List[Comment]:
         """
-        Get all comments for an entity (flat list, sorted by timestamp).
+        Get all comments for an entity (flat list, sorted by timestamp or score).
 
         Args:
             entity_uuid: UUID of entity
             include_deleted: If True, include soft-deleted comments
+            sort: 'timestamp' (default) or 'score'
 
         Returns:
             List of Comment instances
@@ -190,7 +207,24 @@ class CommentService:
         query = Comment.objects.filter(entity_uuid=entity_uuid)
         if not include_deleted:
             query = query.filter(is_deleted=False)
-        return list(query.order_by('timestamp'))
+
+        if sort == 'score':
+            # Cast comment.id to string to match Rating.entity_uuid
+            # Subquery to get average rating for each comment
+            rating_subquery = Rating.objects.filter(
+                entity_uuid=Cast(OuterRef('id'), CharField()),
+                entity_type='comment'
+            ).values('entity_uuid').annotate(
+                avg=Avg('score')
+            ).values('avg')
+
+            query = query.annotate(
+                avg_score=Subquery(rating_subquery)
+            ).order_by('-avg_score', '-timestamp')  # Nulls (unrated) go last, then by timestamp
+        else:
+            query = query.order_by('timestamp')
+
+        return list(query)
 
     @staticmethod
     def get_comment_thread(comment_id: int, include_deleted: bool = False) -> List[Comment]:
@@ -386,3 +420,52 @@ def get_comment_service() -> CommentService:
 def get_moderation_service() -> ModerationService:
     """Get moderation service instance"""
     return ModerationService()
+
+
+class SocialAnonymityService:
+    """Service for toggling anonymity on comments and ratings"""
+
+    @staticmethod
+    def toggle_comment_anonymity(comment_id: int, user_id: int) -> bool:
+        """
+        Toggle is_anonymous for a user's own comment.
+
+        Args:
+            comment_id: Comment ID
+            user_id: User making the request (must own the comment)
+
+        Returns:
+            True if toggled, False if not found or unauthorized
+        """
+        try:
+            comment = Comment.objects.get(id=comment_id, user_id=user_id)
+            comment.is_anonymous = not comment.is_anonymous
+            comment.save()
+            return True
+        except Comment.DoesNotExist:
+            return False
+
+    @staticmethod
+    def toggle_rating_anonymity(rating_id: int, user_id: int) -> bool:
+        """
+        Toggle is_anonymous for a user's own rating.
+
+        Args:
+            rating_id: Rating ID
+            user_id: User making the request (must own the rating)
+
+        Returns:
+            True if toggled, False if not found or unauthorized
+        """
+        try:
+            rating = Rating.objects.get(id=rating_id, user_id=user_id)
+            rating.is_anonymous = not rating.is_anonymous
+            rating.save()
+            return True
+        except Rating.DoesNotExist:
+            return False
+
+
+def get_social_anonymity_service() -> SocialAnonymityService:
+    """Get social anonymity service instance"""
+    return SocialAnonymityService()
