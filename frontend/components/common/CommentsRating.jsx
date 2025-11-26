@@ -14,8 +14,10 @@ import '../../styles/components/CommentsRating.css';
  * @param {string} props.entityType - 'claim' | 'source' | 'connection'
  * @param {Function} props.onTabChange - Callback when tab selection changes (tab: string | null)
  * @param {boolean} props.tabsOnly - If true, only render tabs without content panel
+ * @param {string} props.entityColor - Highlight color for tabs and accents (from entity type)
+ * @param {boolean} props.standalone - If true, renders in standalone page mode (content expands downward)
  */
-export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly = false }) {
+export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly = false, entityColor, standalone = false }) {
   const { user, token } = useAuth();
   const [ratings, setRatings] = useState(null);
   const [comments, setComments] = useState([]);
@@ -44,7 +46,7 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
   // Fetch comments
   const loadComments = async () => {
     setLoadingComments(true);
-    const response = await fetchEntityComments(entityUuid, commentSort);
+    const response = await fetchEntityComments(entityUuid, commentSort, token);
 
     if (!response.error && response.data) {
       setComments(response.data);
@@ -54,7 +56,7 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
 
   useEffect(() => {
     loadComments();
-  }, [entityUuid, commentSort]);
+  }, [entityUuid, commentSort, token]);
 
   const avgRating = ratings?.avg_score?.toFixed(1) || 'N/A';
   const ratingCount = ratings?.count || 0;
@@ -70,6 +72,7 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
   }, [ratings?.user_score]);
 
   const handleTabClick = (tab) => {
+    // Toggle: clicking active tab closes it
     const newTab = activeTab === tab ? null : tab;
     setActiveTab(newTab);
     if (onTabChange) {
@@ -100,22 +103,36 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
     setSubmittingRating(false);
   };
 
+  // Default to green if no color provided (backwards compatibility)
+  const tabBarColor = entityColor || 'var(--accent-green)';
+
   return (
-    <div className="comments-rating-container">
+    <div className={`comments-rating-container ${standalone ? 'cr-standalone' : ''}`} style={{ '--entity-color': tabBarColor }}>
       {/* Tab bar */}
-      <div className="cr-tabs">
+      <div className="cr-tabs" style={{ backgroundColor: tabBarColor }}>
         <label className="cr-tab">
           <input
             type="radio"
             name="cr-tab"
             checked={activeTab === 'ratings'}
             onChange={() => handleTabClick('ratings')}
+            onClick={(e) => {
+              if (activeTab === 'ratings') {
+                e.preventDefault();
+                handleTabClick('ratings');
+              }
+            }}
           />
           <span className="tab-label">
-            <span className="tab-icon">⭐</span>
-            <span className="tab-summary">
-              {loadingRatings ? '...' : `${avgRating} (${ratingCount})`}
-            </span>
+            <div className="rating-summary">
+              <span className="rating-text">{loadingRatings ? '...' : `${avgRating} (${ratingCount})`}</span>
+              <div className="rating-bar-mini">
+                <div className="bar-fill" style={{ width: `${avgRating}%` }} />
+                {ratings?.user_score != null && (
+                  <div className="user-mark" style={{ left: `${ratings.user_score}%` }} />
+                )}
+              </div>
+            </div>
           </span>
         </label>
 
@@ -125,6 +142,12 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
             name="cr-tab"
             checked={activeTab === 'comments'}
             onChange={() => handleTabClick('comments')}
+            onClick={(e) => {
+              if (activeTab === 'comments') {
+                e.preventDefault();
+                handleTabClick('comments');
+              }
+            }}
           />
           <span className="tab-label">
             <span className="tab-icon">💬</span>
@@ -144,54 +167,66 @@ export function CommentsRating({ entityUuid, entityType, onTabChange, tabsOnly =
               <div className="cr-loading">Loading...</div>
             ) : (
               <>
-                <div className="rating-stats">
-                  <div className="stat-row">
-                    <span>Average:</span>
-                    <span>{avgRating}</span>
-                  </div>
-                  <div className="stat-row">
-                    <span>Ratings:</span>
-                    <span>{ratingCount}</span>
-                  </div>
-                  {ratings?.stddev != null && (
-                    <div className="stat-row">
-                      <span>Std Dev:</span>
-                      <span>{ratings.stddev.toFixed(1)}</span>
-                    </div>
-                  )}
-                  {ratings?.distribution && (
-                    <div className="rating-distribution">
-                      <div className="stat-row"><span>0-20:</span><span>{ratings.distribution['0-20']}</span></div>
-                      <div className="stat-row"><span>20-40:</span><span>{ratings.distribution['20-40']}</span></div>
-                      <div className="stat-row"><span>40-60:</span><span>{ratings.distribution['40-60']}</span></div>
-                      <div className="stat-row"><span>60-80:</span><span>{ratings.distribution['60-80']}</span></div>
-                      <div className="stat-row"><span>80-100:</span><span>{ratings.distribution['80-100']}</span></div>
-                    </div>
-                  )}
-                </div>
                 <div className="user-rating">
                   {user ? (
-                    <div className="rating-input-row">
-                      <span>Your rating:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={ratingInput}
-                        onChange={(e) => setRatingInput(e.target.value)}
-                        placeholder="0-100"
-                        disabled={submittingRating}
-                      />
-                      <button
-                        onClick={handleRatingSubmit}
-                        disabled={submittingRating || !ratingInput}
-                      >
-                        {submittingRating ? '...' : (ratings?.user_score != null ? 'Update' : 'Submit')}
-                      </button>
+                    <div className="rating-input-slider">
+                      <label>Your rating: {ratingInput || '0'}</label>
+                      <div className="rating-bar-input">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={ratingInput || 0}
+                          onChange={(e) => setRatingInput(e.target.value)}
+                          onMouseUp={handleRatingSubmit}
+                          onTouchEnd={handleRatingSubmit}
+                          disabled={submittingRating}
+                        />
+                        <div className="bar-track">
+                          <div className="bar-fill-input" style={{ width: `${ratingInput || 0}%` }} />
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <span>Log in to rate</span>
                   )}
+                </div>
+                <div className="rating-stats">
+                  {ratings?.distribution && (() => {
+                    const maxCount = Math.max(...Object.values(ratings.distribution));
+                    return (
+                      <div className="rating-distribution">
+                        <div className="distribution-label">Distribution:</div>
+                        <div className="distribution-bars-vertical">
+                          {[
+                            { key: '0-20' },
+                            { key: '20-40' },
+                            { key: '40-60' },
+                            { key: '60-80' },
+                            { key: '80-100' }
+                          ].map(({ key }) => {
+                            const count = ratings.distribution[key] || 0;
+                            const heightPercent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                            return (
+                              <div key={key} className="distribution-bar-column">
+                                <div className="bar-vertical-container">
+                                  <div
+                                    className="bar-vertical"
+                                    style={{ height: `${heightPercent}%` }}
+                                    title={`${count} rating${count !== 1 ? 's' : ''} (${key})`}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="distribution-axis">
+                          <span>0</span>
+                          <span>100</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )

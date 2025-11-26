@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { PositionedOverlay } from './PositionedOverlay.jsx';
 import { UserAttribution } from '../common/UserAttribution.jsx';
 import { CommentsRating } from '../common/CommentsRating.jsx';
+import { FaMagnifyingGlassArrowRight } from "react-icons/fa6";
 
 /**
  * Edge tooltip component that displays edge data on click
@@ -11,6 +13,8 @@ import { CommentsRating } from '../common/CommentsRating.jsx';
  * @param {Object} props.cy - Cytoscape instance
  */
 export function OnClickEdge({ activeEdgeTooltip, cy }) {
+  const navigate = useNavigate();
+
   if (!activeEdgeTooltip || !cy) return null;
 
   const edge = activeEdgeTooltip.edge;
@@ -22,6 +26,17 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
   // Calculate animation start position
   const startX = clickOffset.x / 2;
   const startY = clickOffset.y / 2;
+
+  // Determine highlight color based on logic type
+  const getEdgeColor = () => {
+    const rootStyles = getComputedStyle(document.documentElement);
+    if (logicType === 'NOT' || logicType === 'NAND') {
+      return '#e74c3c'; // Red for negative logic
+    }
+    return rootStyles.getPropertyValue('--accent-green').trim(); // Green for positive logic
+  };
+
+  const highlightColor = getEdgeColor();
 
   return (
     <PositionedOverlay
@@ -36,11 +51,16 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
           '--start-y': `${startY}px`
         }}
       >
-        <div className="graph-tooltip-highlight">
+        <div className="graph-tooltip-highlight" style={{ backgroundColor: highlightColor }}>
           <div className="graph-tooltip" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', boxShadow: 'none' }}>
             <div className="tooltip-content" style={{ flex: '1 1 auto' }}>
-              <div className="tooltip-attribution">
+              <div className="tooltip-attribution" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <UserAttribution entityUuid={edgeId} entityType="connection" showTimestamp={true} />
+                <FaMagnifyingGlassArrowRight
+                  onClick={() => navigate(`/connectionview?id=${edgeId}`)}
+                  style={{ cursor: 'pointer', fontSize: '16px' }}
+                  title="Expand view"
+                />
               </div>
               {logicType && <div><strong>Logic:</strong> {logicType}</div>}
               {notes && <div><strong>Notes:</strong> {notes}</div>}
@@ -51,7 +71,7 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
               marginRight: '-8px',
               marginBottom: '-8px'
             }}>
-              <CommentsRating entityUuid={edgeId} entityType="connection" />
+              <CommentsRating entityUuid={edgeId} entityType="connection" entityColor={highlightColor} />
             </div>
           </div>
         </div>

@@ -33,8 +33,13 @@ export function User() {
   return (
     <div className="user-page">
       <header className="user-header">
-        <h1>{user?.username}</h1>
-        <p className="user-email">{user?.email || 'No email provided'}</p>
+        <div className="user-header-info">
+          <h1>{user?.username}</h1>
+          <p className="user-email">{user?.email || 'No email provided'}</p>
+        </div>
+        <button className="logout-button" onClick={logout}>
+          Logout
+        </button>
       </header>
 
       <nav className="user-tabs">

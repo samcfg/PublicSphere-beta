@@ -13,9 +13,17 @@
 
 /* Header section */
 .user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
   border-bottom: 2px solid var(--border-color);
   padding-bottom: 1rem;
+}
+
+.user-header-info {
+  display: flex;
+  flex-direction: column;
 }
 
 .user-header h1 {
@@ -29,6 +37,27 @@
   color: var(--text-secondary);
   font-size: var(--font-size-base);
   margin: 0;
+}
+
+.logout-button {
+  padding: 0.5rem 1.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.logout-button:hover {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-color: var(--error-text);
 }
 
 /* Tab navigation - uses button.css .box style */
@@ -422,4 +451,105 @@
   color: var(--text-secondary);
   font-family: var(--font-family-ui);
   font-style: italic;
+}
+
+/* UserData component - GDPR data export styles */
+.user-data .data-description {
+  color: var(--text-secondary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-sm);
+  margin-bottom: 2rem;
+  font-style: italic;
+}
+
+.user-data .data-section {
+  margin-bottom: 3rem;
+}
+
+.user-data h3 {
+  font-family: var(--font-family-heading);
+  font-size: 1.5rem;
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.user-data h4 {
+  font-family: var(--font-family-ui);
+  font-size: 1.1rem;
+  margin: 2rem 0 0.75rem 0;
+  color: var(--text-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Compact data tables - denser than contributions tables */
+.data-table.compact {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-xs);
+  background: var(--bg-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.data-table.compact thead {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table.compact th {
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  border: 1px solid var(--border-color);
+  font-size: 10px;
+}
+
+.data-table.compact td {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.data-table.compact tbody tr {
+  transition: background-color 0.15s;
+}
+
+.data-table.compact tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+/* UUID cells - monospace, truncated */
+.data-table .uuid-cell {
+  font-family: 'Cascadia Code NF', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Content cells - allow wrapping but limit width */
+.data-table .content-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table .content-cell a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.data-table .content-cell a:hover {
+  text-decoration: underline;
 }

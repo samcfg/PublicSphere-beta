@@ -11,6 +11,8 @@ import { Home } from './pages/Home.jsx';
 import { GraphPage } from './pages/GraphPage.jsx';
 import { ContextPage } from './pages/ContextPage.jsx';
 import { User } from './pages/User.jsx';
+import { NodeView } from './pages/NodeView.jsx';
+import { ConnectionView } from './pages/ConnectionView.jsx';
 import './styles/main.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -25,6 +27,8 @@ root.render(
             <Route path="graph" element={<GraphPage />} />
             <Route path="context" element={<ContextPage />} />
             <Route path="user" element={<User />} />
+            <Route path="nodeview" element={<NodeView />} />
+            <Route path="connectionview" element={<ConnectionView />} />
           </Route>
         </Routes>
       </BrowserRouter>

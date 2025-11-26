@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PositionedOverlay } from './PositionedOverlay.jsx';
 import { UserAttribution } from '../common/UserAttribution.jsx';
 import { CommentsRating } from '../common/CommentsRating.jsx';
@@ -6,10 +7,12 @@ import { NodeCreationModal } from './NodeCreationModal.jsx';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import { useAttributions } from '../../utilities/AttributionContext.jsx';
 import { deleteClaim, deleteSource } from '../../APInterface/api.js';
+import { FaMagnifyingGlassArrowRight } from "react-icons/fa6";
+import { FaPlus } from "react-icons/fa";
+import { MdDelete } from "react-icons/md";
 
 /**
- * Node frame component that displays node data on click
- * Shows attribution, comments, and ratings in L-shaped frame
+ * Node frame component that displays node data and interaction on click
  *
  * @param {Object} props
  * @param {Object} props.activeNodeTooltip - {node: cytoscapeNode, clickOffset: {x, y}} or null
@@ -21,6 +24,7 @@ import { deleteClaim, deleteSource } from '../../APInterface/api.js';
 export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraphChange, onClose }) {
   const { user, token } = useAuth();
   const attributionsCache = useAttributions();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -115,6 +119,17 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   const attribution = attributionsCache[nodeId];
   const isCreator = user && attribution?.creator?.username === user.username;
 
+  // Determine highlight color based on node type
+  const getNodeColor = () => {
+    const rootStyles = getComputedStyle(document.documentElement);
+    if (nodeType === 'source') {
+      return rootStyles.getPropertyValue('--accent-blue-dark').trim();
+    }
+    return rootStyles.getPropertyValue('--accent-blue').trim();
+  };
+
+  const highlightColor = getNodeColor();
+
   // Get node dimensions in graph coordinates (use outerWidth/outerHeight for visual edges)
   const nodeOuterWidth = node.outerWidth();
   const nodeOuterHeight = node.outerHeight();
@@ -138,7 +153,10 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
       >
         {(() => {
           // Frame padding around node
-          const padding = 20;
+          const paddingLeft = 20;
+          const paddingRight = 40; // Wider right margin for buttons
+          const paddingTop = 20;
+          const paddingBottom = 20;
           const minContentWidth = 180; // Minimum to fit attribution + tabs
           const minExtension = 80;
           // Use measured content height with minimum fallback
@@ -146,17 +164,17 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
           const borderRadius = 8;
           // Total frame dimensions - use max of node width or minimum content width
           const contentWidth = Math.max(nodeOuterWidth, minContentWidth);
-          const frameWidth = contentWidth + padding * 2;
-          const frameHeight = nodeOuterHeight + padding * 2 + bottomExtension;
+          const frameWidth = contentWidth + paddingLeft + paddingRight;
+          const frameHeight = nodeOuterHeight + paddingTop + paddingBottom + bottomExtension;
           // Cutout position (relative to frame top-left)
-          const cutoutLeft = padding;
-          const cutoutTop = padding;
-          const cutoutRight = padding + nodeOuterWidth;
+          const cutoutLeft = paddingLeft;
+          const cutoutTop = paddingTop;
+          const cutoutRight = paddingLeft + nodeOuterWidth;
 
           // Animation start positions
           const startX = clickOffset.x / 2;
           const startY = clickOffset.y / 2;
-          const cutoutBottom = padding + nodeOuterHeight;
+          const cutoutBottom = paddingTop + nodeOuterHeight;
 
           // Clip path: outer rectangle clockwise, then inner rectangle counter-clockwise
           const clipPath = `polygon(
@@ -203,7 +221,8 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                   height: `${highlightHeight}px`,
                   clipPath: highlightClipPath,
                   borderRadius: `${borderRadius}px`,
-                  pointerEvents: 'none'
+                  pointerEvents: 'none',
+                  backgroundColor: highlightColor
                 }}
               >
                 <div style={{
@@ -216,6 +235,81 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                   pointerEvents: 'none',
                   margin: `${highlightPadding}px`
                 }}>
+                  {/* Right margin buttons */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: `${paddingRight - 30}px`,
+                      top: `${cutoutTop}px`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      pointerEvents: 'auto'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => navigate(`/nodeview?id=${nodeId}`)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        padding: '2px',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Expand view"
+                    >
+                      <FaMagnifyingGlassArrowRight />
+                    </button>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        padding: '2px',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Add connected node"
+                    >
+                      <FaPlus />
+                    </button>
+                    {isCreator && (
+                      <button
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          padding: '2px',
+                          fontSize: '14px',
+                          cursor: isDeleting ? 'not-allowed' : 'pointer',
+                          background: '#fee',
+                          border: '1px solid #c88',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: isDeleting ? 0.5 : 1
+                        }}
+                        title="Delete node"
+                      >
+                        <MdDelete />
+                      </button>
+                    )}
+                  </div>
                   {/* Content area below the node cutout */}
                   <div
                     ref={contentRef}
@@ -223,8 +317,8 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                     style={{
                       position: 'absolute',
                       top: `${cutoutBottom + 10}px`,
-                      left: `${padding}px`,
-                      right: `${padding}px`,
+                      left: `${paddingLeft}px`,
+                      right: `${paddingRight}px`,
                       display: 'flex',
                       flexDirection: 'column',
                       pointerEvents: 'auto',
@@ -276,14 +370,15 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                       </div>
                     </div>
                     <div className="tooltip-comments-rating" style={{
-                      marginLeft: `-${padding}px`,
-                      marginRight: `-${padding}px`,
-                      marginBottom: `-${padding}px`
+                      marginLeft: `-${paddingLeft}px`,
+                      marginRight: `-${paddingRight}px`,
+                      marginBottom: `-${paddingBottom}px`
                     }}>
                       <CommentsRating
                         entityUuid={nodeId}
-                        entityType={entityType}   
+                        entityType={entityType}
                         onTabChange={setActiveTab}
+                        entityColor={highlightColor}
                       />
                     </div>
                   </div>

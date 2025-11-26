@@ -96,7 +96,7 @@
 /* Color highlight layer - animates first, wraps tooltip with padding */
 .graph-tooltip-highlight {
   position: relative;
-  background-color: var(--accent-green);
+  /* background-color set via inline style for dynamic entity colors */
   border-radius: 8px;
   padding: 4px;
   animation: tooltipHighlight 0.15s ease-out forwards;

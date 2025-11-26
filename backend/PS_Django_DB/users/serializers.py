@@ -120,43 +120,73 @@ class UserSerializer(serializers.ModelSerializer):
 class UserAttributionSerializer(serializers.ModelSerializer):
     """
     Serializer for user attribution - respects anonymity settings.
-    Only shows user info if is_anonymous=False and user exists.
+    Shows actual username to owner even when anonymous.
     """
     username = serializers.SerializerMethodField()
+    is_own = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAttribution
-        fields = ['entity_uuid', 'entity_type', 'username', 'is_anonymous', 'timestamp']
+        fields = ['entity_uuid', 'entity_type', 'username', 'is_anonymous', 'is_own', 'timestamp']
 
     def get_username(self, obj):
-        """Return username, [anonymous], or [deleted] based on state"""
+        """Return username respecting anonymity and ownership"""
+        request = self.context.get('request')
+
+        # If anonymous
         if obj.is_anonymous:
-            return '[anonymous]'
-        elif obj.user is None:
+            # Show real username only to owner
+            if request and request.user.is_authenticated and obj.user and obj.user.id == request.user.id:
+                return obj.user.username
+            return 'Anonymous'
+
+        # Not anonymous - show username or [deleted]
+        if obj.user is None:
             return '[deleted]'
-        else:
-            return obj.user.username
+        return obj.user.username
+
+    def get_is_own(self, obj):
+        """Check if this attribution belongs to the requesting user"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and obj.user:
+            return obj.user.id == request.user.id
+        return False
 
 
 class UserModificationAttributionSerializer(serializers.ModelSerializer):
     """
     Serializer for modification attribution - respects anonymity settings.
-    Only shows user info if is_anonymous=False and user exists.
+    Shows actual username to owner even when anonymous.
     """
     username = serializers.SerializerMethodField()
+    is_own = serializers.SerializerMethodField()
 
     class Meta:
         model = UserModificationAttribution
-        fields = ['entity_uuid', 'version_number', 'entity_type', 'username', 'is_anonymous', 'timestamp']
+        fields = ['entity_uuid', 'version_number', 'entity_type', 'username', 'is_anonymous', 'is_own', 'timestamp']
 
     def get_username(self, obj):
-        """Return username, [anonymous], or [deleted] based on state"""
+        """Return username respecting anonymity and ownership"""
+        request = self.context.get('request')
+
+        # If anonymous
         if obj.is_anonymous:
-            return '[anonymous]'
-        elif obj.user is None:
+            # Show real username only to owner
+            if request and request.user.is_authenticated and obj.user and obj.user.id == request.user.id:
+                return obj.user.username
+            return 'Anonymous'
+
+        # Not anonymous - show username or [deleted]
+        if obj.user is None:
             return '[deleted]'
-        else:
-            return obj.user.username
+        return obj.user.username
+
+    def get_is_own(self, obj):
+        """Check if this modification belongs to the requesting user"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and obj.user:
+            return obj.user.id == request.user.id
+        return False
 
 
 class ContributionSerializer(serializers.Serializer):
@@ -175,3 +205,44 @@ class LeaderboardEntrySerializer(serializers.Serializer):
     total_sources = serializers.IntegerField()
     total_connections = serializers.IntegerField()
     joined_date = serializers.DateTimeField()
+
+
+class UserDataExportSerializer(serializers.ModelSerializer):
+    """
+    Complete user data serializer for GDPR data export.
+    Returns all user fields for the authenticated user.
+    """
+    email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'is_staff',
+            'is_active',
+            'is_superuser',
+            'date_joined',
+            'last_login'
+        ]
+
+    def get_email(self, obj):
+        """Return email only if it exists and is not empty"""
+        return obj.email if obj.email else None
+
+
+class UserAttributionDataSerializer(serializers.ModelSerializer):
+    """Serializer for user's own attribution records (no anonymity hiding)"""
+    class Meta:
+        model = UserAttribution
+        fields = ['entity_uuid', 'entity_type', 'is_anonymous', 'timestamp']
+
+
+class UserModificationDataSerializer(serializers.ModelSerializer):
+    """Serializer for user's own modification records (no anonymity hiding)"""
+    class Meta:
+        model = UserModificationAttribution
+        fields = ['entity_uuid', 'entity_type', 'version_number', 'is_anonymous', 'timestamp']

@@ -7,11 +7,20 @@ For entities that have user_id=null, this displays as "deleted" in UI. I think "
   - Radix UI (primitives, accessibility-focused)
   - Mantine (full-featured, good defaults)
   - Ant Design (enterprise-grade, comprehensive)
+ 
+  curl -X POST http://localhost:8000/api/users/register/ \
+    -H "Content-Type: application/json" \
+    -d '{"username": "testuser2", "email": "test2@example.com", "password": "testpass123", "password_confirm": "testpass123"}'
+ 
 
-
-We need the same for all other attribution logic, comments and graph 
-elements. Currently, userattribution UI and batch attribution calls on graph render do 
-not distinguish between ownership when the element is anonymous. That is a critical 
-mistake. still planning, how can we make this is_own=True; is_anonymous=True case work 
-with graph elements as well as it does in your comments case? scan the relevant 
-parameters within files. 
+- Play with border colors
+testing: 
+  - We need to link anon of nodes and their connections "from" more closely, specifically during creation
+  - Need to make rating more interactive
+  - 
+- Iron out comments
+  - anon purple
+  - borders (meaning, expand the DOM width to give frame buttons L and R?)
+- Test actual functionality, contexts, working
+- Sidebar (more like a transparent sidebar in which nodes hover in)
+- Alternate node and connection view!!!!!!!

@@ -13,7 +13,8 @@ from users.views import (
     EntityAttributionView,
     ToggleAnonymityView,
     LeaderboardView,
-    BatchAttributionView
+    BatchAttributionView,
+    UserDataExportView
 )
 
 app_name = 'users'
@@ -37,4 +38,7 @@ urlpatterns = [
     path('attribution/<str:entity_uuid>/', EntityAttributionView.as_view(), name='entity-attribution'),
     path('attributions/batch/', BatchAttributionView.as_view(), name='batch-attribution'),
     path('toggle-anonymity/', ToggleAnonymityView.as_view(), name='toggle-anonymity'),
+
+    # Data export (GDPR)
+    path('data/', UserDataExportView.as_view(), name='user-data-export'),
 ]

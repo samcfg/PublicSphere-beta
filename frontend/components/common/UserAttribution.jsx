@@ -3,6 +3,7 @@ import { FaHatCowboySide } from 'react-icons/fa';
 import { FaUser, FaTrash } from 'react-icons/fa';
 import { fetchEntityAttribution } from '../../APInterface/api.js';
 import { useAttributions } from '../../utilities/AttributionContext.jsx';
+import { useAuth } from '../../utilities/AuthContext.jsx';
 
 /**
  * UserAttribution component
@@ -15,6 +16,7 @@ import { useAttributions } from '../../utilities/AttributionContext.jsx';
  * @param {boolean} props.showTimestamp - Show creation timestamp (default: false)
  */
 export function UserAttribution({ entityUuid, entityType, showTimestamp = false }) {
+  const { token } = useAuth();
   const attributionsCache = useAttributions();
   const [attribution, setAttribution] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export function UserAttribution({ entityUuid, entityType, showTimestamp = false 
     setLoading(true);
     setError(null);
 
-    const response = await fetchEntityAttribution(entityUuid, entityType);
+    const response = await fetchEntityAttribution(entityUuid, entityType, token);
 
     if (response.error) {
       setError(response.error);
@@ -70,10 +72,18 @@ export function UserAttribution({ entityUuid, entityType, showTimestamp = false 
       return { type: 'deleted', icon: FaTrash, text: 'deleted user' };
     }
 
-    if (creator.username === '[anonymous]' || creator.is_anonymous) {
+    if (creator.username === 'Anonymous' || creator.is_anonymous) {
+      // If it's the user's own anonymous post, show "you (anonymous)"
+      if (creator.is_own) {
+        return { type: 'own-anonymous', icon: FaUser, text: `${creator.username} (you)` };
+      }
       return { type: 'anonymous', icon: FaHatCowboySide, text: 'anonymous' };
     }
 
+    // Non-anonymous post
+    if (creator.is_own) {
+      return { type: 'own-user', icon: FaUser, text: `${creator.username} (you)` };
+    }
     return { type: 'user', icon: FaUser, text: creator.username };
   };
 

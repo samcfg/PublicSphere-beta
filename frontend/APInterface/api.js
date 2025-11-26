@@ -309,9 +309,23 @@ export async function fetchUserSocialContributions(token) {
 /**
  * Get attribution info for an entity
  * GET /api/users/attribution/:uuid/?type=claim|source|connection
+ * @param {string} token - Optional auth token to compute is_own for anonymous attributions
  */
-export async function fetchEntityAttribution(entityUuid, entityType) {
-  return apiFetch(`${BASE_URL}/users/attribution/${entityUuid}/?type=${entityType}`);
+export async function fetchEntityAttribution(entityUuid, entityType, token = null) {
+  const options = token ? { headers: { 'Authorization': `Token ${token}` } } : {};
+  return apiFetch(`${BASE_URL}/users/attribution/${entityUuid}/?type=${entityType}`, options);
+}
+
+/**
+ * Get complete user data export (GDPR)
+ * GET /api/users/data/
+ * @param {string} token - Auth token
+ * @returns {Object} Complete user data including base info, profile, attributions, modifications, contributions
+ */
+export async function fetchUserDataExport(token) {
+  return apiFetch(`${BASE_URL}/users/data/`, {
+    headers: { 'Authorization': `Token ${token}` },
+  });
 }
 
 /**
@@ -354,13 +368,18 @@ export async function fetchLeaderboard(limit = 100) {
  * Get attributions for multiple entities in one batch request
  * POST /api/users/attributions/batch/
  * @param {Array} entities - [{uuid: string, type: 'claim'|'source'|'connection'}, ...]
+ * @param {string} token - Optional auth token to compute is_own for anonymous attributions
  * @returns {Object} {uuid: {creator: {...}, editors: [...]}, ...}
  */
-export async function fetchBatchAttributions(entities) {
-  return apiFetch(`${BASE_URL}/users/attributions/batch/`, {
+export async function fetchBatchAttributions(entities, token = null) {
+  const options = {
     method: 'POST',
     body: JSON.stringify({ entities }),
-  });
+  };
+  if (token) {
+    options.headers = { 'Authorization': `Token ${token}` };
+  }
+  return apiFetch(`${BASE_URL}/users/attributions/batch/`, options);
 }
 
 // ============================================================================
@@ -426,12 +445,14 @@ export async function createComment(token, data) {
 /**
  * Get comments for entity
  * GET /api/social/comments/entity/?entity=uuid&sort=timestamp|score
+ * @param {string} token - Optional auth token to compute is_own for anonymous comments
  */
-export async function fetchEntityComments(entityUuid, sort = null) {
+export async function fetchEntityComments(entityUuid, sort = null, token = null) {
   const url = sort
     ? `${BASE_URL}/social/comments/entity/?entity=${entityUuid}&sort=${sort}`
     : `${BASE_URL}/social/comments/entity/?entity=${entityUuid}`;
-  return apiFetch(url);
+  const options = token ? { headers: { 'Authorization': `Token ${token}` } } : {};
+  return apiFetch(url, options);
 }
 
 /**

@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { fetchGraphData, fetchBatchAttributions } from '../APInterface/api.js';
+import { useAuth } from '../utilities/AuthContext.jsx';
 
 /**
  * Hook to fetch complete graph data (claims, sources, connections)
@@ -12,6 +13,7 @@ import { fetchGraphData, fetchBatchAttributions } from '../APInterface/api.js';
  * @returns {Object} {data, attributions, loading, error, refetch}
  */
 export function useGraphData() {
+  const { token } = useAuth();
   const [data, setData] = useState(null);
   const [attributions, setAttributions] = useState({});
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export function useGraphData() {
 
     // Batch fetch attributions
     if (entities.length > 0) {
-      const attrResponse = await fetchBatchAttributions(entities);
+      const attrResponse = await fetchBatchAttributions(entities, token);
 
       // Handle both wrapped and unwrapped response formats
       const attributionData = attrResponse.data || attrResponse;
@@ -80,7 +82,7 @@ export function useGraphData() {
 
     setError(null);
     setLoading(false);
-  }, []);
+  }, [token]);
 
   // Fetch on mount
   useEffect(() => {

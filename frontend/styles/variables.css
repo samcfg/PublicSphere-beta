@@ -73,8 +73,8 @@
 
   /* Accent colors */
   --accent-green: #68d391;
-  --accent-blue: #63b3ed;
-  --accent-blue-dark: #3182ce;
+  --accent-blue: #8a9ba8;
+  --accent-blue-dark: #2c5f8d;
   --accent-red: #e74c3c;
   --accent-orange: #ffa366;
 
@@ -136,20 +136,20 @@
 
   /* Accent colors - slightly muted for dark mode */
   --accent-green: #48bb78;
-  --accent-blue: #4299e1;
-  --accent-blue-dark: #2b6cb0;
+  --accent-blue: #9eadb9;
+  --accent-blue-dark: #4a7ba7;
   --accent-red: #fc8181;
   --accent-orange: #ff8c42;
 
   /* Border colors - darker */
   --border-color: #2d3748;
 
-  /* Graph-specific colors - darker engineering paper aesthetic */
-  --graph-bg: #1a1f2e;
-  --graph-grid: rgba(100, 150, 180, 0.12);
+  /* Graph-specific colors - pure black for dark mode */
+  --graph-bg: #000000;
+  --graph-grid: rgba(0, 0, 0, 0);
   --graph-text: #b0b8c0;
-  --node-default: #2d3748;
-  --node-source: #3d2a1f;
+  --node-default: #000000;
+  --node-source: #000000;
   --node-text: #e2e8f0;
 
   /* Attribution colors (for use on node backgrounds) */

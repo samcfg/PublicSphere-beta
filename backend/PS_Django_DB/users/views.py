@@ -19,7 +19,10 @@ from users.serializers import (
     UserAttributionSerializer,
     UserModificationAttributionSerializer,
     ContributionSerializer,
-    LeaderboardEntrySerializer
+    LeaderboardEntrySerializer,
+    UserDataExportSerializer,
+    UserAttributionDataSerializer,
+    UserModificationDataSerializer
 )
 from users.services import UserContributionService
 from users.tokens import refresh_token, get_token_expiration_time
@@ -78,7 +81,6 @@ class UserLoginView(APIView):
 
 class UserLogoutView(APIView):
     """
-    Logout user and delete authentication token.
     POST /api/users/logout/
     """
     permission_classes = [permissions.IsAuthenticated]
@@ -164,7 +166,7 @@ class EntityAttributionView(APIView):
                 entity_uuid=entity_uuid,
                 entity_type=entity_type
             )
-            creator_data = UserAttributionSerializer(attribution).data
+            creator_data = UserAttributionSerializer(attribution, context={'request': request}).data
         except UserAttribution.DoesNotExist:
             creator_data = None
 
@@ -173,7 +175,7 @@ class EntityAttributionView(APIView):
             entity_uuid=entity_uuid,
             entity_type=entity_type
         ).order_by('version_number')
-        editors_data = UserModificationAttributionSerializer(modifications, many=True).data
+        editors_data = UserModificationAttributionSerializer(modifications, many=True, context={'request': request}).data
 
         return Response({
             'creator': creator_data,
@@ -254,11 +256,10 @@ class BatchAttributionView(APIView):
     }
     Returns: {entity_uuid: {creator: {...}, editors: [...]}, ...}
 
-    Note: CSRF exempt via empty authentication_classes (read-only batch fetch).
     POST is used instead of GET to accommodate large entity lists in request body.
+    Accepts optional authentication to compute is_own for anonymous attributions.
     """
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []  # No auth required = no CSRF checks
 
     def post(self, request):
         entities = request.data.get('entities', [])
@@ -283,7 +284,7 @@ class BatchAttributionView(APIView):
                     entity_uuid=entity_uuid,
                     entity_type=entity_type
                 )
-                creator_data = UserAttributionSerializer(attribution).data
+                creator_data = UserAttributionSerializer(attribution, context={'request': request}).data
             except UserAttribution.DoesNotExist:
                 creator_data = None
 
@@ -292,7 +293,7 @@ class BatchAttributionView(APIView):
                 entity_uuid=entity_uuid,
                 entity_type=entity_type
             ).order_by('version_number')
-            editors_data = UserModificationAttributionSerializer(modifications, many=True).data
+            editors_data = UserModificationAttributionSerializer(modifications, many=True, context={'request': request}).data
 
             result[entity_uuid] = {
                 'creator': creator_data,
@@ -300,3 +301,90 @@ class BatchAttributionView(APIView):
             }
 
         return Response(result, status=status.HTTP_200_OK)
+
+
+class UserDataExportView(APIView):
+    """
+    Export complete user data for GDPR compliance.
+    GET /api/users/data/
+    Returns:
+    - user: Complete User model fields
+    - profile: UserProfile data
+    - attributions: All creation attributions
+    - modifications: All edit attributions
+    - contributions: Detailed contribution data (claims, sources, connections, comments, ratings)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # User base data
+        user_data = UserDataExportSerializer(user).data
+
+        # Profile data
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile_data = UserProfileSerializer(profile).data
+
+        # Attribution records (all entities created by user)
+        attributions = UserAttribution.objects.filter(user=user).order_by('-timestamp')
+        attributions_data = UserAttributionDataSerializer(attributions, many=True).data
+
+        # Modification records (all edits by user)
+        modifications = UserModificationAttribution.objects.filter(user=user).order_by('-timestamp')
+        modifications_data = UserModificationDataSerializer(modifications, many=True).data
+
+        # Graph contributions (claims, sources, connections)
+        contributions = UserContributionService.get_user_created_entities(request.user.id)
+
+        # Social contributions (comments, ratings)
+        from social.services import CommentService, RatingService
+        from social.models import Comment, Rating
+
+        comment_service = CommentService()
+        rating_service = RatingService()
+
+        comments = comment_service.get_user_comments(request.user.id, include_deleted=False)
+        ratings = rating_service.get_user_ratings(request.user.id)
+
+        comments_data = [
+            {
+                'id': c.id,
+                'entity_uuid': c.entity_uuid,
+                'entity_type': c.entity_type,
+                'content': c.content,
+                'is_anonymous': c.is_anonymous,
+                'created_at': c.timestamp.isoformat()
+            }
+            for c in comments
+        ]
+
+        ratings_data = [
+            {
+                'id': r.id,
+                'entity_uuid': r.entity_uuid,
+                'entity_type': r.entity_type,
+                'dimension': r.dimension,
+                'score': r.score,
+                'created_at': r.timestamp.isoformat()
+            }
+            for r in ratings
+        ]
+
+        return standard_response(
+            data={
+                'user': user_data,
+                'profile': profile_data,
+                'attributions': attributions_data,
+                'modifications': modifications_data,
+                'contributions': {
+                    'claims': contributions['claims'],
+                    'sources': contributions['sources'],
+                    'connections': contributions['connections'],
+                    'comments': comments_data,
+                    'ratings': ratings_data
+                }
+            },
+            status_code=status.HTTP_200_OK,
+            source='users'
+        )

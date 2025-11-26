@@ -60,8 +60,22 @@ class CommentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'username', 'timestamp', 'is_deleted', 'is_anonymous', 'display_content', 'reply_count', 'is_own']
 
     def get_username(self, obj):
-        """Return sanitized username respecting is_anonymous flag"""
-        return obj.get_display_name()
+        """Return username respecting anonymity and ownership"""
+        request = self.context.get('request')
+
+        # Handle deleted users
+        if obj.user is None:
+            return '[deleted]'
+
+        # If anonymous
+        if obj.is_anonymous:
+            # Show real username only to owner
+            if request and request.user.is_authenticated and obj.user.id == request.user.id:
+                return obj.user.username
+            return 'Anonymous'
+
+        # Not anonymous - show username
+        return obj.user.username
 
     def get_reply_count(self, obj):
         """Count non-deleted replies"""
