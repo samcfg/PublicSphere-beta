@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchGraphData, fetchEntityAttribution } from '../APInterface/api.js';
+import { fetchGraphData, fetchEntityAttribution, fetchEntityComments } from '../APInterface/api.js';
 import { NodeDisplay } from '../components/common/NodeDisplay.jsx';
+import { CommentsThread } from '../components/common/CommentsThread.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import { useAuth } from '../utilities/AuthContext.jsx';
 
@@ -15,7 +16,10 @@ export function NodeView() {
   const { token } = useAuth();
   const [nodeData, setNodeData] = useState(null);
   const [attributions, setAttributions] = useState({});
+  const [comments, setComments] = useState([]);
+  const [commentSort, setCommentSort] = useState('timestamp');
   const [loading, setLoading] = useState(true);
+  const [loadingComments, setLoadingComments] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -90,6 +94,23 @@ export function NodeView() {
     loadNode();
   }, [nodeId, token]);
 
+  // Fetch comments separately
+  const loadComments = async () => {
+    if (!nodeId || !nodeData) return;
+
+    setLoadingComments(true);
+    const response = await fetchEntityComments(nodeId, commentSort, token);
+
+    if (!response.error && response.data) {
+      setComments(response.data);
+    }
+    setLoadingComments(false);
+  };
+
+  useEffect(() => {
+    loadComments();
+  }, [nodeId, commentSort, token, nodeData]);
+
   if (loading) {
     return (
       <div style={{
@@ -120,7 +141,7 @@ export function NodeView() {
     <AttributionProvider attributions={attributions}>
       <div style={{
         display: 'flex',
-        justifyContent: 'center',
+        flexDirection: 'column',
         alignItems: 'center',
         minHeight: '100vh',
         padding: '20px'
@@ -131,6 +152,27 @@ export function NodeView() {
           content={nodeData?.content}
           url={nodeData?.url}
         />
+
+        <div style={{
+          width: '100%',
+          maxWidth: '920px',
+          marginTop: '40px',
+          borderTop: '1px solid var(--text-primary)',
+          paddingTop: '20px'
+        }}>
+          {loadingComments ? (
+            <div>Loading comments...</div>
+          ) : (
+            <CommentsThread
+              comments={comments}
+              sortBy={commentSort}
+              onSortChange={setCommentSort}
+              entityUuid={nodeId}
+              entityType={nodeData?.type}
+              onCommentAdded={loadComments}
+            />
+          )}
+        </div>
       </div>
     </AttributionProvider>
   );
