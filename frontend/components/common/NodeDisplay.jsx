@@ -15,10 +15,12 @@ import { CommentsRating } from './CommentsRating.jsx';
  * @param {Object} props.contentStyle - Optional style overrides for inner content container
  */
 export function NodeDisplay({ nodeId, nodeType, content, url, containerStyle = {}, contentStyle = {} }) {
+  const borderColor = nodeType === 'source' ? 'var(--accent-blue-dark)' : 'var(--accent-blue)';
+
   return (
     <div style={{
       position: 'relative',
-      border: '0.5px solid var(--text-primary)',
+      border: `0.5px solid ${borderColor}`,
       padding: '60px 60px',
       ...containerStyle
     }}>
@@ -74,6 +76,7 @@ export function NodeDisplay({ nodeId, nodeType, content, url, containerStyle = {
           entityType={nodeType}
           tabsOnly={false}
           standalone={true}
+          entityColor={borderColor}
         />
       </div>
     </div>

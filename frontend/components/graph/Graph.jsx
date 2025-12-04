@@ -117,11 +117,13 @@ export const Graph = forwardRef(({ data, updateAttributions, onGraphChange }, re
         .selector('node')
         .style({
           'background-color': colors.nodeDefault,
-          'color': colors.nodeText
+          'color': colors.nodeText,
+          'border-color': colors.accentBlue
         })
         .selector('node[label = "Source"]')
         .style({
-          'background-color': colors.nodeSource
+          'background-color': colors.nodeSource,
+          'border-color': colors.accentBlueDark
         })
         .update();
     };

@@ -36,7 +36,7 @@ export function ConnectionDisplay({
   // Layout constants
   const CONTAINER_WIDTH = 1200;
   const CONTAINER_HEIGHT = isCompound ? 600 + (fromNodes.length - 1) * 200 : 400;
-  const NODE_DISPLAY_WIDTH = 300;
+  const NODE_DISPLAY_WIDTH = 400;
   const SOURCE_X = 50;
   const TARGET_X = CONTAINER_WIDTH - NODE_DISPLAY_WIDTH - 50;
   const CURVE_START_X = SOURCE_X + NODE_DISPLAY_WIDTH;
@@ -122,11 +122,23 @@ export function ConnectionDisplay({
   );
 
   return (
-    <div className="connection-display-container" style={{
-      width: `${CONTAINER_WIDTH}px`,
-      height: `${CONTAINER_HEIGHT}px`,
+    <div className="connection-display-wrapper" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '20px',
+      padding: '2rem',
+      borderRadius: '15px',
+      background: 'var(--modal-bg)',
+      boxShadow: '12px 12px 24px var(--modal-shadow-1), -12px -12px 24px var(--modal-shadow-2)',
       ...containerStyle
     }}>
+      <div className="connection-display-container" style={{
+        width: `${CONTAINER_WIDTH}px`,
+        height: `${CONTAINER_HEIGHT}px`,
+        position: 'relative',
+        background: 'transparent'
+      }}>
       {/* Source nodes */}
       <div className="source-nodes">
         {sourcePositions.map((pos, idx) => (
@@ -145,7 +157,7 @@ export function ConnectionDisplay({
               nodeType={pos.node.type}
               content={pos.node.content}
               url={pos.node.url}
-              contentStyle={{ maxWidth: '250px' }}
+              contentStyle={{ maxWidth: '370px' }}
             />
           </div>
         ))}
@@ -166,7 +178,7 @@ export function ConnectionDisplay({
           nodeType={toNode.type}
           content={toNode.content}
           url={toNode.url}
-          contentStyle={{ maxWidth: '250px' }}
+          contentStyle={{ maxWidth: '370px' }}
         />
       </div>
 
@@ -269,6 +281,20 @@ export function ConnectionDisplay({
           />
         </div>
       </div>
+      </div>
+
+      {/* Connection notes as caption */}
+      {notes && (
+        <div className="connection-notes" style={{
+          width: `${CONTAINER_WIDTH}px`,
+          fontSize: '14px',
+          lineHeight: '1.6',
+          color: 'var(--modal-text)',
+          textAlign: 'center'
+        }}>
+          {notes}
+        </div>
+      )}
     </div>
   );
 }

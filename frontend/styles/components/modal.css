@@ -1,5 +1,5 @@
 /**
- * Modal styles - using modal1.css aesthetic
+ * Modal styles - theme-aware with neumorphic aesthetic
  */
 
 .modal-backdrop {
@@ -26,9 +26,9 @@
   gap: 25px;
   padding: 2rem;
   border-radius: 15px;
-  background: #e3e3e3;
-  box-shadow: 16px 16px 32px #c8c8c8,
-        -16px -16px 32px #fefefe;
+  background: var(--modal-bg);
+  box-shadow: 12px 12px 24px var(--modal-shadow-1),
+        -12px -12px 24px var(--modal-shadow-2);
   font-family: var(--font-family-ui);
   animation: modalSlideIn 0.2s ease-out;
 }
@@ -45,7 +45,7 @@
 }
 
 .modal-title {
-  color: #000;
+  color: var(--modal-text);
   text-transform: uppercase;
   letter-spacing: 2px;
   font-weight: bold;
@@ -55,7 +55,7 @@
 }
 
 .modal-content {
-  color: #333;
+  color: var(--modal-text);
   text-align: center;
   line-height: 1.6;
   max-width: 300px;
@@ -69,7 +69,7 @@
   height: 45px;
   width: 120px;
   border-radius: 5px;
-  border: 2px solid #000;
+  border: 2px solid var(--modal-border);
   cursor: pointer;
   background-color: transparent;
   transition: 0.3s;
@@ -77,12 +77,12 @@
   font-size: 12px;
   letter-spacing: 2px;
   font-weight: 600;
-  color: #000;
+  color: var(--modal-text);
 }
 
 .modal-button:hover {
-  background-color: #000;
-  color: #fff;
+  background-color: var(--modal-border);
+  color: var(--modal-bg);
 }
 
 .modal-button:active {

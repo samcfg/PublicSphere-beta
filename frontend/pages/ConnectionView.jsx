@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchGraphData, fetchEntityAttribution } from '../APInterface/api.js';
+import { fetchGraphData, fetchEntityAttribution, fetchEntityComments } from '../APInterface/api.js';
 import { ConnectionDisplay } from '../components/common/ConnectionDisplay.jsx';
+import { CommentsThread } from '../components/common/CommentsThread.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import { useAuth } from '../utilities/AuthContext.jsx';
 
@@ -17,7 +18,10 @@ export function ConnectionView() {
   const [toNode, setToNode] = useState(null);
   const [connectionData, setConnectionData] = useState(null);
   const [attributions, setAttributions] = useState({});
+  const [comments, setComments] = useState([]);
+  const [commentSort, setCommentSort] = useState('timestamp');
   const [loading, setLoading] = useState(true);
+  const [loadingComments, setLoadingComments] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -126,6 +130,23 @@ export function ConnectionView() {
     loadConnection();
   }, [connectionId, token]);
 
+  // Fetch comments separately
+  const loadComments = async () => {
+    if (!connectionId || !connectionData) return;
+
+    setLoadingComments(true);
+    const response = await fetchEntityComments(connectionId, commentSort, token);
+
+    if (!response.error && response.data) {
+      setComments(response.data);
+    }
+    setLoadingComments(false);
+  };
+
+  useEffect(() => {
+    loadComments();
+  }, [connectionId, commentSort, token, connectionData]);
+
   if (loading) {
     return (
       <div style={{
@@ -156,7 +177,7 @@ export function ConnectionView() {
     <AttributionProvider attributions={attributions}>
       <div style={{
         display: 'flex',
-        justifyContent: 'center',
+        flexDirection: 'column',
         alignItems: 'center',
         minHeight: '100vh',
         padding: '40px'
@@ -169,6 +190,27 @@ export function ConnectionView() {
           notes={connectionData?.notes}
           compositeId={connectionData?.compositeId}
         />
+
+        <div style={{
+          width: '100%',
+          maxWidth: '920px',
+          marginTop: '40px',
+          borderTop: '1px solid var(--text-primary)',
+          paddingTop: '20px'
+        }}>
+          {loadingComments ? (
+            <div>Loading comments...</div>
+          ) : (
+            <CommentsThread
+              comments={comments}
+              sortBy={commentSort}
+              onSortChange={setCommentSort}
+              entityUuid={connectionId}
+              entityType="connection"
+              onCommentAdded={loadComments}
+            />
+          )}
+        </div>
       </div>
     </AttributionProvider>
   );

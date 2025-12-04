@@ -3,7 +3,6 @@
 .connection-display-container {
   position: relative;
   margin: 0 auto;
-  background: var(--bg-primary);
 }
 
 .source-nodes,
@@ -28,10 +27,7 @@
 }
 
 .connection-attribution {
-  background: var(--bg-primary);
   padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-primary);
 }
 
 .logic-badge {
