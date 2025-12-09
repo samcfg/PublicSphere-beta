@@ -10,6 +10,7 @@ from .serializers import (
     NodeUpdateSerializer,
     EdgeUpdateSerializer
 )
+from .services import DeduplicationService, SearchService
 
 
 # Initialize language operations with graph
@@ -36,10 +37,26 @@ def claims_list(request):
         if not serializer.is_valid():
             return standard_response(error=serializer.errors, status_code=400, source='graph_db')
 
+        # Check for duplicates before creation (Phase 2)
+        content = serializer.validated_data.get('content')
+        if content and content.strip():
+            duplicate = DeduplicationService.check_duplicate_claim(content=content)
+            if duplicate:
+                return standard_response(
+                    error=f"duplicate_{duplicate['duplicate_type']}",
+                    data={
+                        'existing_node_id': duplicate['existing_id'],
+                        'existing_content': duplicate['existing_content'],
+                        'similarity_score': duplicate.get('similarity_score'),
+                    },
+                    status_code=409,
+                    source='graph_db'
+                )
+
         try:
             user_id = request.user.id if request.user.is_authenticated else None
             claim_id = ops.create_claim(
-                content=serializer.validated_data.get('content'),
+                content=content,
                 user_id=user_id
             )
             return standard_response(data={'id': claim_id}, status_code=201, source='graph_db')
@@ -108,13 +125,39 @@ def sources_list(request):
     elif request.method == 'POST':
         serializer = SourceCreateSerializer(data=request.data)
         if not serializer.is_valid():
+            # Check if title validation failed and provide clear error message
+            if 'title' in serializer.errors:
+                return standard_response(
+                    error='title_required',
+                    message='Source title is required',
+                    status_code=400,
+                    source='graph_db'
+                )
             return standard_response(error=serializer.errors, status_code=400, source='graph_db')
+
+        # Check for duplicates before creation
+        url = serializer.validated_data.get('url')
+        title = serializer.validated_data.get('title')
+
+        duplicate = DeduplicationService.check_duplicate_source(url=url, title=title)
+        if duplicate:
+            return standard_response(
+                error=f"duplicate_{duplicate['duplicate_type']}",
+                data={
+                    'existing_node_id': duplicate['existing_id'],
+                    'existing_title': duplicate['existing_title'],
+                    'existing_url': duplicate.get('existing_url'),
+                    'similarity_score': duplicate.get('similarity_score'),
+                },
+                status_code=409,
+                source='graph_db'
+            )
 
         try:
             user_id = request.user.id if request.user.is_authenticated else None
             source_id = ops.create_source(
-                url=serializer.validated_data.get('url'),
-                title=serializer.validated_data.get('title'),
+                url=url,
+                title=title,
                 author=serializer.validated_data.get('author'),
                 publication_date=serializer.validated_data.get('publication_date'),
                 source_type=serializer.validated_data.get('source_type'),
@@ -283,3 +326,29 @@ def graph_full(request):
         }, source='graph_db')
     except Exception as e:
         return _standard_response(error=str(e), status_code=500, source='graph_db')
+
+
+@api_view(['GET'])
+def search_nodes(request):
+    """
+    GET: Search nodes by content (Phase 3 - full-text search)
+    Query params:
+        - q: search query string (required)
+        - type: 'claim' or 'source' to filter by node type (optional)
+    """
+    query = request.GET.get('q', '').strip()
+    node_type = request.GET.get('type', '').strip().lower()
+
+    if not query:
+        return standard_response(error='Query parameter "q" is required', status_code=400, source='graph_db')
+
+    # Validate node_type if provided
+    if node_type and node_type not in ['claim', 'source']:
+        return standard_response(error='Invalid type parameter. Must be "claim" or "source"', status_code=400, source='graph_db')
+
+    try:
+        # Use Django SearchService instead of AGE (Phase 3)
+        results = SearchService.search_nodes(query=query, node_type=node_type if node_type else None)
+        return standard_response(data={'results': results}, source='django')
+    except Exception as e:
+        return standard_response(error=str(e), status_code=500, source='django')

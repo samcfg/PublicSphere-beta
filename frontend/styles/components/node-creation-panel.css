@@ -169,9 +169,19 @@
   border-color: var(--accent-green);
 }
 
+.node-creation-input.error {
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
 .node-creation-textarea {
   min-height: 60px;
   resize: vertical;
+}
+
+.node-creation-notes {
+  min-height: 50px;
+  font-size: 11px;
+  opacity: 0.9;
 }
 
 /* Footer actions */

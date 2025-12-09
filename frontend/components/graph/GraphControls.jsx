@@ -9,8 +9,9 @@ import '../../styles/components/button.css';
  * @param {Function} props.onResetView - Callback for resetting graph view
  * @param {Function} props.onFitScreen - Callback for fitting graph to screen
  * @param {Object} props.graphStats - Graph statistics {nodeCount, edgeCount}
+ * @param {string} props.title - Optional title to display (defaults to "Map of an Argument")
  */
-export function GraphControls({ onLoadGraph, onResetView, onFitScreen, graphStats }) {
+export function GraphControls({ onLoadGraph, onResetView, onFitScreen, graphStats, title = "Map of an Argument" }) {
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
 
   // Load preference from localStorage on mount
@@ -38,7 +39,7 @@ export function GraphControls({ onLoadGraph, onResetView, onFitScreen, graphStat
   return (
     <div className="header">
       <div className="title-section">
-        <h1>Map of an Argument</h1>
+        <h1>{title}</h1>
         {graphStats && (
           <>
             <div className="graph-stats">

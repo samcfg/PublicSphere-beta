@@ -153,7 +153,7 @@ AUTH_USER_MODEL = 'users.User'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'users.tokens.ExpiringTokenAuthentication',  # Custom token auth with 15-day expiration
-        'rest_framework.authentication.SessionAuthentication',
+        # SessionAuthentication removed - causes CSRF issues with token-based frontend
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',

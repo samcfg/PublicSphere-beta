@@ -8,6 +8,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from common.api_standards import standard_response, StandardResponseMixin
 from users.models import User, UserProfile, UserAttribution, UserModificationAttribution
@@ -28,6 +30,7 @@ from users.services import UserContributionService
 from users.tokens import refresh_token, get_token_expiration_time
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserRegistrationView(APIView):
     """
     Register a new user account.
@@ -53,6 +56,7 @@ class UserRegistrationView(APIView):
         return standard_response(error=serializer.errors, status_code=status.HTTP_400_BAD_REQUEST, source='users')
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserLoginView(APIView):
     """
     Login user and return authentication token.

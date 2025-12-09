@@ -1,0 +1,5 @@
+We will need to add some site features that become useful only when the site contains so many nodes that they overlap often, and graphs become less navigable
+
+- Graph pruning on-render with option to expand to see more. If anyone can add to the graph, it will quickly become full of unhelpful one-off node connections that are irrelevant or already considered elsewhere in the graph. 
+- In the Nodecreationmodal, we should make the search feature the first option to add anything. These search results will find connected (to the graph)/unconnected/past versions nodes. 
+- Implement forking and merging

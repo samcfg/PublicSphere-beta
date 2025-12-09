@@ -1,12 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useGraphData } from '../hooks/useGraphData.js';
 import { formatForCytoscape } from '../utilities/formatters.js';
 import { Graph } from '../components/graph/Graph.jsx';
 import { GraphControls } from '../components/graph/GraphControls.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
-
-// Hardcoded for now - will be dynamic later
-const TARGET_NODE_ID = 'ff68b489-3fa0-4d41-84a1-f085b92bf6f7';
 
 /**
  * Compute all predecessor node IDs (nodes on incoming paths to target)
@@ -79,10 +77,14 @@ function filterToContext(data, targetId) {
  * Shows all premise nodes and connections leading to the target node
  */
 export function ContextPage() {
+  const [searchParams] = useSearchParams();
+  const targetNodeId = searchParams.get('id');
+
   const { data, attributions, loading, error, refetch } = useGraphData();
   const graphRef = useRef(null);
   const [formattedData, setFormattedData] = useState(null);
   const [graphStats, setGraphStats] = useState(null);
+  const [pageTitle, setPageTitle] = useState("Map of an Argument");
 
   // Calculate graph stats when data changes
   useEffect(() => {
@@ -102,19 +104,37 @@ export function ContextPage() {
 
   // Format and filter data when raw API response changes
   useEffect(() => {
-    if (!data) {
+    if (!data || !targetNodeId) {
       setFormattedData(null);
+      setPageTitle("Map of an Argument");
       return;
     }
 
     try {
       const formatted = formatForCytoscape(data);
-      const contextData = filterToContext(formatted, TARGET_NODE_ID);
+      console.log('Formatted cytoscape data:', formatted);
+      const contextData = filterToContext(formatted, targetNodeId);
+      console.log('Filtered context data for node', targetNodeId, ':', contextData);
       setFormattedData(contextData);
+
+      // Extract target node content for title
+      const targetNode = contextData.elements?.find(
+        el => el.data.id === targetNodeId && !el.data.source && !el.data.target
+      );
+
+      if (targetNode?.data?.content) {
+        const nodeContent = targetNode.data.content;
+        const truncatedTitle = nodeContent.length > 70
+          ? nodeContent.substring(0, 70)
+          : nodeContent;
+        setPageTitle(truncatedTitle);
+      } else {
+        setPageTitle("Map of an Argument");
+      }
     } catch (err) {
       console.error('Error formatting context data:', err);
     }
-  }, [data]);
+  }, [data, targetNodeId]);
 
   // Control handlers
   const handleLoadGraph = () => {
@@ -133,6 +153,22 @@ export function ContextPage() {
     }
   };
 
+  // Show error if no node ID provided
+  if (!targetNodeId) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        color: 'var(--text-primary)',
+        fontSize: '1.2rem'
+      }}>
+        No node ID specified. Please provide a node ID via ?id=uuid
+      </div>
+    );
+  }
+
   return (
     <AttributionProvider attributions={attributions}>
       <GraphControls
@@ -140,6 +176,7 @@ export function ContextPage() {
         onResetView={handleResetView}
         onFitScreen={handleFitScreen}
         graphStats={graphStats}
+        title={pageTitle}
       />
 
       <Graph ref={graphRef} data={formattedData} />

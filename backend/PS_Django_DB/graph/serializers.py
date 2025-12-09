@@ -31,7 +31,7 @@ class SourceSerializer(serializers.Serializer):
 class SourceCreateSerializer(serializers.Serializer):
     """Serializer for creating Source nodes"""
     url = serializers.URLField(max_length=2000, required=False, allow_blank=True, allow_null=True)
-    title = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
+    title = serializers.CharField(max_length=500, required=True, allow_blank=False)  # REQUIRED
     author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)
     publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
     source_type = serializers.ChoiceField(

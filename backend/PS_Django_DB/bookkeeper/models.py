@@ -1,5 +1,7 @@
 from django.db import models
 from django.conf import settings
+from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
 
 class ClaimVersion(models.Model):
     """Claim version history table - tracks all changes to Claim nodes"""
@@ -17,6 +19,12 @@ class ClaimVersion(models.Model):
 
     # Claim properties (mirrors PS_Graph_DB BasicSchema Claim node)
     content = models.TextField(null=True, blank=True)
+
+    # Search and deduplication fields
+    content_search = SearchVectorField(null=True, blank=True)
+    # ↑ Auto-populated by DB trigger on INSERT/UPDATE. Full-text search index.
+    content_normalized = models.TextField(null=True, blank=True, db_index=True)
+    # ↑ Auto-populated via save() override. Canonical form for exact duplicate detection.
 
     # Temporal metadata
     OPERATION_CHOICES = [
@@ -40,8 +48,22 @@ class ClaimVersion(models.Model):
             models.Index(fields=['timestamp']),
             models.Index(fields=['valid_from', 'valid_to']),
             models.Index(fields=['node_id', 'version_number']),  # Lookup by entity + version
+            GinIndex(fields=['content_search'], name='claim_content_search_idx'),  # Full-text search (Phase 3)
+            GinIndex(fields=['content'], opclasses=['gin_trgm_ops'], name='claim_content_trgm_idx'),  # Trigram similarity (Phase 2)
         ]
         unique_together = [['node_id', 'version_number']]  # Ensure version uniqueness per entity
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-populate normalized fields"""
+        from graph.utils import normalize_content
+
+        # Auto-populate content_normalized for exact duplicate detection
+        if self.content:
+            self.content_normalized = normalize_content(self.content)
+        else:
+            self.content_normalized = None
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Claim {self.node_id} ({self.operation} at {self.timestamp})"
@@ -63,11 +85,19 @@ class SourceVersion(models.Model):
 
     # Source properties (mirrors PS_Graph_DB BasicSchema Source node)
     url = models.URLField(max_length=500, null=True, blank=True)
-    title = models.CharField(max_length=500, null=True, blank=True)
+    title = models.TextField(null=False, blank=False)  # REQUIRED - primary searchable identifier
     author = models.CharField(max_length=200, null=True, blank=True)
     publication_date = models.CharField(max_length=100, null=True, blank=True)
     source_type = models.CharField(max_length=50, null=True, blank=True)  # 'web', 'book', 'paper', 'observation'
     content = models.TextField(null=True, blank=True)  # quotes/excerpts
+
+    # Search and deduplication fields
+    url_normalized = models.CharField(max_length=2048, null=True, blank=True, db_index=True)
+    # ↑ Auto-populated from url via save() override. Canonical form for duplicate detection.
+    title_search = SearchVectorField(null=True, blank=True)
+    # ↑ Auto-populated by DB trigger on INSERT/UPDATE. Full-text search on title.
+    title_normalized = models.TextField(null=True, blank=True, db_index=True)
+    # ↑ Auto-populated via save() override. Canonical form for exact duplicate detection.
 
     # Temporal metadata
     OPERATION_CHOICES = [
@@ -91,8 +121,29 @@ class SourceVersion(models.Model):
             models.Index(fields=['timestamp']),
             models.Index(fields=['valid_from', 'valid_to']),
             models.Index(fields=['node_id', 'version_number']),  # Lookup by entity + version
+            models.Index(fields=['url_normalized']),  # URL deduplication (Phase 1)
+            GinIndex(fields=['title_search'], name='source_title_search_idx'),  # Full-text search on title (Phase 3)
+            GinIndex(fields=['title'], opclasses=['gin_trgm_ops'], name='source_title_trgm_idx'),  # Trigram similarity on title (Phase 2)
         ]
         unique_together = [['node_id', 'version_number']]  # Ensure version uniqueness per entity
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-populate normalized fields"""
+        from graph.utils import normalize_url, normalize_content
+
+        # Auto-populate url_normalized if url is provided
+        if self.url:
+            self.url_normalized = normalize_url(self.url)
+        else:
+            self.url_normalized = None
+
+        # Auto-populate title_normalized for exact duplicate detection
+        if self.title:
+            self.title_normalized = normalize_content(self.title)
+        else:
+            self.title_normalized = None
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Source {self.node_id} ({self.operation} at {self.timestamp})"

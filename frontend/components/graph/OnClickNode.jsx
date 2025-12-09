@@ -335,6 +335,16 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                       {nodeType === 'source' && nodeUrl && (
                         <div><strong>URL:</strong> <a href={nodeUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)' }}>{nodeUrl}</a></div>
                       )}
+                      {nodeType === 'source' && node.data('content') && (
+                        <div style={{ marginTop: '8px' }}>
+                          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                            Summary
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                            {node.data('content')}
+                          </div>
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                         <button
                           onClick={() => setShowCreateModal(true)}

@@ -1,11 +1,52 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchGraphData, fetchEntityAttribution, fetchEntityComments } from '../APInterface/api.js';
 import { NodeDisplay } from '../components/common/NodeDisplay.jsx';
 import { CommentsThread } from '../components/common/CommentsThread.jsx';
-import { IncomingConnectionsSidebar } from '../components/common/IncomingConnectionsSidebar.jsx';
+import { IncomingConnectionPreview } from '../components/common/IncomingConnectionPreview.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import { useAuth } from '../utilities/AuthContext.jsx';
+
+/**
+ * Helper function to process incoming edges into connection previews
+ * Groups by composite_id for compound connections
+ */
+function processIncomingConnections(incomingEdges, graphData) {
+  const connectionsMap = new Map();
+
+  incomingEdges.forEach(edge => {
+    const connProps = edge.connection.properties;
+    const connectionId = connProps.id;
+    const compositeId = connProps.composite_id || connectionId;
+
+    // Get or create connection entry
+    if (!connectionsMap.has(compositeId)) {
+      connectionsMap.set(compositeId, {
+        connectionId: connectionId,
+        logicType: connProps.logic_type,
+        notes: connProps.notes,
+        compositeId: compositeId,
+        fromNodes: []
+      });
+    }
+
+    // Add source node (deduplicate by id)
+    const connection = connectionsMap.get(compositeId);
+    const sourceNode = edge.other;
+    const sourceNodeType = sourceNode.label === 'Source' ? 'source' : 'claim';
+
+    if (!connection.fromNodes.find(n => n.id === sourceNode.properties.id)) {
+      connection.fromNodes.push({
+        id: sourceNode.properties.id,
+        content: sourceNode.properties.content || 'No content',
+        type: sourceNodeType,
+        url: sourceNode.properties.url || null
+      });
+    }
+  });
+
+  return Array.from(connectionsMap.values());
+}
 
 /**
  * NodeView page - displays detailed view of a single node
@@ -14,6 +55,7 @@ import { useAuth } from '../utilities/AuthContext.jsx';
 export function NodeView() {
   const [searchParams] = useSearchParams();
   const nodeId = searchParams.get('id');
+  const navigate = useNavigate();
   const { token } = useAuth();
   const [nodeData, setNodeData] = useState(null);
   const [incomingConnections, setIncomingConnections] = useState([]);
@@ -43,45 +85,6 @@ export function NodeView() {
         return;
       }
 
-      // Parse incoming connections (edges where current node is target)
-      const incomingEdges = response.data?.edges?.filter(
-        e => e?.node?.properties?.id === nodeId
-      ) || [];
-
-      // Group edges by composite_id (for compound connections)
-      const connectionsMap = new Map();
-      incomingEdges.forEach(edge => {
-        const connId = edge.connection.properties.id;
-        const compositeId = edge.connection.properties.composite_id;
-        const key = compositeId || connId;
-
-        if (!connectionsMap.has(key)) {
-          connectionsMap.set(key, {
-            connectionId: connId,
-            logicType: edge.connection.properties.logic_type,
-            compositeId: compositeId,
-            fromNodes: []
-          });
-        }
-
-        // Add source node
-        const src = edge.other;
-        const srcType = src.label === 'Source' ? 'source' : 'claim';
-        const existingConn = connectionsMap.get(key);
-
-        // Avoid duplicates
-        if (!existingConn.fromNodes.find(n => n.id === src.properties.id)) {
-          existingConn.fromNodes.push({
-            id: src.properties.id,
-            content: src.properties.content || 'No content',
-            type: srcType,
-            url: src.properties.url || null
-          });
-        }
-      });
-
-      setIncomingConnections(Array.from(connectionsMap.values()));
-
       // Search for node in claims
       const claim = response.data?.claims?.find(
         c => c?.claim?.properties?.id === nodeId
@@ -99,6 +102,15 @@ export function NodeView() {
         if (!attrResponse.error && attrResponse.data) {
           setAttributions({ [nodeId]: attrResponse.data });
         }
+
+        // Fetch incoming connections (edges where this node is the target)
+        const incomingEdges = response.data?.edges?.filter(
+          e => e?.node?.properties?.id === nodeId
+        ) || [];
+
+        // Process and limit to 2 connections
+        const processedConnections = processIncomingConnections(incomingEdges, response.data);
+        setIncomingConnections(processedConnections.slice(0, 2));
 
         setLoading(false);
         return;
@@ -122,6 +134,15 @@ export function NodeView() {
         if (!attrResponse.error && attrResponse.data) {
           setAttributions({ [nodeId]: attrResponse.data });
         }
+
+        // Fetch incoming connections (edges where this node is the target)
+        const incomingEdges = response.data?.edges?.filter(
+          e => e?.node?.properties?.id === nodeId
+        ) || [];
+
+        // Process and limit to 2 connections
+        const processedConnections = processIncomingConnections(incomingEdges, response.data);
+        setIncomingConnections(processedConnections.slice(0, 2));
 
         setLoading(false);
         return;
@@ -182,19 +203,50 @@ export function NodeView() {
     <AttributionProvider attributions={attributions}>
       <div style={{
         display: 'flex',
+        flexDirection: 'row',
         minHeight: '100vh',
         padding: '90px 20px 20px 20px',
         gap: '30px'
       }}>
-        {/* Sidebar */}
-        <IncomingConnectionsSidebar connections={incomingConnections} />
+        {/* Sidebar - Incoming Connections */}
+        {incomingConnections.length > 0 && (
+          <div style={{
+            width: '550px',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            alignItems: 'flex-start'
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: 'var(--text-primary)',
+              marginBottom: '10px',
+              paddingLeft: '10px'
+            }}>
+              Incoming Connections
+            </h3>
+            {incomingConnections.map((connection) => (
+              <IncomingConnectionPreview
+                key={connection.compositeId}
+                connectionId={connection.connectionId}
+                fromNodes={connection.fromNodes}
+                logicType={connection.logicType}
+                notes={connection.notes}
+                onClick={() => navigate(`/connectionview?id=${connection.connectionId}`)}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* Main content */}
+        {/* Main Content */}
         <div style={{
-          flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center'
+          alignItems: 'center',
+          flex: 1,
+          minWidth: 0
         }}>
           <NodeDisplay
             nodeId={nodeId}

@@ -197,6 +197,20 @@ export async function fetchGraphData() {
   return apiFetch(`${BASE_URL}/graph/`);
 }
 
+/**
+ * Search nodes by content
+ * GET /api/search/?q=query&type=claim|source
+ * @param {string} query - Search query string
+ * @param {string} nodeType - Optional filter: 'claim' or 'source'
+ */
+export async function searchNodes(query, nodeType = null) {
+  const params = new URLSearchParams({ q: query });
+  if (nodeType) {
+    params.append('type', nodeType);
+  }
+  return apiFetch(`${BASE_URL}/search/?${params.toString()}`);
+}
+
 // ============================================================================
 // USER API - Authentication, Profiles, Contributions
 // ============================================================================

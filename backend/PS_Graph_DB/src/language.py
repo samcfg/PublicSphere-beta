@@ -355,6 +355,7 @@ class LanguageOperations:
             ['source']
         )
 
+
     def get_node_connections(self, node_id: str) -> List[Dict]:
         """Get all connections from/to a specific node (bidirectional query)"""
         if not self.current_graph:

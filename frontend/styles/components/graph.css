@@ -41,6 +41,7 @@
   color: var(--graph-text);
   font-family: 'IM Fell French Canon SC', var(--font-family-heading);
   font-weight: normal;
+  font-size: 19.2px;
 }
 
 .graph-stats {

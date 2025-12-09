@@ -9,7 +9,7 @@ export const styleVariants = {
    */
   refined: (colors, fontFamily) => [
     {
-      selector: 'node',
+      selector: 'node[type = "claim"]',
       style: {
         'background-color': colors.nodeDefault,
         'label': 'data(content)',
@@ -32,8 +32,25 @@ export const styleVariants = {
       }
     },
     {
-      selector: 'node[label = "Source"]',
+      selector: 'node[type = "source"]',
       style: {
+        'background-color': colors.nodeDefault,
+        'label': 'data(title)',
+        'color': colors.nodeText,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-family': fontFamily,
+        'font-size': '12px',
+        'font-weight': 'normal',
+        'text-wrap': 'wrap',
+        'text-max-width': '200px',
+        'width': 'label',
+        'height': 'label',
+        'min-width': '80px',
+        'min-height': '40px',
+        'padding': '10px',
+        'shape': 'rectangle',
+        'border-width': 1,
         'border-color': colors.accentBlueDark
       }
     },

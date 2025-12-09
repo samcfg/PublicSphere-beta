@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { NodeDisplay } from '../components/common/NodeDisplay.jsx';
 import { ConnectionDisplay } from '../components/common/ConnectionDisplay.jsx';
+import { SearchBar } from '../components/common/SearchBar.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import '../styles/components/modal.css';
 
@@ -8,18 +9,17 @@ import '../styles/components/modal.css';
  * Home/landing page with component showcases
  */
 export function Home() {
-  // Example data for NodeDisplay
+  // Example data for NodeDisplay - using real nodes from the graph
   const exampleClaim = {
-    id: 'example-claim-uuid',
+    id: 'ff68b489-3fa0-4d41-84a1-f085b92bf6f7',
     type: 'claim',
-    content: 'Climate change is primarily driven by human activities'
+    content: 'Digital independent distribution is a viable route for musicians'
   };
 
   const exampleSource = {
-    id: 'example-source-uuid',
-    type: 'source',
-    content: 'IPCC Sixth Assessment Report finds that human influence has warmed the atmosphere, ocean and land',
-    url: 'https://www.ipcc.ch/report/ar6/wg1/'
+    id: '97e2c5e4-4ac1-4805-abad-d7e7f8a51be5',
+    type: 'claim',
+    content: 'It maximizes their cut of profit'
   };
 
   // Example data for ConnectionDisplay
@@ -66,23 +66,8 @@ export function Home() {
           color: 'var(--text-secondary)',
           fontFamily: 'var(--font-family-base)'
         }}>
-          Structured collaborative reasoning
+          A public knowledge map
         </p>
-        <Link
-          to="/graph"
-          style={{
-            padding: '0.75rem 1.5rem',
-            backgroundColor: 'var(--accent-blue)',
-            color: 'var(--bg-secondary)',
-            textDecoration: 'none',
-            borderRadius: '8px',
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          Enter Graph
-        </Link>
       </div>
 
       {/* Example Cards */}
@@ -95,17 +80,25 @@ export function Home() {
       }}>
         {/* Node Examples */}
         <section>
-          <h2 style={{
-            textAlign: 'center',
-            marginBottom: '2rem',
-            fontSize: '1.5rem',
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
-            color: 'var(--text-primary)',
-            fontFamily: 'var(--font-family-ui)'
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '2rem',
+            marginBottom: '2rem'
           }}>
-            Nodes
-          </h2>
+            <h2 style={{
+              fontSize: '1.5rem',
+              textTransform: 'uppercase',
+              letterSpacing: '2px',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-family-ui)',
+              margin: 0
+            }}>
+              Enter a Graph
+            </h2>
+            <SearchBar />
+          </div>
           <div style={{
             display: 'flex',
             gap: '2rem',
@@ -113,37 +106,74 @@ export function Home() {
             flexWrap: 'wrap'
           }}>
             {/* Claim Card */}
-            <div className="modal-card" style={{ width: '450px', minHeight: 'auto', padding: '60px' }}>
-              <NodeDisplay
-                nodeId={exampleClaim.id}
-                nodeType={exampleClaim.type}
-                content={exampleClaim.content}
-                containerStyle={{
-                  border: 'none',
-                  padding: '0'
-                }}
-                contentStyle={{
-                  paddingBottom: '60px'
-                }}
-              />
-            </div>
+            <Link
+              to={`/context?id=${exampleClaim.id}`}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className="modal-card" style={{
+                width: '450px',
+                minHeight: 'auto',
+                padding: '60px',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}>
+                <NodeDisplay
+                  nodeId={exampleClaim.id}
+                  nodeType={exampleClaim.type}
+                  content={exampleClaim.content}
+                  containerStyle={{
+                    border: 'none',
+                    padding: '0'
+                  }}
+                  contentStyle={{
+                    paddingBottom: '60px'
+                  }}
+                />
+              </div>
+            </Link>
 
             {/* Source Card */}
-            <div className="modal-card" style={{ width: '450px', minHeight: 'auto', padding: '60px' }}>
-              <NodeDisplay
-                nodeId={exampleSource.id}
-                nodeType={exampleSource.type}
-                content={exampleSource.content}
-                url={exampleSource.url}
-                containerStyle={{
-                  border: 'none',
-                  padding: '0'
-                }}
-                contentStyle={{
-                  paddingBottom: '60px'
-                }}
-              />
-            </div>
+            <Link
+              to={`/context?id=${exampleSource.id}`}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className="modal-card" style={{
+                width: '450px',
+                minHeight: 'auto',
+                padding: '60px',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}>
+                <NodeDisplay
+                  nodeId={exampleSource.id}
+                  nodeType={exampleSource.type}
+                  content={exampleSource.content}
+                  containerStyle={{
+                    border: 'none',
+                    padding: '0'
+                  }}
+                  contentStyle={{
+                    paddingBottom: '60px'
+                  }}
+                />
+              </div>
+            </Link>
           </div>
         </section>
 

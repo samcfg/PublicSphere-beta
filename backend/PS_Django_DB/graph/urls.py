@@ -16,4 +16,7 @@ urlpatterns = [
 
     # Full graph endpoint (for Cytoscape visualization)
     path('graph/', views.graph_full, name='graph-full'),
+
+    # Search endpoint
+    path('search/', views.search_nodes, name='search-nodes'),
 ]

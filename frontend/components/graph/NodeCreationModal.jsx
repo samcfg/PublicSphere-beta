@@ -23,7 +23,9 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
   const [nodeType, setNodeType] = useState(null); // 'claim' or 'source'
   const [relationship, setRelationship] = useState(null); // 'supports', 'contradicts'
   const [content, setContent] = useState('');
+  const [title, setTitle] = useState(''); // For sources - required
   const [url, setUrl] = useState('');
+  const [connectionNotes, setConnectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -79,7 +81,8 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
     // NOT = contradicts
     const connectionData = {
       from_node_id: fromId,
-      to_node_id: toId
+      to_node_id: toId,
+      notes: connectionNotes.trim()
     };
 
     if (relationship === 'contradicts') {
@@ -91,7 +94,15 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
   };
 
   const handleCreate = async () => {
-    if (!nodeType || !relationship || !content.trim()) return;
+    // Validation
+    if (!nodeType || !relationship || !content.trim() || !connectionNotes.trim()) return;
+
+    // Source-specific validation: title is required
+    if (nodeType === 'source' && !title.trim()) {
+      setError('Source title is required');
+      return;
+    }
+
     if (!isAuthenticated || !token) {
       setError('You must be logged in to create nodes');
       return;
@@ -107,12 +118,112 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
         nodeResult = await createClaim(token, { content: content.trim() });
       } else {
         nodeResult = await createSource(token, {
+          title: title.trim(),
           content: content.trim(),
           url: url.trim() || null
         });
       }
 
       if (nodeResult.error) {
+        // Handle title_required error specifically
+        if (nodeResult.error === 'title_required') {
+          setError('Source title is required');
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Handle duplicate errors - All phases
+
+        // Claim duplicates (Phase 2)
+        if (nodeResult.error === 'duplicate_exact' || nodeResult.error === 'duplicate_similar') {
+          const label = nodeResult.error === 'duplicate_exact'
+            ? 'This claim already exists'
+            : 'This claim is very similar to an existing one';
+          const existingContent = nodeResult.data?.existing_content || '';
+          const existingId = nodeResult.data?.existing_node_id;
+          const similarity = nodeResult.data?.similarity_score;
+
+          setError(
+            <div className="duplicate-error">
+              <strong>{label}</strong>
+              <p style={{ fontStyle: 'italic', margin: '8px 0', fontSize: '14px' }}>
+                {existingContent.slice(0, 150)}{existingContent.length > 150 ? '...' : ''}
+              </p>
+              {similarity && (
+                <small style={{ opacity: 0.7 }}>Similarity: {(similarity * 100).toFixed(0)}%</small>
+              )}
+              {existingId && (
+                <a
+                  href={`/context?id=${existingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline', display: 'block', marginTop: '8px' }}
+                >
+                  View existing claim →
+                </a>
+              )}
+            </div>
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Source URL duplicate (Phase 1)
+        if (nodeResult.error === 'duplicate_url') {
+          const existingTitle = nodeResult.data?.existing_title || 'Unknown';
+          const existingId = nodeResult.data?.existing_node_id;
+          setError(
+            <div className="duplicate-error">
+              <strong>This URL already exists</strong>
+              <p style={{ fontStyle: 'italic', margin: '8px 0' }}>{existingTitle}</p>
+              {existingId && (
+                <a
+                  href={`/context?id=${existingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline' }}
+                >
+                  View existing source →
+                </a>
+              )}
+            </div>
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Source title duplicates (Phase 2)
+        if (nodeResult.error === 'duplicate_title_exact' || nodeResult.error === 'duplicate_title_similar') {
+          const label = nodeResult.error === 'duplicate_title_exact'
+            ? 'A source with this title already exists'
+            : 'A source with a very similar title exists';
+          const existingTitle = nodeResult.data?.existing_title || 'Unknown';
+          const existingId = nodeResult.data?.existing_node_id;
+          const similarity = nodeResult.data?.similarity_score;
+
+          setError(
+            <div className="duplicate-error">
+              <strong>{label}</strong>
+              <p style={{ fontStyle: 'italic', margin: '8px 0' }}>{existingTitle}</p>
+              {similarity && (
+                <small style={{ opacity: 0.7 }}>Similarity: {(similarity * 100).toFixed(0)}%</small>
+              )}
+              {existingId && (
+                <a
+                  href={`/context?id=${existingId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline', display: 'block', marginTop: '8px' }}
+                >
+                  View existing source →
+                </a>
+              )}
+            </div>
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
         const errMsg = typeof nodeResult.error === 'object'
           ? JSON.stringify(nodeResult.error)
           : nodeResult.error;
@@ -210,13 +321,18 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
     setNodeType(null);
     setRelationship(null);
     setContent('');
+    setTitle('');
     setUrl('');
+    setConnectionNotes('');
     setError(null);
     onClose();
   };
 
   const relationshipOptions = getRelationshipOptions();
-  const canSubmit = nodeType && relationship && content.trim() && !isSubmitting;
+  // Validate: for sources, title is required
+  const canSubmit = nodeType && relationship && content.trim() && connectionNotes.trim()
+    && (nodeType !== 'source' || title.trim()) // Source requires title
+    && !isSubmitting;
 
   return (
     <PositionedOverlay
@@ -283,16 +399,31 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
             {nodeType && relationship && (
               <>
                 {nodeType === 'source' && (
-                  <div className="node-creation-field">
-                    <label className="node-creation-label">URL (optional)</label>
-                    <input
-                      type="url"
-                      className="node-creation-input"
-                      placeholder="https://..."
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                    />
-                  </div>
+                  <>
+                    <div className="node-creation-field">
+                      <label className="node-creation-label">
+                        Title <span style={{ color: '#ff4444' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`node-creation-input ${nodeType === 'source' && !title.trim() ? 'error' : ''}`}
+                        placeholder="Source title (required)"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="node-creation-field">
+                      <label className="node-creation-label">URL (optional)</label>
+                      <input
+                        type="url"
+                        className="node-creation-input"
+                        placeholder="https://..."
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                      />
+                    </div>
+                  </>
                 )}
                 <div className="node-creation-field">
                   <label className="node-creation-label">
@@ -304,6 +435,28 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                   />
+                </div>
+                <div className="node-creation-field">
+                  <label className="node-creation-label">
+                    Connection Notes
+                    <span style={{ fontSize: '12px', opacity: 0.7, marginLeft: '8px' }}>
+                      (max 500 chars)
+                    </span>
+                  </label>
+                  <textarea
+                    className="node-creation-textarea node-creation-notes"
+                    placeholder="Explain why this connection holds..."
+                    value={connectionNotes}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 500) {
+                        setConnectionNotes(e.target.value);
+                      }
+                    }}
+                    maxLength={500}
+                  />
+                  <div style={{ fontSize: '11px', opacity: 0.6, textAlign: 'right', marginTop: '4px' }}>
+                    {connectionNotes.length}/500
+                  </div>
                 </div>
               </>
             )}
