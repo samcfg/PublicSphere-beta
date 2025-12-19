@@ -1,26 +1,86 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { NodeDisplay } from '../components/common/NodeDisplay.jsx';
 import { ConnectionDisplay } from '../components/common/ConnectionDisplay.jsx';
 import { SearchBar } from '../components/common/SearchBar.jsx';
+import { StandaloneNodeCreationModal } from '../components/graph/StandaloneNodeCreationModal.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
+import { fetchClaimConnections, fetchSourceConnections } from '../APInterface/api.js';
 import '../styles/components/modal.css';
 
 /**
  * Home/landing page with component showcases
  */
 export function Home() {
-  // Example data for NodeDisplay - using real nodes from the graph
-  const exampleClaim = {
-    id: 'ff68b489-3fa0-4d41-84a1-f085b92bf6f7',
-    type: 'claim',
-    content: 'Digital independent distribution is a viable route for musicians'
-  };
+  const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
 
-  const exampleSource = {
-    id: '97e2c5e4-4ac1-4805-abad-d7e7f8a51be5',
-    type: 'claim',
-    content: 'It maximizes their cut of profit'
-  };
+  // Example node IDs - hardcoded, but data is fetched
+  const EXAMPLE_CLAIM_ID = 'ff68b489-3fa0-4d41-84a1-f085b92bf6f7';
+  const EXAMPLE_SOURCE_ID = '97e2c5e4-4ac1-4805-abad-d7e7f8a51be5';
+
+  // State for fetched node data
+  const [exampleClaim, setExampleClaim] = useState(null);
+  const [exampleSource, setExampleSource] = useState(null);
+  const [loadingClaim, setLoadingClaim] = useState(true);
+  const [loadingSource, setLoadingSource] = useState(true);
+  const [errorClaim, setErrorClaim] = useState(null);
+  const [errorSource, setErrorSource] = useState(null);
+
+  // Fetch example nodes on mount
+  useEffect(() => {
+    async function fetchExampleNodes() {
+      // Fetch claim
+      try {
+        const claimResponse = await fetchClaimConnections(EXAMPLE_CLAIM_ID);
+        if (claimResponse.error) {
+          setErrorClaim('Failed to load example claim');
+        } else {
+          // Extract node data from connections response
+          const nodeData = claimResponse.data?.connections?.[0]?.node;
+          if (nodeData) {
+            setExampleClaim({
+              id: EXAMPLE_CLAIM_ID,
+              type: 'claim',
+              content: nodeData.content
+            });
+          } else {
+            setErrorClaim('Example claim not found');
+          }
+        }
+      } catch (err) {
+        setErrorClaim('Failed to load example claim');
+      } finally {
+        setLoadingClaim(false);
+      }
+
+      // Fetch source
+      try {
+        const sourceResponse = await fetchSourceConnections(EXAMPLE_SOURCE_ID);
+        if (sourceResponse.error) {
+          setErrorSource('Failed to load example source');
+        } else {
+          // Extract node data from connections response
+          const nodeData = sourceResponse.data?.connections?.[0]?.node;
+          if (nodeData) {
+            setExampleSource({
+              id: EXAMPLE_SOURCE_ID,
+              type: 'source',
+              content: nodeData.content,
+              title: nodeData.title
+            });
+          } else {
+            setErrorSource('Example source not found');
+          }
+        }
+      } catch (err) {
+        setErrorSource('Failed to load example source');
+      } finally {
+        setLoadingSource(false);
+      }
+    }
+
+    fetchExampleNodes();
+  }, []);
 
   // Example data for ConnectionDisplay
   const exampleConnection = {
@@ -98,6 +158,34 @@ export function Home() {
               Enter a Graph
             </h2>
             <SearchBar />
+            <button
+              onClick={() => setIsCreationModalOpen(true)}
+              style={{
+                padding: '0.5rem 1.5rem',
+                borderRadius: '24px',
+                border: '2px solid var(--accent-green)',
+                backgroundColor: 'transparent',
+                color: 'var(--accent-green)',
+                fontSize: '0.9rem',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontFamily: 'var(--font-family-ui)',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--accent-green)';
+                e.currentTarget.style.color = '#000';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--accent-green)';
+              }}
+            >
+              Create Node
+            </button>
           </div>
           <div style={{
             display: 'flex',
@@ -106,74 +194,126 @@ export function Home() {
             flexWrap: 'wrap'
           }}>
             {/* Claim Card */}
-            <Link
-              to={`/context?id=${exampleClaim.id}`}
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
+            {loadingClaim ? (
               <div className="modal-card" style={{
                 width: '450px',
-                minHeight: 'auto',
+                minHeight: '300px',
                 padding: '60px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)'
               }}>
-                <NodeDisplay
-                  nodeId={exampleClaim.id}
-                  nodeType={exampleClaim.type}
-                  content={exampleClaim.content}
-                  containerStyle={{
-                    border: 'none',
-                    padding: '0'
-                  }}
-                  contentStyle={{
-                    paddingBottom: '60px'
-                  }}
-                />
+                Loading...
               </div>
-            </Link>
+            ) : errorClaim ? (
+              <div className="modal-card" style={{
+                width: '450px',
+                minHeight: '300px',
+                padding: '60px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)'
+              }}>
+                {errorClaim}
+              </div>
+            ) : exampleClaim ? (
+              <Link
+                to={`/context?id=${exampleClaim.id}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="modal-card" style={{
+                  width: '450px',
+                  minHeight: 'auto',
+                  padding: '60px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
+                }}>
+                  <NodeDisplay
+                    nodeId={exampleClaim.id}
+                    nodeType={exampleClaim.type}
+                    content={exampleClaim.content}
+                    containerStyle={{
+                      border: 'none',
+                      padding: '0'
+                    }}
+                    contentStyle={{
+                      paddingBottom: '60px'
+                    }}
+                  />
+                </div>
+              </Link>
+            ) : null}
 
             {/* Source Card */}
-            <Link
-              to={`/context?id=${exampleSource.id}`}
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
+            {loadingSource ? (
               <div className="modal-card" style={{
                 width: '450px',
-                minHeight: 'auto',
+                minHeight: '300px',
                 padding: '60px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)'
               }}>
-                <NodeDisplay
-                  nodeId={exampleSource.id}
-                  nodeType={exampleSource.type}
-                  content={exampleSource.content}
-                  containerStyle={{
-                    border: 'none',
-                    padding: '0'
-                  }}
-                  contentStyle={{
-                    paddingBottom: '60px'
-                  }}
-                />
+                Loading...
               </div>
-            </Link>
+            ) : errorSource ? (
+              <div className="modal-card" style={{
+                width: '450px',
+                minHeight: '300px',
+                padding: '60px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)'
+              }}>
+                {errorSource}
+              </div>
+            ) : exampleSource ? (
+              <Link
+                to={`/context?id=${exampleSource.id}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="modal-card" style={{
+                  width: '450px',
+                  minHeight: 'auto',
+                  padding: '60px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
+                }}>
+                  <NodeDisplay
+                    nodeId={exampleSource.id}
+                    nodeType={exampleSource.type}
+                    content={exampleSource.content}
+                    containerStyle={{
+                      border: 'none',
+                      padding: '0'
+                    }}
+                    contentStyle={{
+                      paddingBottom: '60px'
+                    }}
+                  />
+                </div>
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -209,6 +349,12 @@ export function Home() {
           </div>
         </section>
       </div>
+
+      {/* Standalone Node Creation Modal */}
+      <StandaloneNodeCreationModal
+        isOpen={isCreationModalOpen}
+        onClose={() => setIsCreationModalOpen(false)}
+      />
     </div>
     </AttributionProvider>
   );

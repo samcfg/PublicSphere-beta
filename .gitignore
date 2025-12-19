@@ -1,1 +1,28 @@
 frontend/dist/
+
+# Virtual environments
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+
+# Database runtime files (never commit these!)
+.postgres-data/
+
+# Local IDE/tool settings
+.claude/settings.local.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Node modules
+frontend/node_modules/
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db

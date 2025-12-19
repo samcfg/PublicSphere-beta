@@ -7,6 +7,21 @@
   /* Positioned by PositionedOverlay - scales with graph zoom */
 }
 
+/* Connector line shine animation */
+@keyframes shine-sweep {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0.3;
+  }
+}
+
 /* Green highlight wrapper - matches node tooltip */
 .node-creation-highlight {
   background-color: var(--accent-green);
