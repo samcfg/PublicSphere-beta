@@ -1,0 +1,27 @@
+2025-12-09 19:08:01.736 PST [48360] LOG:  starting PostgreSQL 17.7 on x86_64-pc-linux-gnu, compiled by clang version 20.1.8, 64-bit
+2025-12-09 19:08:01.737 PST [48360] LOG:  listening on IPv6 address "::1", port 5432
+2025-12-09 19:08:01.737 PST [48360] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2025-12-09 19:08:01.745 PST [48360] LOG:  listening on Unix socket "/home/sam/Documents/PS_SE_backend_Aug29/.postgres-data/.s.PGSQL.5432"
+2025-12-09 19:08:01.757 PST [48363] LOG:  database system was shut down at 2025-12-09 19:07:48 PST
+2025-12-09 19:08:01.764 PST [48360] LOG:  database system is ready to accept connections
+2025-12-09 19:45:26.880 PST [48361] LOG:  checkpoint starting: time
+2025-12-09 19:45:58.198 PST [48361] LOG:  checkpoint complete: wrote 315 buffers (1.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=31.286 s, sync=0.009 s, total=31.318 s; sync files=123, longest=0.003 s, average=0.001 s; distance=1924 kB, estimate=1924 kB; lsn=0/16CE068, redo lsn=0/16CDFC0
+2025-12-09 20:10:22.477 PST [48361] LOG:  checkpoint starting: time
+2025-12-09 20:10:50.175 PST [48361] LOG:  checkpoint complete: wrote 276 buffers (1.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=27.653 s, sync=0.020 s, total=27.699 s; sync files=305, longest=0.005 s, average=0.001 s; distance=1610 kB, estimate=1893 kB; lsn=0/1860B90, redo lsn=0/1860B00
+2025-12-10 12:08:22.204 PST [51344] FATAL:  lock file "postmaster.pid" already exists
+2025-12-10 12:08:22.204 PST [51344] HINT:  Is another postmaster (PID 48360) running in data directory "/home/sam/Documents/PS_SE_backend_Aug29/.postgres-data"?
+2025-12-10 12:19:12.725 PST [48361] LOG:  checkpoint starting: time
+2025-12-10 12:19:13.559 PST [48361] LOG:  checkpoint complete: wrote 8 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.804 s, sync=0.010 s, total=0.834 s; sync files=4, longest=0.010 s, average=0.003 s; distance=13 kB, estimate=1705 kB; lsn=0/1864170, redo lsn=0/18640E0
+2025-12-10 12:47:32.279 PST [48361] LOG:  checkpoint starting: time
+2025-12-10 12:47:33.827 PST [48361] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.517 s, sync=0.007 s, total=1.548 s; sync files=10, longest=0.004 s, average=0.001 s; distance=2 kB, estimate=1535 kB; lsn=0/1864C38, redo lsn=0/1864BE0
+2025-12-10 15:38:44.947 PST [48361] LOG:  checkpoint starting: time
+2025-12-10 15:38:45.986 PST [48361] LOG:  checkpoint complete: wrote 10 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.005 s, sync=0.011 s, total=1.039 s; sync files=5, longest=0.010 s, average=0.002 s; distance=24 kB, estimate=1384 kB; lsn=0/186ACE0, redo lsn=0/186AC88
+2025-12-11 15:28:46.555 PST [74540] ERROR:  duplicate key value violates unique constraint "user_profiles_pkey"
+2025-12-11 15:28:46.555 PST [74540] DETAIL:  Key (user_id)=(1) already exists.
+2025-12-11 15:28:46.555 PST [74540] STATEMENT:  INSERT INTO "user_profiles" ("user_id", "bio", "display_name", "total_claims", "total_sources", "total_connections", "reputation_score", "last_updated") VALUES (1, '', '', 0, 0, 0, 0, '2025-12-11T23:28:46.552654+00:00'::timestamptz)
+2025-12-11 15:32:13.648 PST [48361] LOG:  checkpoint starting: time
+2025-12-11 15:32:28.372 PST [48361] LOG:  checkpoint complete: wrote 147 buffers (0.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=14.688 s, sync=0.014 s, total=14.724 s; sync files=95, longest=0.005 s, average=0.001 s; distance=207 kB, estimate=1266 kB; lsn=0/189E918, redo lsn=0/189E888
+2025-12-11 15:52:03.686 PST [48361] LOG:  checkpoint starting: time
+2025-12-11 15:52:08.758 PST [48361] LOG:  checkpoint complete: wrote 51 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.035 s, sync=0.010 s, total=5.072 s; sync files=49, longest=0.006 s, average=0.001 s; distance=11 kB, estimate=1140 kB; lsn=0/18A1730, redo lsn=0/18A16A0
+2025-12-11 20:36:30.569 PST [48361] LOG:  checkpoint starting: time
+2025-12-11 20:36:35.135 PST [48361] LOG:  checkpoint complete: wrote 46 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.532 s, sync=0.010 s, total=4.567 s; sync files=44, longest=0.006 s, average=0.001 s; distance=13 kB, estimate=1028 kB; lsn=0/18A4EF0, redo lsn=0/18A4E60

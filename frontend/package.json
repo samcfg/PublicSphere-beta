@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "PublicSphere React frontend with Vite",
   "private": true,
-  "packageManager": "pnpm@8.0.0",
+  "packageManager": "pnpm@10.24.0",
   "engines": {
-    "pnpm": ">=8.0.0",
+    "pnpm": ">=10.0.0",
     "npm": "please-use-pnpm",
     "yarn": "please-use-pnpm"
   },

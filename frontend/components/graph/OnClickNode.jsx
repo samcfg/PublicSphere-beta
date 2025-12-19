@@ -30,6 +30,7 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const contentRef = useRef(null);
+  const frameRef = useRef(null); // Frame container for positioning NodeCreationModal
 
   // ResizeObserver to measure content height dynamically
   useEffect(() => {
@@ -207,6 +208,7 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
 
           return (
             <div
+              ref={frameRef}
               className="graph-tooltip-container"
               style={{
                 '--start-x': `${startX}px`,
@@ -403,6 +405,7 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
         onClose={() => setShowCreateModal(false)}
         node={node}
         cy={cy}
+        frameRef={frameRef}
         existingNodeId={nodeId}
         existingNodeType={entityType}
         existingNodeLabel={nodeLabel}

@@ -1,0 +1,14 @@
+# Syncthing ignore patterns for PS_SE_backend_Aug29
+
+# Python virtual environment - machine-specific, should not sync
+backend/.venv
+
+# Node.js dependencies - machine-specific, should not sync
+frontend/node_modules
+
+# PostgreSQL local data directory - machine-specific
+.postgres-data
+
+# Nix development artifacts
+result
+.direnv

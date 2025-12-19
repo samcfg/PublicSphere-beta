@@ -1,0 +1,1 @@
+/nix/store/xh7hbgzmhjiky5drl1h5k5bnakm4apkc-postgresql-and-plugins-17.7/bin/postgres "-D" ".postgres-data"

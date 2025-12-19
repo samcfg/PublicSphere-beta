@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cytoscape.js Capabilities Demo</title>
+  <script src="https://unpkg.com/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+
+    #cy {
+      width: 100%;
+      height: 600px;
+      background: #2a2a2a;
+      border: 2px solid #444;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #333;
+      border-radius: 8px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: #2980b9;
+    }
+
+    button.active {
+      background: #e74c3c;
+    }
+
+    .section {
+      margin: 10px 0;
+    }
+
+    h2 {
+      margin: 10px 0;
+      font-size: 18px;
+      color: #3498db;
+    }
+
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #333;
+      border-radius: 8px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cytoscape.js Capabilities Demo</h1>
+
+  <div class="controls">
+    <div class="section">
+      <h2>1. Edge Width by Rating</h2>
+      <button onclick="setAllRatings(20)">Low Rating (20)</button>
+      <button onclick="setAllRatings(50)">Medium Rating (50)</button>
+      <button onclick="setAllRatings(80)">High Rating (80)</button>
+      <button onclick="randomizeRatings()">Randomize Ratings</button>
+    </div>
+
+    <div class="section">
+      <h2>2. Arrow Shapes (All 11 Built-in Types)</h2>
+      <button onclick="setArrowShape('triangle')">Triangle</button>
+      <button onclick="setArrowShape('triangle-tee')">Triangle-Tee</button>
+      <button onclick="setArrowShape('triangle-cross')">Triangle-Cross</button>
+      <button onclick="setArrowShape('triangle-backcurve')">Triangle-Backcurve</button>
+      <button onclick="setArrowShape('vee')">Vee</button>
+      <button onclick="setArrowShape('tee')">Tee</button>
+      <button onclick="setArrowShape('square')">Square</button>
+      <button onclick="setArrowShape('circle')">Circle</button>
+      <button onclick="setArrowShape('diamond')">Diamond</button>
+      <button onclick="setArrowShape('chevron')">Chevron</button>
+      <button onclick="setArrowShape('none')">None</button>
+      <br>
+      <button id="fillBtn" onclick="toggleArrowFill()">Toggle Hollow/Filled</button>
+      <button onclick="setMidArrow()">Add Mid-Arrow (Circle)</button>
+      <button onclick="clearMidArrow()">Clear Mid-Arrow</button>
+    </div>
+
+    <div class="section">
+      <h2>3. Edge Hover Effects</h2>
+      <button onclick="setEdgeHover('thicken')">Thicken on Hover</button>
+      <button onclick="setEdgeHover('glow')">Glow on Hover</button>
+      <button onclick="setEdgeHover('color-shift')">Color Shift on Hover</button>
+      <button onclick="setEdgeHover('mid-arrow-pulse')">Pulse Mid-Arrow on Hover (Red)</button>
+      <button onclick="setEdgeHover('mid-arrow-pulse-green')">Pulse Mid-Arrow on Hover (Green)</button>
+      <button onclick="setEdgeHover('arrow-grow')">Grow Arrow on Hover</button>
+      <button onclick="setEdgeHover('glow-and-mid-pulse')">Glow + Green Mid-Arrow Pulse</button>
+      <button onclick="setEdgeHover('none')">No Hover Effect</button>
+    </div>
+
+    <div class="section">
+      <h2>4. Animated Borders</h2>
+      <button id="pulseBtn" onclick="togglePulsing()">Start Pulsing</button>
+      <button id="dashBtn" onclick="toggleDashed()">Start Dashed Rotation</button>
+      <button id="colorBtn" onclick="toggleColorCycle()">Start Color Cycle</button>
+      <button onclick="stopAllAnimations()">Stop All</button>
+    </div>
+
+    <div class="section">
+      <h2>Other Effects</h2>
+      <button onclick="highlightHighRated()">Highlight High-Rated Connections</button>
+      <button onclick="glowNodes()">Glow Effect on Nodes</button>
+      <button onclick="resetStyles()">Reset All Styles</button>
+    </div>
+  </div>
+
+  <div id="cy"></div>
+
+  <div class="info">
+    <h2>What's Being Demonstrated:</h2>
+    <p><strong>1. Dynamic Edge Width:</strong> Edge thickness is mapped to a 'rating' data field (0-100 scale).
+    The mapData() function smoothly interpolates width from 0.5px to 5px based on rating value.</p>
+
+    <p><strong>2. Arrow Shapes:</strong> Cytoscape has exactly 11 built-in arrow shapes:</p>
+    <ul>
+      <li><strong>triangle:</strong> Standard filled arrow (default)</li>
+      <li><strong>triangle-tee:</strong> Arrow with perpendicular line at base</li>
+      <li><strong>triangle-cross:</strong> Arrow with cross at base</li>
+      <li><strong>triangle-backcurve:</strong> Curved inward arrow (concave)</li>
+      <li><strong>vee:</strong> V-shaped open arrow</li>
+      <li><strong>tee:</strong> Perpendicular line (no arrow point)</li>
+      <li><strong>square, circle, diamond:</strong> Simple geometric shapes</li>
+      <li><strong>chevron:</strong> Angled bracket shape (⟩)</li>
+      <li><strong>none:</strong> No arrow indicator</li>
+    </ul>
+    <p><strong>Arrow Modifiers:</strong></p>
+    <ul>
+      <li><strong>Filled/Hollow:</strong> Use target-arrow-fill: 'filled' or 'hollow' for outline-only arrows</li>
+      <li><strong>Mid-arrows:</strong> Add arrows in the middle of edges with mid-target-arrow-shape</li>
+      <li><strong>Multi-arrow:</strong> Combine target and mid-target arrows for compound effects (e.g., circle in middle + chevron at end)</li>
+    </ul>
+
+    <p><strong>3. Edge Hover Effects:</strong> Interactive feedback when hovering over connections:</p>
+    <ul>
+      <li><strong>Thicken:</strong> Edge width increases on hover</li>
+      <li><strong>Glow:</strong> Edge turns white and brightens (like highlighting)</li>
+      <li><strong>Color Shift:</strong> Edge changes to orange on hover</li>
+      <li><strong>Pulse Mid-Arrow (Red):</strong> Only the mid-arrow changes to red and grows (requires mid-arrow to be enabled)</li>
+      <li><strong>Pulse Mid-Arrow (Green):</strong> Only the mid-arrow changes to green and grows (requires mid-arrow to be enabled)</li>
+      <li><strong>Grow Arrow:</strong> Arrow heads scale up on hover</li>
+      <li><strong>Glow + Green Mid-Arrow Pulse:</strong> Combines white glow on edge with green mid-arrow pulse effect</li>
+    </ul>
+    <p><em>Note: The "Pulse Mid-Arrow" effects specifically target only the middle arrow, not the main edge or target arrow.
+    Enable mid-arrow first to see these effects!</em></p>
+
+    <p><strong>4. Animated Borders:</strong> Multiple animation types are shown:</p>
+    <ul>
+      <li><strong>Pulsing:</strong> Border width and opacity oscillate using transition properties</li>
+      <li><strong>Dashed Rotation:</strong> Dashed border pattern animates via border-dash-offset</li>
+      <li><strong>Color Cycle:</strong> Border color cycles through multiple colors with smooth transitions</li>
+    </ul>
+
+    <p><strong>Technical Notes:</strong></p>
+    <ul>
+      <li>Cytoscape uses mapData(field, min, max, outputMin, outputMax) for data-driven styling</li>
+      <li>Arrow shapes apply to target-arrow-shape, source-arrow-shape, and mid-arrow-shape</li>
+      <li>Transitions work on most style properties (width, color, opacity, etc.)</li>
+      <li>For continuous animations, JavaScript intervals update style properties</li>
+      <li>Performance: Limit active animations to <50 elements for smooth 60fps rendering</li>
+    </ul>
+  </div>
+
+  <script>
+    // Sample graph data
+    const elements = [
+      // Nodes
+      { data: { id: 'a', label: 'Climate change\nis accelerating', type: 'claim' } },
+      { data: { id: 'b', label: 'CO2 levels rising', type: 'claim' } },
+      { data: { id: 'c', label: 'Temperature\nrecords broken', type: 'claim' } },
+      { data: { id: 'd', label: 'IPCC Report 2023', type: 'source' } },
+      { data: { id: 'e', label: 'NASA Data', type: 'source' } },
+      { data: { id: 'f', label: 'Ocean acidification\nincreasing', type: 'claim' } },
+
+      // Edges with initial rating values
+      { data: { id: 'ab', source: 'b', target: 'a', rating: 75 } },
+      { data: { id: 'ac', source: 'c', target: 'a', rating: 80 } },
+      { data: { id: 'db', source: 'd', target: 'b', rating: 90 } },
+      { data: { id: 'ec', source: 'e', target: 'c', rating: 85 } },
+      { data: { id: 'af', source: 'f', target: 'a', rating: 70 } },
+      { data: { id: 'df', source: 'd', target: 'f', rating: 88 } }
+    ];
+
+    // Initialize Cytoscape
+    const cy = cytoscape({
+      container: document.getElementById('cy'),
+      elements: elements,
+      layout: {
+        name: 'breadthfirst',
+        directed: true,
+        spacingFactor: 1.5
+      },
+      style: [
+        // Claim nodes
+        {
+          selector: 'node[type = "claim"]',
+          style: {
+            'background-color': '#34495e',
+            'label': 'data(label)',
+            'color': '#ecf0f1',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'font-size': '14px',
+            'text-wrap': 'wrap',
+            'text-max-width': '120px',
+            'width': 'label',
+            'height': 'label',
+            'padding': '15px',
+            'shape': 'rectangle',
+            'border-width': 2,
+            'border-color': '#3498db',
+            'transition-property': 'border-width, border-color, border-opacity, overlay-opacity',
+            'transition-duration': '0.5s',
+            'transition-timing-function': 'ease-in-out'
+          }
+        },
+        // Source nodes
+        {
+          selector: 'node[type = "source"]',
+          style: {
+            'background-color': '#27ae60',
+            'label': 'data(label)',
+            'color': '#fff',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'font-size': '13px',
+            'text-wrap': 'wrap',
+            'text-max-width': '100px',
+            'width': 'label',
+            'height': 'label',
+            'padding': '12px',
+            'shape': 'round-rectangle',
+            'border-width': 2,
+            'border-color': '#229954',
+            'transition-property': 'border-width, border-color',
+            'transition-duration': '0.5s'
+          }
+        },
+        // Edges with dynamic width based on rating
+        {
+          selector: 'edge',
+          style: {
+            'width': 'mapData(rating, 0, 100, 0.5, 5)', // KEY FEATURE #1
+            'line-color': '#68d391',
+            'target-arrow-color': '#68d391',
+            'target-arrow-shape': 'triangle',
+            'arrow-scale': 1.2,
+            'curve-style': 'bezier',
+            'transition-property': 'width, line-color, target-arrow-color, mid-target-arrow-color, arrow-scale',
+            'transition-duration': '0.3s'
+          }
+        },
+        // Edge hover styles - different effects (applied via .hovered class)
+        {
+          selector: 'edge.hover-thicken.hovered',
+          style: {
+            'width': 6
+          }
+        },
+        {
+          selector: 'edge.hover-glow.hovered',
+          style: {
+            'line-color': '#ffffff',
+            'target-arrow-color': '#ffffff',
+            'width': 5
+          }
+        },
+        {
+          selector: 'edge.hover-color-shift.hovered',
+          style: {
+            'line-color': '#f39c12',
+            'target-arrow-color': '#f39c12'
+          }
+        },
+        {
+          selector: 'edge.hover-mid-arrow-pulse.hovered',
+          style: {
+            'mid-target-arrow-color': '#e74c3c',
+            'arrow-scale': 1.8
+          }
+        },
+        {
+          selector: 'edge.hover-mid-arrow-pulse-green.hovered',
+          style: {
+            'mid-target-arrow-color': '#2ecc71',
+            'arrow-scale': 1.8
+          }
+        },
+        {
+          selector: 'edge.hover-arrow-grow.hovered',
+          style: {
+            'arrow-scale': 2.0
+          }
+        },
+        {
+          selector: 'edge.hover-glow-and-mid-pulse.hovered',
+          style: {
+            'line-color': '#ffffff',
+            'target-arrow-color': '#ffffff',
+            'width': 5,
+            'mid-target-arrow-color': '#2ecc71',
+            'arrow-scale': 1.8
+          }
+        },
+        // High-rated edges (>75)
+        {
+          selector: 'edge.high-rated',
+          style: {
+            'line-color': '#f39c12',
+            'target-arrow-color': '#f39c12'
+          }
+        },
+        // Pulsing animation class
+        {
+          selector: 'node.pulsing',
+          style: {
+            'border-width': 4,
+            'overlay-color': '#3498db',
+            'overlay-opacity': 0.5,
+            'overlay-padding': 10
+          }
+        },
+        // Glowing effect
+        {
+          selector: 'node.glowing',
+          style: {
+            'border-width': 5,
+            'border-color': '#e74c3c',
+            'overlay-color': '#e74c3c',
+            'overlay-opacity': 0.6,
+            'overlay-padding': 12
+          }
+        },
+        // Dashed border
+        {
+          selector: 'node.dashed',
+          style: {
+            'border-style': 'dashed',
+            'border-dash-pattern': [8, 4],
+            'border-width': 3
+          }
+        }
+      ]
+    });
+
+    // ========================================================================
+    // Edge Hover Event Handlers (Cytoscape doesn't support :hover pseudo-selector)
+    // ========================================================================
+
+    cy.on('mouseover', 'edge', function(event) {
+      event.target.addClass('hovered');
+    });
+
+    cy.on('mouseout', 'edge', function(event) {
+      event.target.removeClass('hovered');
+    });
+
+    // ========================================================================
+    // Animation Controllers
+    // ========================================================================
+
+    let pulsingInterval = null;
+    let dashedInterval = null;
+    let colorInterval = null;
+
+    function togglePulsing() {
+      const btn = document.getElementById('pulseBtn');
+      if (pulsingInterval) {
+        clearInterval(pulsingInterval);
+        pulsingInterval = null;
+        cy.$('node').removeClass('pulsing');
+        btn.classList.remove('active');
+        btn.textContent = 'Start Pulsing';
+      } else {
+        let phase = 0;
+        pulsingInterval = setInterval(() => {
+          phase = (phase + 1) % 2;
+          cy.$('node[type = "claim"]').style({
+            'border-width': phase === 0 ? 2 : 5,
+            'overlay-opacity': phase === 0 ? 0.2 : 0.5
+          });
+        }, 800);
+        btn.classList.add('active');
+        btn.textContent = 'Stop Pulsing';
+      }
+    }
+
+    function toggleDashed() {
+      const btn = document.getElementById('dashBtn');
+      if (dashedInterval) {
+        clearInterval(dashedInterval);
+        dashedInterval = null;
+        cy.$('node').removeClass('dashed');
+        btn.classList.remove('active');
+        btn.textContent = 'Start Dashed Rotation';
+      } else {
+        cy.$('node[type = "source"]').addClass('dashed');
+        let offset = 0;
+        dashedInterval = setInterval(() => {
+          offset = (offset + 1) % 12;
+          cy.$('node.dashed').style({
+            'border-dash-offset': offset
+          });
+        }, 50);
+        btn.classList.add('active');
+        btn.textContent = 'Stop Dashed Rotation';
+      }
+    }
+
+    function toggleColorCycle() {
+      const btn = document.getElementById('colorBtn');
+      if (colorInterval) {
+        clearInterval(colorInterval);
+        colorInterval = null;
+        btn.classList.remove('active');
+        btn.textContent = 'Start Color Cycle';
+        resetStyles();
+      } else {
+        const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6'];
+        let colorIndex = 0;
+        colorInterval = setInterval(() => {
+          colorIndex = (colorIndex + 1) % colors.length;
+          cy.$('node').style({
+            'border-color': colors[colorIndex]
+          });
+        }, 1000);
+        btn.classList.add('active');
+        btn.textContent = 'Stop Color Cycle';
+      }
+    }
+
+    function stopAllAnimations() {
+      if (pulsingInterval) togglePulsing();
+      if (dashedInterval) toggleDashed();
+      if (colorInterval) toggleColorCycle();
+    }
+
+    // ========================================================================
+    // Arrow Shape Controls
+    // ========================================================================
+
+    let isHollow = false;
+
+    function setArrowShape(shape) {
+      cy.edges().style({
+        'target-arrow-shape': shape
+      });
+    }
+
+    function toggleArrowFill() {
+      isHollow = !isHollow;
+      cy.edges().style({
+        'target-arrow-fill': isHollow ? 'hollow' : 'filled'
+      });
+      const btn = document.getElementById('fillBtn');
+      btn.textContent = isHollow ? 'Filled (currently hollow)' : 'Hollow (currently filled)';
+    }
+
+    function setMidArrow() {
+      cy.edges().style({
+        'mid-target-arrow-shape': 'circle',
+        'mid-target-arrow-color': '#f39c12'
+      });
+    }
+
+    function clearMidArrow() {
+      cy.edges().style({
+        'mid-target-arrow-shape': 'none'
+      });
+    }
+
+    // ========================================================================
+    // Edge Hover Effects
+    // ========================================================================
+
+    function setEdgeHover(effect) {
+      // Remove all hover classes
+      cy.edges().removeClass('hover-thicken hover-glow hover-color-shift hover-mid-arrow-pulse hover-mid-arrow-pulse-green hover-arrow-grow hover-glow-and-mid-pulse');
+
+      // Add the selected hover class
+      if (effect !== 'none') {
+        cy.edges().addClass('hover-' + effect);
+      }
+    }
+
+    // ========================================================================
+    // Rating Controls
+    // ========================================================================
+
+    function setAllRatings(value) {
+      cy.edges().forEach(edge => {
+        edge.data('rating', value);
+      });
+      cy.style().update(); // Force recalculation
+    }
+
+    function randomizeRatings() {
+      cy.edges().forEach(edge => {
+        const rating = Math.floor(Math.random() * 100);
+        edge.data('rating', rating);
+      });
+      cy.style().update();
+    }
+
+    function highlightHighRated() {
+      cy.edges().removeClass('high-rated');
+      cy.edges().forEach(edge => {
+        if (edge.data('rating') > 75) {
+          edge.addClass('high-rated');
+        }
+      });
+    }
+
+    function glowNodes() {
+      cy.$('node[type = "claim"]').addClass('glowing');
+      setTimeout(() => {
+        cy.$('node').removeClass('glowing');
+      }, 2000);
+    }
+
+    function resetStyles() {
+      stopAllAnimations();
+      cy.$('node').removeClass('pulsing glowing dashed');
+      cy.$('edge').removeClass('high-rated');
+
+      // Reset to default colors
+      cy.$('node[type = "claim"]').style({
+        'border-color': '#3498db',
+        'border-width': 2,
+        'overlay-opacity': 0
+      });
+      cy.$('node[type = "source"]').style({
+        'border-color': '#229954',
+        'border-width': 2
+      });
+      cy.$('edge').style({
+        'line-color': '#68d391',
+        'target-arrow-color': '#68d391'
+      });
+    }
+
+    // Initial random ratings to show variety
+    randomizeRatings();
+  </script>
+</body>
+</html>

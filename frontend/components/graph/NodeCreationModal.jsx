@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { PositionedOverlay } from './PositionedOverlay.jsx';
+import { ConnectionBox } from './ConnectionBox.jsx';
+import { NodeBox } from './NodeBox.jsx';
+import { ConnectorLine } from './ConnectorLine.jsx';
 import { createClaim, createSource, createConnection } from '../../APInterface/api.js';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import '../../styles/components/node-creation-panel.css';
@@ -12,89 +15,119 @@ import '../../styles/components/node-creation-panel.css';
  * @param {Function} props.onClose - Close handler
  * @param {Object} props.node - Cytoscape node element
  * @param {Object} props.cy - Cytoscape instance
+ * @param {Object} props.frameRef - React ref to OnClickNode frame DOM element (for positioning)
  * @param {string} props.existingNodeId - UUID of node to connect to
  * @param {string} props.existingNodeType - 'claim' or 'source'
  * @param {string} props.existingNodeLabel - Text content of existing node
  * @param {Function} props.updateAttributions - Function to update attribution cache locally
  * @param {Function} props.onGraphChange - Fallback callback for complex graph changes
  */
-export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, existingNodeType, existingNodeLabel, updateAttributions, onGraphChange }) {
+export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existingNodeId, existingNodeType, existingNodeLabel, updateAttributions, onGraphChange }) {
   const { user, token, isAuthenticated } = useAuth();
+
+  // Compound mode state
+  const [isCompound, setIsCompound] = useState(false);
+  const [nodeCount, setNodeCount] = useState(2); // Min 2 for compound
+  const [logicType, setLogicType] = useState(null); // 'AND' or 'NAND' for compound
+
+  // Simple mode state
   const [nodeType, setNodeType] = useState(null); // 'claim' or 'source'
   const [relationship, setRelationship] = useState(null); // 'supports', 'contradicts'
   const [content, setContent] = useState('');
   const [title, setTitle] = useState(''); // For sources - required
   const [url, setUrl] = useState('');
+
+  // Compound mode: array of node data
+  const [nodes, setNodes] = useState([
+    { type: null, content: '', title: '', url: '' },
+    { type: null, content: '', title: '', url: '' }
+  ]);
+
   const [connectionNotes, setConnectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  if (!isOpen || !node || !cy) return null;
+  // Refs to measure actual box heights for dynamic positioning
+  const nodeBoxRefs = useRef([]);
+  const [boxHeights, setBoxHeights] = useState([]);
+  const [needsRecalc, setNeedsRecalc] = useState(0);
+
+  // Trigger recalculation when nodes array changes or types change
+  useEffect(() => {
+    setNeedsRecalc(prev => prev + 1);
+  }, [nodes.length, nodes.map(n => n.type).join(',')]);
+
+  // Measure box heights after render
+  useEffect(() => {
+    if (!isCompound) return;
+
+    const heights = nodeBoxRefs.current.map(ref => {
+      if (!ref) return 250; // Default fallback
+      const height = ref.getBoundingClientRect().height;
+      return height || 250;
+    });
+
+    if (heights.length > 0 && JSON.stringify(heights) !== JSON.stringify(boxHeights)) {
+      setBoxHeights(heights);
+    }
+  }, [isCompound, needsRecalc]);
+
+  if (!isOpen || !node || !cy || !frameRef) return null;
 
   // Truncate label for display
   const truncatedLabel = existingNodeLabel
     ? (existingNodeLabel.length > 50 ? existingNodeLabel.slice(0, 50) + '...' : existingNodeLabel)
     : existingNodeId.slice(0, 8);
 
-  // Position to the right of the node
-  const nodeWidth = node.outerWidth();
-  const offsetX = nodeWidth / 2 + 40; // Right edge of node + gap
+  // Triangle layout: standard gap between boxes
+  const STANDARD_GAP = 24; // 60% reduction from 60
+  const CONNECTION_BOX_WIDTH = 220; // Fixed width from ConnectionBox.jsx:60
+  const NODE_BOX_WIDTH = 350; // Approximate width from NodeBox
 
-  // Determine valid relationships based on node types
-  const getRelationshipOptions = () => {
-    if (nodeType === 'source' && existingNodeType === 'claim') {
-      // Adding evidence to a claim
-      return [
-        { value: 'supports', label: 'supports', desc: 'this claim' },
-        { value: 'contradicts', label: 'contradicts', desc: 'this claim' }
-      ];
-    } else if (nodeType === 'claim' && existingNodeType === 'source') {
-      // Adding claim from evidence
-      return [
-        { value: 'follows', label: 'follows from', desc: 'this evidence' }
-      ];
-    } else if (nodeType === 'claim' && existingNodeType === 'claim') {
-      // Adding claim to claim
-      return [
-        { value: 'supports', label: 'supports', desc: 'this claim' },
-        { value: 'contradicts', label: 'contradicts', desc: 'this claim' },
-        { value: 'implied', label: 'is implied by', desc: 'this claim' }
-      ];
+  // Refs to measure ConnectionBox height for line calculations
+  const connectionBoxRef = useRef(null);
+  const [connectionBoxHeight, setConnectionBoxHeight] = useState(250);
+
+  // Measure ConnectionBox height
+  useEffect(() => {
+    if (!connectionBoxRef.current) return;
+    const height = connectionBoxRef.current.getBoundingClientRect().height;
+    if (height && height !== connectionBoxHeight) {
+      setConnectionBoxHeight(height);
     }
-    return [];
-  };
+  }, [isCompound, logicType, relationship, connectionNotes.length]);
 
   // Determine connection direction based on relationship
   const getConnectionData = (newNodeId) => {
-    // Default: new node points to existing (new supports/contradicts existing)
-    let fromId = newNodeId;
-    let toId = existingNodeId;
-
-    // Reverse direction for "follows from" and "is implied by"
-    if (relationship === 'follows' || relationship === 'implied') {
-      fromId = existingNodeId;
-      toId = newNodeId;
-    }
+    // Simple: new node always points to existing node
+    const connectionData = {
+      from_node_id: newNodeId,
+      to_node_id: existingNodeId,
+      notes: connectionNotes.trim()
+    };
 
     // Map relationship to logic_type
     // null/omitted = supports (default display)
     // NOT = contradicts
-    const connectionData = {
-      from_node_id: fromId,
-      to_node_id: toId,
-      notes: connectionNotes.trim()
-    };
-
     if (relationship === 'contradicts') {
       connectionData.logic_type = 'NOT';
     }
-    // For 'supports', 'follows', 'implied' - omit logic_type (defaults to supports)
 
     return connectionData;
   };
 
   const handleCreate = async () => {
-    // Validation
+    if (!canSubmit) return;
+
+    if (isCompound) {
+      return handleCreateCompound();
+    } else {
+      return handleCreateSimple();
+    }
+  };
+
+  const handleCreateSimple = async () => {
+    // Simple mode validation
     if (!nodeType || !relationship || !content.trim() || !connectionNotes.trim()) return;
 
     // Source-specific validation: title is required
@@ -250,16 +283,23 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
 
       // Success - add to graph locally (no refetch needed)
       try {
-        // Add new node to cytoscape
-        cy.add({
-          data: {
-            id: newNodeId,
-            label: nodeType === 'source' ? 'Source' : 'Claim',
-            content: content.trim(),
-            type: nodeType,
-            ...(nodeType === 'source' && url.trim() ? { url: url.trim() } : {})
+        // Add new node to cytoscape with all required fields
+        const nodeData = {
+          id: newNodeId,
+          label: nodeType === 'source' ? 'Source' : 'Claim',
+          content: content.trim(),
+          type: nodeType
+        };
+
+        // Add source-specific fields
+        if (nodeType === 'source') {
+          nodeData.title = title.trim();
+          if (url.trim()) {
+            nodeData.url = url.trim();
           }
-        });
+        }
+
+        cy.add({ data: nodeData });
 
         // Add new edge to cytoscape
         const { from_node_id, to_node_id, logic_type } = connectionData;
@@ -316,174 +356,452 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, existingNodeId, e
     }
   };
 
+  const handleCreateCompound = async () => {
+    // Compound mode: create multiple claim nodes + compound connection
+    if (!logicType || !connectionNotes.trim()) return;
+    if (!nodes.every(n => n.type === 'claim' && n.content.trim())) return;
+
+    if (!isAuthenticated || !token) {
+      setError('You must be logged in to create nodes');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // Step 1: Create all claim nodes
+      const createdNodeIds = [];
+      for (const nodeData of nodes) {
+        const result = await createClaim(token, { content: nodeData.content.trim() });
+
+        if (result.error) {
+          // Handle errors similar to simple mode
+          if (result.error === 'duplicate_exact' || result.error === 'duplicate_similar') {
+            const label = result.error === 'duplicate_exact'
+              ? 'A claim already exists'
+              : 'A claim is very similar to an existing one';
+            setError(`${label}: "${result.data?.existing_content?.slice(0, 100)}..."`);
+            setIsSubmitting(false);
+            return;
+          }
+          throw new Error(typeof result.error === 'object' ? JSON.stringify(result.error) : result.error);
+        }
+
+        const newNodeId = result.data.uuid || result.data.id || result.data.node_id;
+        if (!newNodeId) {
+          throw new Error('Could not get ID from created node');
+        }
+        createdNodeIds.push(newNodeId);
+      }
+
+      // Step 2: Create compound connection
+      const connResult = await createConnection(token, {
+        source_node_ids: createdNodeIds,
+        target_node_id: existingNodeId,
+        logic_type: logicType,
+        notes: connectionNotes.trim()
+      });
+
+      if (connResult.error) {
+        throw new Error(typeof connResult.error === 'object' ? JSON.stringify(connResult.error) : connResult.error);
+      }
+
+      // Step 3: Update local graph
+      try {
+        // Add all nodes to cytoscape
+        for (const [index, nodeId] of createdNodeIds.entries()) {
+          cy.add({
+            data: {
+              id: nodeId,
+              label: 'Claim',
+              content: nodes[index].content.trim(),
+              type: 'claim'
+            }
+          });
+
+          // Add edges (each node gets its own edge with shared composite_id)
+          cy.add({
+            data: {
+              id: `${nodeId}-${existingNodeId}`,
+              source: nodeId,
+              target: existingNodeId,
+              logic_type: logicType,
+              composite_id: connResult.data?.composite_id || connResult.data?.id
+            }
+          });
+
+          // Add attribution
+          if (updateAttributions && user) {
+            updateAttributions({
+              add: {
+                [nodeId]: {
+                  creator: {
+                    entity_uuid: nodeId,
+                    entity_type: 'claim',
+                    username: user.username,
+                    timestamp: new Date().toISOString(),
+                    is_anonymous: false
+                  },
+                  editors: []
+                }
+              }
+            });
+          }
+        }
+
+        // Run layout
+        cy.layout({
+          name: 'dagre',
+          rankDir: 'BT',
+          nodeSep: 80,
+          rankSep: 120,
+          animate: false
+        }).run();
+
+        handleClose();
+      } catch (localUpdateError) {
+        console.error('Local graph update failed, falling back to refetch:', localUpdateError);
+        if (onGraphChange) {
+          onGraphChange();
+        }
+        handleClose();
+      }
+
+    } catch (err) {
+      setError(err.message || 'Failed to create compound connection');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleClose = () => {
-    // Reset form state
+    // Reset all form state
+    setIsCompound(false);
+    setNodeCount(2);
+    setLogicType(null);
     setNodeType(null);
     setRelationship(null);
     setContent('');
     setTitle('');
     setUrl('');
+    setNodes([
+      { type: null, content: '', title: '', url: '' },
+      { type: null, content: '', title: '', url: '' }
+    ]);
     setConnectionNotes('');
     setError(null);
     onClose();
   };
 
-  const relationshipOptions = getRelationshipOptions();
-  // Validate: for sources, title is required
-  const canSubmit = nodeType && relationship && content.trim() && connectionNotes.trim()
-    && (nodeType !== 'source' || title.trim()) // Source requires title
-    && !isSubmitting;
+  const handleCompoundToggle = () => {
+    setIsCompound(!isCompound);
+    if (!isCompound) {
+      // Switching to compound mode
+      setLogicType(null);
+      setNodeCount(2);
+      setNodes([
+        { type: null, content: '', title: '', url: '' },
+        { type: null, content: '', title: '', url: '' }
+      ]);
+    }
+  };
+
+  const handleNodeCountChange = (newCount) => {
+    setNodeCount(newCount);
+    // Adjust nodes array
+    if (newCount > nodes.length) {
+      // Add more nodes
+      setNodes([...nodes, ...Array(newCount - nodes.length).fill({ type: null, content: '', title: '', url: '' })]);
+    } else if (newCount < nodes.length) {
+      // Remove nodes
+      setNodes(nodes.slice(0, newCount));
+    }
+  };
+
+  const handleNodeTypeChange = (type) => {
+    setNodeType(type);
+    setRelationship(null); // Reset relationship when type changes
+  };
+
+  // Update individual node in compound mode
+  const updateNode = (index, field, value) => {
+    const newNodes = [...nodes];
+    newNodes[index] = { ...newNodes[index], [field]: value };
+    setNodes(newNodes);
+  };
+
+  // Validation
+  const canSubmit = (() => {
+    if (isSubmitting) return false;
+    if (!connectionNotes.trim()) return false;
+
+    if (isCompound) {
+      // Compound mode: need logic type and all nodes filled
+      if (!logicType) return false;
+      // All nodes must have type and content (claims only)
+      return nodes.every(n => n.type === 'claim' && n.content.trim());
+    } else {
+      // Simple mode: need node type, relationship, and content
+      if (!nodeType || !relationship || !content.trim()) return false;
+      // Sources need title
+      if (nodeType === 'source' && !title.trim()) return false;
+      return true;
+    }
+  })();
+
+  // Dynamic offset calculation based on OnClickNode frame dimensions
+  const getConnectionBoxOffset = (frameRect) => {
+    if (!isCompound) {
+      // Simple mode: position below and to the left of frame
+      return {
+        x: -STANDARD_GAP,
+        y: frameRect.height + STANDARD_GAP
+      };
+    }
+    // Compound mode: position below and to the left, vertically centered
+    return {
+      x: -STANDARD_GAP,
+      y: frameRect.height + STANDARD_GAP
+    };
+  };
+
+  const getNodeBoxOffset = (frameRect, index, totalNodes) => {
+    const baseX = frameRect.width + STANDARD_GAP;
+    const baseY = frameRect.height + STANDARD_GAP * 1.5;
+
+    if (!isCompound || totalNodes === 1) {
+      // Simple mode: position below and to the right of frame
+      return { x: baseX, y: baseY };
+    }
+
+    // Compound mode: stack multiple boxes vertically, centered around baseY
+    const heights = boxHeights.length === totalNodes
+      ? boxHeights
+      : Array(totalNodes).fill(250);
+
+    const STACK_GAP = 20; // Vertical gap between stacked boxes
+
+    // Calculate total height including gaps
+    const totalHeight = heights.reduce((sum, h) => sum + h, 0) + (STACK_GAP * (totalNodes - 1));
+
+    // Calculate Y offset for this box (distribute around baseY)
+    let yOffset = baseY - totalHeight / 2;
+    for (let i = 0; i < index; i++) {
+      yOffset += heights[i] + STACK_GAP;
+    }
+    // Add half of current box height to center it
+    yOffset += heights[index] / 2;
+
+    return { x: baseX, y: yOffset };
+  };
+
+  // Calculate SVG dimensions and line endpoints
+  const getSVGDimensions = (frameRect) => {
+    const connectionBoxOffset = getConnectionBoxOffset(frameRect);
+    const nodeBoxOffset = getNodeBoxOffset(frameRect, 0, isCompound ? nodes.length : 1);
+
+    // Calculate bounding box for entire triangle
+    const minX = Math.min(-STANDARD_GAP, connectionBoxOffset.x);
+    const maxX = Math.max(
+      frameRect.width,
+      nodeBoxOffset.x + NODE_BOX_WIDTH
+    );
+    const minY = 0;
+    const maxY = Math.max(
+      frameRect.height,
+      connectionBoxOffset.y + connectionBoxHeight,
+      nodeBoxOffset.y + (boxHeights[0] || 250)
+    );
+
+    return {
+      width: maxX - minX,
+      height: maxY - minY,
+      offsetX: minX,
+      offsetY: minY
+    };
+  };
+
+  // Calculate line endpoints relative to SVG origin
+  const getLineEndpoints = (frameRect) => {
+    const svgDims = getSVGDimensions(frameRect);
+    const connectionBoxOffset = getConnectionBoxOffset(frameRect);
+
+    // Line 1: OnClickNode bottom-center → ConnectionBox top-center
+    const line1 = {
+      x1: frameRect.width / 2 - svgDims.offsetX,
+      y1: frameRect.height - svgDims.offsetY,
+      x2: connectionBoxOffset.x + CONNECTION_BOX_WIDTH / 2 - svgDims.offsetX,
+      y2: connectionBoxOffset.y - svgDims.offsetY
+    };
+
+    // Line 2(s): ConnectionBox right-center → NodeBox(es) left-center
+    const lines2 = [];
+    const totalNodes = isCompound ? nodes.length : 1;
+
+    for (let i = 0; i < totalNodes; i++) {
+      const nodeBoxOffset = getNodeBoxOffset(frameRect, i, totalNodes);
+      const nodeHeight = boxHeights[i] || 250;
+
+      lines2.push({
+        x1: connectionBoxOffset.x + CONNECTION_BOX_WIDTH - svgDims.offsetX,
+        y1: connectionBoxOffset.y + connectionBoxHeight / 2 - svgDims.offsetY,
+        x2: nodeBoxOffset.x - svgDims.offsetX,
+        y2: nodeBoxOffset.y + nodeHeight / 2 - svgDims.offsetY
+      });
+    }
+
+    return { line1, lines2 };
+  };
+
+  // Determine line colors based on mode and selections
+  const getLineColors = () => {
+    if (isCompound) {
+      if (logicType === 'NAND') return 'var(--accent-red)';
+      if (logicType === 'AND') return 'var(--accent-green)';
+      return 'var(--accent-blue)';
+    } else {
+      if (relationship === 'contradicts') return 'var(--accent-red)';
+      if (relationship === 'supports') return 'var(--accent-green)';
+      return 'var(--accent-blue)';
+    }
+  };
 
   return (
-    <PositionedOverlay
-      cytoElement={node}
-      cy={cy}
-      offset={{ x: offsetX, y: -100 }}
-    >
-      <div className="node-creation-panel" onClick={(e) => e.stopPropagation()}>
-      <div className="node-creation-highlight">
-        <div className="node-creation-inner">
-          <div className="node-creation-header">
-            <h2 className="node-creation-title">Add Node</h2>
-            <button className="node-creation-close" onClick={onClose}>
-              &times;
-            </button>
-          </div>
+    <>
+      {/* SVG Connection Lines - positioned at OnClickNode origin */}
+      <PositionedOverlay
+        domElement={frameRef}
+        cy={cy}
+        getOffset={(frameRect) => {
+          const svgDims = getSVGDimensions(frameRect);
+          return { x: svgDims.offsetX, y: svgDims.offsetY };
+        }}
+      >
+        {frameRef.current && (() => {
+          const frameRect = {
+            width: frameRef.current.getBoundingClientRect().width / cy.zoom(),
+            height: frameRef.current.getBoundingClientRect().height / cy.zoom()
+          };
+          const svgDims = getSVGDimensions(frameRect);
+          const { line1, lines2 } = getLineEndpoints(frameRect);
+          const lineColor = getLineColors();
 
-          <div className="node-creation-context">
-            Connecting to {existingNodeType}: <strong>{truncatedLabel}</strong>
-          </div>
-
-          <div className="node-creation-content">
-            {/* Step 1: Node type selection */}
-            <div className="node-creation-field">
-              <label className="node-creation-label">What are you adding?</label>
-              <div className="node-creation-type-buttons">
-                <button
-                  className={`node-creation-type-btn ${nodeType === 'source' ? 'selected' : ''}`}
-                  onClick={() => { setNodeType('source'); setRelationship(null); }}
-                >
-                  Evidence
-                </button>
-                <button
-                  className={`node-creation-type-btn ${nodeType === 'claim' ? 'selected' : ''}`}
-                  onClick={() => { setNodeType('claim'); setRelationship(null); }}
-                >
-                  Claim
-                </button>
-              </div>
-            </div>
-
-            {/* Step 2: Relationship selection */}
-            {nodeType && relationshipOptions.length > 0 && (
-              <div className="node-creation-field">
-                <label className="node-creation-label">Relationship</label>
-                <div className="node-creation-options">
-                  {relationshipOptions.map(opt => (
-                    <label key={opt.value} className="node-creation-option">
-                      <input
-                        type="radio"
-                        name="relationship"
-                        value={opt.value}
-                        checked={relationship === opt.value}
-                        onChange={() => setRelationship(opt.value)}
-                      />
-                      <span>This <em>{opt.label}</em> {opt.desc}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Content fields */}
-            {nodeType && relationship && (
-              <>
-                {nodeType === 'source' && (
-                  <>
-                    <div className="node-creation-field">
-                      <label className="node-creation-label">
-                        Title <span style={{ color: '#ff4444' }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`node-creation-input ${nodeType === 'source' && !title.trim() ? 'error' : ''}`}
-                        placeholder="Source title (required)"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="node-creation-field">
-                      <label className="node-creation-label">URL (optional)</label>
-                      <input
-                        type="url"
-                        className="node-creation-input"
-                        placeholder="https://..."
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                      />
-                    </div>
-                  </>
-                )}
-                <div className="node-creation-field">
-                  <label className="node-creation-label">
-                    {nodeType === 'source' ? 'Description' : 'Claim'}
-                  </label>
-                  <textarea
-                    className="node-creation-textarea"
-                    placeholder={nodeType === 'source' ? 'Describe the evidence...' : 'State the claim...'}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                  />
-                </div>
-                <div className="node-creation-field">
-                  <label className="node-creation-label">
-                    Connection Notes
-                    <span style={{ fontSize: '12px', opacity: 0.7, marginLeft: '8px' }}>
-                      (max 500 chars)
-                    </span>
-                  </label>
-                  <textarea
-                    className="node-creation-textarea node-creation-notes"
-                    placeholder="Explain why this connection holds..."
-                    value={connectionNotes}
-                    onChange={(e) => {
-                      if (e.target.value.length <= 500) {
-                        setConnectionNotes(e.target.value);
-                      }
-                    }}
-                    maxLength={500}
-                  />
-                  <div style={{ fontSize: '11px', opacity: 0.6, textAlign: 'right', marginTop: '4px' }}>
-                    {connectionNotes.length}/500
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Error display */}
-            {error && (
-              <div className="node-creation-error">
-                {error}
-              </div>
-            )}
-          </div>
-
-          <div className="node-creation-footer">
-            <button className="node-creation-btn" onClick={handleClose}>
-              Cancel
-            </button>
-            <button
-              className="node-creation-btn node-creation-btn-primary"
-              disabled={!canSubmit}
-              onClick={handleCreate}
+          return (
+            <svg
+              width={svgDims.width}
+              height={svgDims.height}
+              style={{
+                position: 'absolute',
+                pointerEvents: 'none',
+                zIndex: 998,
+                overflow: 'visible'
+              }}
             >
-              {isSubmitting ? 'Creating...' : 'Create'}
-            </button>
-          </div>
+              {/* Line 1: OnClickNode → ConnectionBox */}
+              <ConnectorLine
+                x1={line1.x1}
+                y1={line1.y1}
+                x2={line1.x2}
+                y2={line1.y2}
+                color={lineColor}
+                showArrow={false}
+              />
+
+              {/* Line 2(s): ConnectionBox → NodeBox(es) */}
+              {lines2.map((line, i) => (
+                <ConnectorLine
+                  key={i}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  color={lineColor}
+                  showArrow={true}
+                />
+              ))}
+            </svg>
+          );
+        })()}
+      </PositionedOverlay>
+
+      {/* Connection Box - positioned below and left of OnClickNode frame */}
+      <PositionedOverlay
+        domElement={frameRef}
+        cy={cy}
+        getOffset={getConnectionBoxOffset}
+      >
+        <div ref={connectionBoxRef}>
+          <ConnectionBox
+            isCompound={isCompound}
+            onCompoundToggle={handleCompoundToggle}
+            relationship={relationship}
+            onRelationshipChange={setRelationship}
+            logicType={logicType}
+            onLogicTypeChange={setLogicType}
+            connectionNotes={connectionNotes}
+            onConnectionNotesChange={setConnectionNotes}
+            nodeCount={nodeCount}
+            onNodeCountChange={handleNodeCountChange}
+          />
         </div>
-      </div>
-      </div>
-    </PositionedOverlay>
+      </PositionedOverlay>
+
+      {/* Node Boxes - positioned below and right of OnClickNode frame */}
+      {!isCompound ? (
+        /* Simple mode: single NodeBox */
+        <PositionedOverlay
+          domElement={frameRef}
+          cy={cy}
+          getOffset={(frameRect) => getNodeBoxOffset(frameRect, 0, 1)}
+        >
+          <NodeBox
+            nodeType={nodeType}
+            onNodeTypeChange={handleNodeTypeChange}
+            content={content}
+            onContentChange={setContent}
+            title={title}
+            onTitleChange={setTitle}
+            url={url}
+            onUrlChange={setUrl}
+            onClose={handleClose}
+            onSubmit={handleCreate}
+            canSubmit={canSubmit}
+            isSubmitting={isSubmitting}
+            error={error}
+            showControls={true}
+          />
+        </PositionedOverlay>
+      ) : (
+        /* Compound mode: multiple NodeBoxes stacked vertically */
+        nodes.map((nodeData, index) => (
+          <PositionedOverlay
+            key={index}
+            domElement={frameRef}
+            cy={cy}
+            getOffset={(frameRect) => getNodeBoxOffset(frameRect, index, nodes.length)}
+          >
+            <NodeBox
+              ref={(el) => nodeBoxRefs.current[index] = el}
+              index={index}
+              nodeType={nodeData.type}
+              onNodeTypeChange={(type) => updateNode(index, 'type', type)}
+              content={nodeData.content}
+              onContentChange={(val) => updateNode(index, 'content', val)}
+              title={nodeData.title}
+              onTitleChange={(val) => updateNode(index, 'title', val)}
+              url={nodeData.url}
+              onUrlChange={(val) => updateNode(index, 'url', val)}
+              onClose={handleClose}
+              onSubmit={handleCreate}
+              canSubmit={canSubmit}
+              isSubmitting={isSubmitting}
+              error={index === 0 ? error : null}
+              showControls={index === 0}
+            />
+          </PositionedOverlay>
+        ))
+      )}
+    </>
   );
 }
