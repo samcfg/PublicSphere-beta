@@ -81,21 +81,6 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
 
   // Triangle layout: standard gap between boxes
   const STANDARD_GAP = 24; // 60% reduction from 60
-  const CONNECTION_BOX_WIDTH = 220; // Fixed width from ConnectionBox.jsx:60
-  const NODE_BOX_WIDTH = 350; // Approximate width from NodeBox
-
-  // Refs to measure ConnectionBox height for line calculations
-  const connectionBoxRef = useRef(null);
-  const [connectionBoxHeight, setConnectionBoxHeight] = useState(250);
-
-  // Measure ConnectionBox height
-  useEffect(() => {
-    if (!connectionBoxRef.current) return;
-    const height = connectionBoxRef.current.getBoundingClientRect().height;
-    if (height && height !== connectionBoxHeight) {
-      setConnectionBoxHeight(height);
-    }
-  }, [isCompound, logicType, relationship, connectionNotes.length]);
 
   // Determine connection direction based on relationship
   const getConnectionData = (newNodeId) => {
@@ -596,155 +581,26 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
     return { x: baseX, y: yOffset };
   };
 
-  // Calculate SVG dimensions and line endpoints
-  const getSVGDimensions = (frameRect) => {
-    const connectionBoxOffset = getConnectionBoxOffset(frameRect);
-    const nodeBoxOffset = getNodeBoxOffset(frameRect, 0, isCompound ? nodes.length : 1);
-
-    // Calculate bounding box for entire triangle
-    const minX = Math.min(-STANDARD_GAP, connectionBoxOffset.x);
-    const maxX = Math.max(
-      frameRect.width,
-      nodeBoxOffset.x + NODE_BOX_WIDTH
-    );
-    const minY = 0;
-    const maxY = Math.max(
-      frameRect.height,
-      connectionBoxOffset.y + connectionBoxHeight,
-      nodeBoxOffset.y + (boxHeights[0] || 250)
-    );
-
-    return {
-      width: maxX - minX,
-      height: maxY - minY,
-      offsetX: minX,
-      offsetY: minY
-    };
-  };
-
-  // Calculate line endpoints relative to SVG origin
-  const getLineEndpoints = (frameRect) => {
-    const svgDims = getSVGDimensions(frameRect);
-    const connectionBoxOffset = getConnectionBoxOffset(frameRect);
-
-    // Line 1: OnClickNode bottom-center → ConnectionBox top-center
-    const line1 = {
-      x1: frameRect.width / 2 - svgDims.offsetX,
-      y1: frameRect.height - svgDims.offsetY,
-      x2: connectionBoxOffset.x + CONNECTION_BOX_WIDTH / 2 - svgDims.offsetX,
-      y2: connectionBoxOffset.y - svgDims.offsetY
-    };
-
-    // Line 2(s): ConnectionBox right-center → NodeBox(es) left-center
-    const lines2 = [];
-    const totalNodes = isCompound ? nodes.length : 1;
-
-    for (let i = 0; i < totalNodes; i++) {
-      const nodeBoxOffset = getNodeBoxOffset(frameRect, i, totalNodes);
-      const nodeHeight = boxHeights[i] || 250;
-
-      lines2.push({
-        x1: connectionBoxOffset.x + CONNECTION_BOX_WIDTH - svgDims.offsetX,
-        y1: connectionBoxOffset.y + connectionBoxHeight / 2 - svgDims.offsetY,
-        x2: nodeBoxOffset.x - svgDims.offsetX,
-        y2: nodeBoxOffset.y + nodeHeight / 2 - svgDims.offsetY
-      });
-    }
-
-    return { line1, lines2 };
-  };
-
-  // Determine line colors based on mode and selections
-  const getLineColors = () => {
-    if (isCompound) {
-      if (logicType === 'NAND') return 'var(--accent-red)';
-      if (logicType === 'AND') return 'var(--accent-green)';
-      return 'var(--accent-blue)';
-    } else {
-      if (relationship === 'contradicts') return 'var(--accent-red)';
-      if (relationship === 'supports') return 'var(--accent-green)';
-      return 'var(--accent-blue)';
-    }
-  };
-
   return (
     <>
-      {/* SVG Connection Lines - positioned at OnClickNode origin */}
-      <PositionedOverlay
-        domElement={frameRef}
-        cy={cy}
-        getOffset={(frameRect) => {
-          const svgDims = getSVGDimensions(frameRect);
-          return { x: svgDims.offsetX, y: svgDims.offsetY };
-        }}
-      >
-        {frameRef.current && (() => {
-          const frameRect = {
-            width: frameRef.current.getBoundingClientRect().width / cy.zoom(),
-            height: frameRef.current.getBoundingClientRect().height / cy.zoom()
-          };
-          const svgDims = getSVGDimensions(frameRect);
-          const { line1, lines2 } = getLineEndpoints(frameRect);
-          const lineColor = getLineColors();
-
-          return (
-            <svg
-              width={svgDims.width}
-              height={svgDims.height}
-              style={{
-                position: 'absolute',
-                pointerEvents: 'none',
-                zIndex: 998,
-                overflow: 'visible'
-              }}
-            >
-              {/* Line 1: OnClickNode → ConnectionBox */}
-              <ConnectorLine
-                x1={line1.x1}
-                y1={line1.y1}
-                x2={line1.x2}
-                y2={line1.y2}
-                color={lineColor}
-                showArrow={false}
-              />
-
-              {/* Line 2(s): ConnectionBox → NodeBox(es) */}
-              {lines2.map((line, i) => (
-                <ConnectorLine
-                  key={i}
-                  x1={line.x1}
-                  y1={line.y1}
-                  x2={line.x2}
-                  y2={line.y2}
-                  color={lineColor}
-                  showArrow={true}
-                />
-              ))}
-            </svg>
-          );
-        })()}
-      </PositionedOverlay>
-
       {/* Connection Box - positioned below and left of OnClickNode frame */}
       <PositionedOverlay
         domElement={frameRef}
         cy={cy}
         getOffset={getConnectionBoxOffset}
       >
-        <div ref={connectionBoxRef}>
-          <ConnectionBox
-            isCompound={isCompound}
-            onCompoundToggle={handleCompoundToggle}
-            relationship={relationship}
-            onRelationshipChange={setRelationship}
-            logicType={logicType}
-            onLogicTypeChange={setLogicType}
-            connectionNotes={connectionNotes}
-            onConnectionNotesChange={setConnectionNotes}
-            nodeCount={nodeCount}
-            onNodeCountChange={handleNodeCountChange}
-          />
-        </div>
+        <ConnectionBox
+          isCompound={isCompound}
+          onCompoundToggle={handleCompoundToggle}
+          relationship={relationship}
+          onRelationshipChange={setRelationship}
+          logicType={logicType}
+          onLogicTypeChange={setLogicType}
+          connectionNotes={connectionNotes}
+          onConnectionNotesChange={setConnectionNotes}
+          nodeCount={nodeCount}
+          onNodeCountChange={handleNodeCountChange}
+        />
       </PositionedOverlay>
 
       {/* Node Boxes - positioned below and right of OnClickNode frame */}

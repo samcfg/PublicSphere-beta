@@ -110,7 +110,23 @@
     </div>
 
     <div class="section">
-      <h2>4. Animated Borders</h2>
+      <h2>4. Node Hover Effects</h2>
+      <button onclick="setNodeHover('border-glow')">Border Glow</button>
+      <button onclick="setNodeHover('halo')">Halo/Aura</button>
+      <button onclick="setNodeHover('grow')">Grow on Hover</button>
+      <button onclick="setNodeHover('darken')">Darken Background</button>
+      <button onclick="setNodeHover('lighten')">Lighten Background</button>
+      <button onclick="setNodeHover('color-shift')">Color Shift</button>
+      <button onclick="setNodeHover('bold-label')">Bold Label</button>
+      <button onclick="setNodeHover('ghost')">Ghost Effect</button>
+      <button onclick="setNodeHover('bring-forward')">Bring to Front</button>
+      <button onclick="setNodeHover('combo-pulse')">Combo: Glow + Grow + Bold</button>
+      <button onclick="setNodeHover('combo-darken')">Combo: Glow + Grow + Darken</button>
+      <button onclick="setNodeHover('none')">No Hover Effect</button>
+    </div>
+
+    <div class="section">
+      <h2>5. Animated Borders (Nodes)</h2>
       <button id="pulseBtn" onclick="togglePulsing()">Start Pulsing</button>
       <button id="dashBtn" onclick="toggleDashed()">Start Dashed Rotation</button>
       <button id="colorBtn" onclick="toggleColorCycle()">Start Color Cycle</button>
@@ -164,7 +180,23 @@
     <p><em>Note: The "Pulse Mid-Arrow" effects specifically target only the middle arrow, not the main edge or target arrow.
     Enable mid-arrow first to see these effects!</em></p>
 
-    <p><strong>4. Animated Borders:</strong> Multiple animation types are shown:</p>
+    <p><strong>4. Node Hover Effects:</strong> Comprehensive interactive effects when hovering over nodes:</p>
+    <ul>
+      <li><strong>Border Glow:</strong> Thickens border and changes color to blue</li>
+      <li><strong>Halo/Aura:</strong> Adds glowing halo around node using overlay properties</li>
+      <li><strong>Grow on Hover:</strong> Node expands in size (width/height/padding increase)</li>
+      <li><strong>Darken Background:</strong> Node background darkens (background-blacken: 0.3)</li>
+      <li><strong>Lighten Background:</strong> Node background lightens (background-blacken: -0.3)</li>
+      <li><strong>Color Shift:</strong> Node changes to red with darker red border</li>
+      <li><strong>Bold Label:</strong> Label becomes bold, larger, and white</li>
+      <li><strong>Ghost Effect:</strong> Creates semitransparent duplicate of node</li>
+      <li><strong>Bring to Front:</strong> Raises z-index to 9999 with subtle orange glow</li>
+      <li><strong>Combo: Border Glow + Grow + Bold:</strong> Combines thicker border (node's own color), size increase, and bold label</li>
+      <li><strong>Combo: Glow + Grow + Darken:</strong> Combines thicker border (node's own color), size increase, darkened background, and subtle font size increase</li>
+    </ul>
+    <p><em>All effects use smooth transitions for polished interaction feedback.</em></p>
+
+    <p><strong>5. Animated Borders (Nodes):</strong> Multiple animation types are shown:</p>
     <ul>
       <li><strong>Pulsing:</strong> Border width and opacity oscillate using transition properties</li>
       <li><strong>Dashed Rotation:</strong> Dashed border pattern animates via border-dash-offset</li>
@@ -175,7 +207,9 @@
     <ul>
       <li>Cytoscape uses mapData(field, min, max, outputMin, outputMax) for data-driven styling</li>
       <li>Arrow shapes apply to target-arrow-shape, source-arrow-shape, and mid-arrow-shape</li>
-      <li>Transitions work on most style properties (width, color, opacity, etc.)</li>
+      <li>Hover effects use event handlers (mouseover/mouseout) + class-based styling (no :hover pseudo-selector)</li>
+      <li>Node properties modifiable on hover: border (width/color/style), background (color/blacken/opacity), overlay (color/padding/opacity), size (width/height/padding), label (font-size/weight/color), z-index, ghost effect</li>
+      <li>Transitions work on most style properties (width, color, opacity, etc.) for smooth animations</li>
       <li>For continuous animations, JavaScript intervals update style properties</li>
       <li>Performance: Limit active animations to <50 elements for smooth 60fps rendering</li>
     </ul>
@@ -229,8 +263,8 @@
             'shape': 'rectangle',
             'border-width': 2,
             'border-color': '#3498db',
-            'transition-property': 'border-width, border-color, border-opacity, overlay-opacity',
-            'transition-duration': '0.5s',
+            'transition-property': 'border-width, border-color, border-opacity, overlay-opacity, padding, font-size, font-weight, background-color, background-blacken',
+            'transition-duration': '0.3s',
             'transition-timing-function': 'ease-in-out'
           }
         },
@@ -252,8 +286,9 @@
             'shape': 'round-rectangle',
             'border-width': 2,
             'border-color': '#229954',
-            'transition-property': 'border-width, border-color',
-            'transition-duration': '0.5s'
+            'transition-property': 'border-width, border-color, border-opacity, overlay-opacity, padding, font-size, font-weight, background-color, background-blacken',
+            'transition-duration': '0.3s',
+            'transition-timing-function': 'ease-in-out'
           }
         },
         // Edges with dynamic width based on rating
@@ -330,6 +365,124 @@
             'target-arrow-color': '#f39c12'
           }
         },
+        // Node hover effects - comprehensive examples
+        {
+          selector: 'node[type = "claim"].node-hover-border-glow.node-hovered',
+          style: {
+            'border-width': 5,
+            'border-color': '#3498db'  // Keep claim's blue color
+          }
+        },
+        {
+          selector: 'node[type = "source"].node-hover-border-glow.node-hovered',
+          style: {
+            'border-width': 5,
+            'border-color': '#229954'  // Keep source's green color
+          }
+        },
+        {
+          selector: 'node.node-hover-halo.node-hovered',
+          style: {
+            'overlay-color': '#3498db',
+            'overlay-opacity': 0.5,
+            'overlay-padding': 12
+          }
+        },
+        {
+          selector: 'node.node-hover-grow.node-hovered',
+          style: {
+            'padding': '20px',
+            'border-width': 3
+          }
+        },
+        {
+          selector: 'node.node-hover-darken.node-hovered',
+          style: {
+            'background-blacken': 0.3
+          }
+        },
+        {
+          selector: 'node.node-hover-lighten.node-hovered',
+          style: {
+            'background-blacken': -0.3
+          }
+        },
+        {
+          selector: 'node.node-hover-color-shift.node-hovered',
+          style: {
+            'background-color': '#e74c3c',
+            'border-color': '#c0392b'
+          }
+        },
+        {
+          selector: 'node.node-hover-bold-label.node-hovered',
+          style: {
+            'font-weight': 'bold',
+            'font-size': '14px',
+            'color': '#ffffff',
+            'text-max-width': '140px'  // Increase to accommodate bold text width
+          }
+        },
+        {
+          selector: 'node.node-hover-ghost.node-hovered',
+          style: {
+            'ghost': 'yes',
+            'ghost-opacity': 0.4
+          }
+        },
+        {
+          selector: 'node.node-hover-bring-forward.node-hovered',
+          style: {
+            'z-index': 9999,
+            'overlay-color': '#f39c12',
+            'overlay-opacity': 0.3,
+            'overlay-padding': 5
+          }
+        },
+        {
+          selector: 'node[type = "claim"].node-hover-combo-pulse.node-hovered',
+          style: {
+            'font-weight': 'bold',
+            'font-size': '15px',
+            'padding': '20px',
+            'border-width': 5,
+            'border-color': '#3498db',  // Claim's blue color
+            'text-max-width': '150px'
+          }
+        },
+        {
+          selector: 'node[type = "source"].node-hover-combo-pulse.node-hovered',
+          style: {
+            'font-weight': 'bold',
+            'font-size': '15px',
+            'padding': '20px',
+            'border-width': 5,
+            'border-color': '#229954',  // Source's green color
+            'text-max-width': '150px'
+          }
+        },
+        {
+          selector: 'node[type = "claim"].node-hover-combo-darken.node-hovered',
+          style: {
+            'background-blacken': 0.3,
+            'padding': '20px',
+            'border-width': 5,
+            'border-color': '#3498db',  // Claim's blue color
+            'font-size': '15px',  // Gradual increase from 14px
+            'text-max-width': '135px'  // Slightly increased to prevent reflow
+          }
+        },
+        {
+          selector: 'node[type = "source"].node-hover-combo-darken.node-hovered',
+          style: {
+            'background-blacken': 0.3,
+            'padding': '20px',
+            'border-width': 5,
+            'border-color': '#229954',  // Source's green color
+            'font-size': '14px',  // Gradual increase from 13px
+            'text-max-width': '115px'  // Slightly increased to prevent reflow
+          }
+        },
         // Pulsing animation class
         {
           selector: 'node.pulsing',
@@ -373,6 +526,18 @@
 
     cy.on('mouseout', 'edge', function(event) {
       event.target.removeClass('hovered');
+    });
+
+    // ========================================================================
+    // Node Hover Event Handlers
+    // ========================================================================
+
+    cy.on('mouseover', 'node', function(event) {
+      event.target.addClass('node-hovered');
+    });
+
+    cy.on('mouseout', 'node', function(event) {
+      event.target.removeClass('node-hovered');
     });
 
     // ========================================================================
@@ -500,6 +665,20 @@
       // Add the selected hover class
       if (effect !== 'none') {
         cy.edges().addClass('hover-' + effect);
+      }
+    }
+
+    // ========================================================================
+    // Node Hover Effects
+    // ========================================================================
+
+    function setNodeHover(effect) {
+      // Remove all node hover classes
+      cy.nodes().removeClass('node-hover-border-glow node-hover-halo node-hover-grow node-hover-darken node-hover-lighten node-hover-color-shift node-hover-bold-label node-hover-ghost node-hover-bring-forward node-hover-combo-pulse node-hover-combo-darken');
+
+      // Add the selected hover class
+      if (effect !== 'none') {
+        cy.nodes().addClass('node-hover-' + effect);
       }
     }
 
