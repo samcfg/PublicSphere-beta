@@ -52,7 +52,7 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
         }}
       >
         <div className="graph-tooltip-highlight" style={{ backgroundColor: highlightColor }}>
-          <div className="graph-tooltip" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', boxShadow: 'none' }}>
+          <div className="graph-tooltip" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', boxShadow: 'none', maxWidth: '300px', minWidth: 'unset' }}>
             <div className="tooltip-content" style={{ flex: '1 1 auto' }}>
               <div className="tooltip-attribution" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <UserAttribution entityUuid={edgeId} entityType="connection" showTimestamp={true} />
@@ -62,8 +62,26 @@ export function OnClickEdge({ activeEdgeTooltip, cy }) {
                   title="Expand view"
                 />
               </div>
-              {logicType && <div><strong>Logic:</strong> {logicType}</div>}
-              {notes && <div><strong>Notes:</strong> {notes}</div>}
+              {logicType && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                    Logic
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4', overflowWrap: 'break-word' }}>
+                    {logicType}
+                  </div>
+                </div>
+              )}
+              {notes && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                    Notes
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4', overflowWrap: 'break-word' }}>
+                    {notes}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="tooltip-comments-rating" style={{
               marginTop: 'auto',

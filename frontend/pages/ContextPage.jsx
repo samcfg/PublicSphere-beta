@@ -179,7 +179,7 @@ export function ContextPage() {
         title={pageTitle}
       />
 
-      <Graph ref={graphRef} data={formattedData} />
+      <Graph ref={graphRef} data={formattedData} contextNodeId={targetNodeId} />
     </AttributionProvider>
   );
 }

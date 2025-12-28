@@ -19,7 +19,7 @@ cytoscape.use(cytoscapeDagre);
  * @param {Function} props.onGraphChange - Fallback refetch function for complex updates
  * @param {React.Ref} ref - Forward ref for imperative method access
  */
-export const Graph = forwardRef(({ data, updateAttributions, onGraphChange }, ref) => {
+export const Graph = forwardRef(({ data, updateAttributions, onGraphChange, contextNodeId }, ref) => {
   const containerRef = useRef(null); // DOM container for Cytoscape
   const cyRef = useRef(null); // Cytoscape instance
   const [activeEdgeTooltip, setActiveEdgeTooltip] = useState(null); // {edge: cytoscapeEdge, clickOffset: {x, y}}
@@ -76,7 +76,7 @@ export const Graph = forwardRef(({ data, updateAttributions, onGraphChange }, re
 
     // Setup interaction handlers
     const cleanupEdgeTooltip = setupEdgeTooltip(cyRef.current, setActiveEdgeTooltip);
-    const cleanupNodeTooltip = setupNodeTooltip(cyRef.current, setActiveNodeTooltip);
+    const cleanupNodeTooltip = setupNodeTooltip(cyRef.current, setActiveNodeTooltip, contextNodeId);
     setupCompoundEdgeHighlighting(cyRef.current);
     setupNodeHover(cyRef.current);
     setupBundlingRecalculation(cyRef.current);
@@ -102,7 +102,7 @@ export const Graph = forwardRef(({ data, updateAttributions, onGraphChange }, re
     // Add new elements
     if (data.elements && data.elements.length > 0) {
       cyRef.current.add(data.elements);
-      applyLayout(cyRef.current, 'dagre');
+      applyLayout(cyRef.current, 'dagre', contextNodeId);
     }
   }, [data]); // Re-run when data changes
 
@@ -262,7 +262,7 @@ function setupBackgroundSync(cy) {
   updateBackground();
 }
 
-function applyLayout(cy, layoutName = 'dagre') {
+function applyLayout(cy, layoutName = 'dagre', contextNodeId = null) {
   const layoutOptions = layoutName === 'dagre' ? {
     name: 'dagre',
     rankDir: 'BT',           // Bottom-to-Top: premises below, conclusions above
@@ -279,6 +279,52 @@ function applyLayout(cy, layoutName = 'dagre') {
   layout.on('layoutstop', () => {
     // After layout completes, apply compound edge bundling
     applyCompoundEdgeBundling(cy);
+
+    // Apply context node styling if contextNodeId is provided
+    if (contextNodeId) {
+      const contextNode = cy.getElementById(contextNodeId);
+      if (contextNode.length > 0) {
+        contextNode.addClass('context-node');
+
+        // Find and style immediate neighbors
+        const connectedEdges = contextNode.connectedEdges();
+        const neighbors = connectedEdges.connectedNodes().filter(n => n.id() !== contextNodeId);
+        neighbors.addClass('context-neighbor');
+      }
+    }
+
+    // Set initial zoom and center on context node
+    // Initial zoom bounds - prevents extreme zoom levels on page load
+    const MIN_INITIAL_ZOOM = 0.3;
+    const MAX_INITIAL_ZOOM = 2.0;
+    const TARGET_CONTEXT_NODE_WIDTH = 600; // Target rendered width in pixels
+    const CONTEXT_NODE_MIN_WIDTH = 300; // From graphStyles1.js context-node min-width
+
+    let initialZoom = 1.0; // Default if no context node
+
+    if (contextNodeId) {
+      const contextNode = cy.getElementById(contextNodeId);
+      if (contextNode.length > 0) {
+        // Calculate zoom to make context node appear ~600px wide
+        // At zoom=1, min-width is 300px. At zoom=2, it's 600px.
+        initialZoom = TARGET_CONTEXT_NODE_WIDTH / CONTEXT_NODE_MIN_WIDTH;
+
+        // Clamp to reasonable bounds
+        initialZoom = Math.max(MIN_INITIAL_ZOOM, Math.min(MAX_INITIAL_ZOOM, initialZoom));
+
+        // Set zoom and center on context node
+        cy.zoom(initialZoom);
+        cy.center(contextNode);
+      } else {
+        // Context node ID provided but not found, use default
+        cy.zoom(initialZoom);
+        cy.center();
+      }
+    } else {
+      // No context node specified, use default
+      cy.zoom(initialZoom);
+      cy.center();
+    }
   });
 
   layout.run();

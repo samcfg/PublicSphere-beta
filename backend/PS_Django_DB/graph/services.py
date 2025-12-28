@@ -181,7 +181,7 @@ class SearchService:
     @staticmethod
     def search_nodes(query: str, node_type: str = None) -> list:
         """
-        Search current node versions using combined full-text + trigram matching.
+        Search current node versions using combined full-text + trigram + substring matching.
 
         Args:
             query: Search string
@@ -200,7 +200,8 @@ class SearchService:
         Strategy:
             1. Full-text search (linguistic understanding, stemming)
             2. Trigram similarity (typo tolerance, fuzzy matching)
-            3. Combine results, deduplicate, rank by best score
+            3. Substring matching (ILIKE for finding queries within long content)
+            4. Combine results, deduplicate, rank by best score
         """
         if not query or not query.strip():
             return []
@@ -260,6 +261,42 @@ class SearchService:
                             'rank': trigram_rank,
                         }
 
+            # 3. Substring matching on claims (ILIKE for long content)
+            # Rank boost for substring matches: higher if query appears earlier or is larger portion
+            substring_claims = ClaimVersion.objects.filter(
+                valid_to__isnull=True,
+                content__icontains=query
+            )[:30]
+
+            for claim in substring_claims:
+                node_id_str = str(claim.node_id)
+                # Calculate rank based on query position and content length
+                # Earlier position and larger query/content ratio = higher rank
+                content_lower = claim.content.lower()
+                query_lower = query.lower()
+                position = content_lower.find(query_lower)
+
+                # Rank formula: base 0.5 + bonuses for position and query coverage
+                position_bonus = max(0, 0.3 * (1 - position / len(claim.content)))
+                coverage_bonus = min(0.2, len(query) / len(claim.content))
+                substring_rank = 0.5 + position_bonus + coverage_bonus
+
+                # If already in results, keep the higher rank
+                if node_id_str in results_dict:
+                    results_dict[node_id_str]['rank'] = max(
+                        results_dict[node_id_str]['rank'],
+                        substring_rank
+                    )
+                else:
+                    results_dict[node_id_str] = {
+                        'id': node_id_str,
+                        'node_type': 'claim',
+                        'content': claim.content,
+                        'title': None,
+                        'url': None,
+                        'rank': substring_rank,
+                    }
+
         # ========== SEARCH SOURCES ==========
         if not node_type or node_type == 'source':
             # 1. Full-text search on sources (title field)
@@ -311,6 +348,40 @@ class SearchService:
                             'url': row[2],
                             'rank': trigram_rank,
                         }
+
+            # 3. Substring matching on sources (ILIKE for long titles)
+            substring_sources = SourceVersion.objects.filter(
+                valid_to__isnull=True,
+                title__icontains=query
+            )[:30]
+
+            for source in substring_sources:
+                node_id_str = str(source.node_id)
+                # Calculate rank based on query position and title length
+                title_lower = source.title.lower()
+                query_lower = query.lower()
+                position = title_lower.find(query_lower)
+
+                # Rank formula: base 0.5 + bonuses for position and query coverage
+                position_bonus = max(0, 0.3 * (1 - position / len(source.title)))
+                coverage_bonus = min(0.2, len(query) / len(source.title))
+                substring_rank = 0.5 + position_bonus + coverage_bonus
+
+                # If already in results, keep the higher rank
+                if node_id_str in results_dict:
+                    results_dict[node_id_str]['rank'] = max(
+                        results_dict[node_id_str]['rank'],
+                        substring_rank
+                    )
+                else:
+                    results_dict[node_id_str] = {
+                        'id': node_id_str,
+                        'node_type': 'source',
+                        'content': None,
+                        'title': source.title,
+                        'url': source.url,
+                        'rank': substring_rank,
+                    }
 
         # Convert dict to list and sort by rank (highest first)
         results = list(results_dict.values())

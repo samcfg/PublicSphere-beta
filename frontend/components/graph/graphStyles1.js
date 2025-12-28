@@ -62,7 +62,10 @@ export const styleVariants = {
         'target-arrow-color': colors.accentGreen,
         'target-arrow-shape': 'triangle',
         'arrow-scale': 1,
-        'curve-style': 'straight'
+        'curve-style': 'straight',
+        'transition-property': 'width, line-color, target-arrow-color',
+        'transition-duration': '0.2s',
+        'transition-timing-function': 'ease-out'
       }
     },
     {
@@ -77,7 +80,10 @@ export const styleVariants = {
       style: {
         'width': 5,
         'line-color': '#ffffff',
-        'target-arrow-color': '#ffffff'
+        'target-arrow-color': '#ffffff',
+        'transition-property': 'width, line-color, target-arrow-color',
+        'transition-duration': '0.2s',
+        'transition-timing-function': 'ease-out'
       }
     },
     {
@@ -95,6 +101,25 @@ export const styleVariants = {
       selector: 'node[label = "Source"].hovered',
       style: {
         'overlay-color': colors.accentGreen
+      }
+    },
+    {
+      selector: 'node.context-node',
+      style: {
+        'font-weight': 'bold',
+        'font-size': '18px',
+        'text-max-width': '400px',
+        'width': 'label',
+        'min-width': '300px',
+        'min-height': '60px',
+        'padding': '15px',
+        'border-width': 2
+      }
+    },
+    {
+      selector: 'node.context-neighbor',
+      style: {
+        'font-weight': 'bold'
       }
     }
   ]

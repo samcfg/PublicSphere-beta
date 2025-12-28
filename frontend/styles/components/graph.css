@@ -146,9 +146,7 @@
 }
 
 .graph-tooltip .tooltip-attribution {
-  padding-bottom: 0.5rem;
   margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--attr-border);
 }
 
 .graph-tooltip .tooltip-comments-rating {

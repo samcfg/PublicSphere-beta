@@ -335,10 +335,17 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                         <UserAttribution entityUuid={nodeId} entityType={entityType} showTimestamp={true} />
                       </div>
                       {nodeType === 'source' && nodeUrl && (
-                        <div><strong>URL:</strong> <a href={nodeUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)' }}>{nodeUrl}</a></div>
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '0.5px solid var(--border-color)' }}>
+                          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                            URL
+                          </div>
+                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                            <a href={nodeUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>{nodeUrl}</a>
+                          </div>
+                        </div>
                       )}
                       {nodeType === 'source' && node.data('content') && (
-                        <div style={{ marginTop: '8px' }}>
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '0.5px solid var(--border-color)' }}>
                           <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
                             Summary
                           </div>
@@ -347,39 +354,6 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                           </div>
                         </div>
                       )}
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                        <button
-                          onClick={() => setShowCreateModal(true)}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            background: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '4px'
-                          }}
-                        >
-                          + Add Connected Node
-                        </button>
-                        {isCreator && (
-                          <button
-                            onClick={handleDelete}
-                            disabled={isDeleting}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '11px',
-                              cursor: isDeleting ? 'not-allowed' : 'pointer',
-                              background: '#fee',
-                              border: '1px solid #c88',
-                              borderRadius: '4px',
-                              color: '#a00',
-                              opacity: isDeleting ? 0.5 : 1
-                            }}
-                          >
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                          </button>
-                        )}
-                      </div>
                     </div>
                     <div className="tooltip-comments-rating" style={{
                       marginLeft: `-${paddingLeft}px`,
@@ -417,17 +391,81 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
 }
 
 /**
+ * Find all edges in paths from start node to target node, grouped by distance
+ * Uses BFS to collect all edges leading toward the target
+ *
+ * @param {Object} cy - Cytoscape instance
+ * @param {string} startId - Starting node ID
+ * @param {string} targetId - Target node ID
+ * @returns {Array<Array>} Array of edge arrays, where index represents distance level
+ */
+function findAllPathEdgesByLevel(cy, startId, targetId) {
+  const visited = new Set();
+  const edgesByLevel = []; // Array of arrays: [level0Edges, level1Edges, ...]
+  const queue = [{ nodeId: startId, level: 0 }];
+
+  while (queue.length > 0) {
+    const { nodeId: currentId, level } = queue.shift();
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    if (currentId === targetId) continue; // Stop at context, don't go beyond
+
+    // Get outgoing edges (where current node is source)
+    const outgoingEdges = cy.getElementById(currentId).connectedEdges().filter(e =>
+      e.data('source') === currentId
+    );
+
+    outgoingEdges.forEach(edge => {
+      const nextNodeId = edge.data('target');
+
+      // Ensure array exists for this level
+      if (!edgesByLevel[level]) {
+        edgesByLevel[level] = [];
+      }
+      edgesByLevel[level].push(edge);
+
+      if (!visited.has(nextNodeId)) {
+        queue.push({ nodeId: nextNodeId, level: level + 1 });
+      }
+    });
+  }
+
+  return edgesByLevel;
+}
+
+/**
  * Setup event handlers for node tooltip
  * Attaches click handlers to nodes and background for showing/hiding tooltip
  *
  * @param {Object} cy - Cytoscape instance
  * @param {Function} setActiveNodeTooltip - State setter for active tooltip
+ * @param {string} contextNodeId - ID of the context node (optional)
  * @returns {Function} Cleanup function to remove event listeners
  */
-export function setupNodeTooltip(cy, setActiveNodeTooltip) {
+export function setupNodeTooltip(cy, setActiveNodeTooltip, contextNodeId = null) {
   // Click on node to show tooltip
   cy.on('tap', 'node', (event) => {
     const node = event.target;
+
+    // Highlight all paths from clicked node to context node (if not clicking context itself)
+    if (contextNodeId && node.id() !== contextNodeId) {
+      const edgesByLevel = findAllPathEdgesByLevel(cy, node.id(), contextNodeId);
+      const DELAY_PER_LEVEL = 80; // ms delay between each level
+      const HIGHLIGHT_DURATION = 500; // Total time edges stay highlighted
+
+      // Apply highlighting with staggered delays based on distance
+      edgesByLevel.forEach((edgesAtLevel, level) => {
+        setTimeout(() => {
+          edgesAtLevel.forEach(edge => edge.addClass('highlighted'));
+        }, level * DELAY_PER_LEVEL);
+
+        // Remove highlighting after duration
+        setTimeout(() => {
+          edgesAtLevel.forEach(edge => edge.removeClass('highlighted'));
+        }, level * DELAY_PER_LEVEL + HIGHLIGHT_DURATION);
+      });
+    }
 
     // Capture rendered click position relative to the container position
     const renderedClick = event.renderedPosition;
