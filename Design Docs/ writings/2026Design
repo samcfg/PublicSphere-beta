@@ -1,0 +1,2 @@
+The core of the website is the model of argumentation, stored in a graph database: nodes and interconnections between nodes. 
+
