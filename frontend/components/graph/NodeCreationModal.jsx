@@ -1,14 +1,20 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { PositionedOverlay } from './PositionedOverlay.jsx';
 import { ConnectionBox } from './ConnectionBox.jsx';
 import { NodeBox } from './NodeBox.jsx';
 import { ConnectorLine } from './ConnectorLine.jsx';
 import { createClaim, createSource, createConnection } from '../../APInterface/api.js';
 import { useAuth } from '../../utilities/AuthContext.jsx';
+import { formatDuplicateError } from '../../utilities/duplicateErrorFormatter.jsx';
 import '../../styles/components/node-creation-panel.css';
 
 /**
  * Node-styled panel for creating a new node connected to an existing node
+ *
+ * Architecture:
+ * - NodeBox components are self-contained with their own state
+ * - Modal orchestrates submission sequence and tracks validation
+ * - Errors are injected into specific NodeBoxes via imperative refs
  *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether panel is visible
@@ -30,34 +36,34 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
   const [nodeCount, setNodeCount] = useState(2); // Min 2 for compound
   const [logicType, setLogicType] = useState(null); // 'AND' or 'NAND' for compound
 
-  // Simple mode state
-  const [nodeType, setNodeType] = useState(null); // 'claim' or 'source'
+  // Simple mode state (only relationship - NodeBox manages node data)
   const [relationship, setRelationship] = useState(null); // 'supports', 'contradicts'
-  const [content, setContent] = useState('');
-  const [title, setTitle] = useState(''); // For sources - required
-  const [url, setUrl] = useState('');
 
-  // Compound mode: array of node data
-  const [nodes, setNodes] = useState([
-    { type: null, content: '', title: '', url: '' },
-    { type: null, content: '', title: '', url: '' }
-  ]);
-
+  // Connection state
   const [connectionNotes, setConnectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+
+  // NodeBox refs for imperative control
+  const nodeBoxRefs = useRef([]);
+
+  // Validation tracking: {0: true, 1: false, ...}
+  const [nodeValidations, setNodeValidations] = useState({});
 
   // Refs to measure actual box heights for dynamic positioning
-  const nodeBoxRefs = useRef([]);
   const [boxHeights, setBoxHeights] = useState([]);
   const [needsRecalc, setNeedsRecalc] = useState(0);
 
-  // Trigger recalculation when nodes array changes or types change
+  // Callback for NodeBoxes to report validation state changes
+  const handleValidationChange = useCallback((index, isValid) => {
+    setNodeValidations(prev => ({ ...prev, [index]: isValid }));
+  }, []);
+
+  // Trigger recalculation when node count changes
   useEffect(() => {
     setNeedsRecalc(prev => prev + 1);
-  }, [nodes.length, nodes.map(n => n.type).join(',')]);
+  }, [nodeCount]);
 
-  // Measure box heights after render
+  // Measure box heights after render (for compound mode positioning)
   useEffect(() => {
     if (!isCompound) return;
 
@@ -72,15 +78,27 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
     }
   }, [isCompound, needsRecalc]);
 
+  // Global validation: all boxes must be valid + connection requirements met
+  const canSubmit = useMemo(() => {
+    if (isSubmitting || !connectionNotes.trim()) return false;
+
+    if (isCompound) {
+      // Compound: need logic type + all nodes valid
+      const expectedNodeCount = nodeCount;
+      const validatedCount = Object.keys(nodeValidations).length;
+      const allValid = Object.values(nodeValidations).every(v => v === true);
+
+      return logicType && validatedCount === expectedNodeCount && allValid;
+    } else {
+      // Simple: need relationship + node valid
+      return relationship && nodeValidations[0] === true;
+    }
+  }, [isCompound, nodeValidations, nodeCount, connectionNotes, logicType, relationship, isSubmitting]);
+
   if (!isOpen || !node || !cy || !frameRef) return null;
 
-  // Truncate label for display
-  const truncatedLabel = existingNodeLabel
-    ? (existingNodeLabel.length > 50 ? existingNodeLabel.slice(0, 50) + '...' : existingNodeLabel)
-    : existingNodeId.slice(0, 8);
-
   // Triangle layout: standard gap between boxes
-  const STANDARD_GAP = 24; // 60% reduction from 60
+  const STANDARD_GAP = 24;
 
   // Determine connection direction based on relationship
   const getConnectionData = (newNodeId) => {
@@ -91,9 +109,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       notes: connectionNotes.trim()
     };
 
-    // Map relationship to logic_type
-    // null/omitted = supports (default display)
-    // NOT = contradicts
+    // Map relationship to logic_type (null = supports, NOT = contradicts)
     if (relationship === 'contradicts') {
       connectionData.logic_type = 'NOT';
     }
@@ -112,147 +128,72 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
   };
 
   const handleCreateSimple = async () => {
-    // Simple mode validation
-    if (!nodeType || !relationship || !content.trim() || !connectionNotes.trim()) return;
-
-    // Source-specific validation: title is required
-    if (nodeType === 'source' && !title.trim()) {
-      setError('Source title is required');
-      return;
-    }
-
     if (!isAuthenticated || !token) {
-      setError('You must be logged in to create nodes');
+      nodeBoxRefs.current[0]?.setError('You must be logged in to create nodes');
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
 
     try {
-      // Step 1: Create the node
-      let nodeResult;
-      if (nodeType === 'claim') {
-        nodeResult = await createClaim(token, { content: content.trim() });
+      // Get data from NodeBox
+      const nodeData = nodeBoxRefs.current[0]?.getData();
+      if (!nodeData) {
+        throw new Error('Could not get node data');
+      }
+
+      const { mode, nodeType, content, title, url, selectedNodeId } = nodeData;
+
+      let newNodeId;
+
+      // Step 1: Create node OR use existing node
+      if (mode === 'selected') {
+        // Using existing node - skip creation
+        newNodeId = selectedNodeId;
       } else {
-        nodeResult = await createSource(token, {
-          title: title.trim(),
-          content: content.trim(),
-          url: url.trim() || null
-        });
-      }
-
-      if (nodeResult.error) {
-        // Handle title_required error specifically
-        if (nodeResult.error === 'title_required') {
-          setError('Source title is required');
-          setIsSubmitting(false);
-          return;
+        // Creating new node
+        let nodeResult;
+        if (nodeType === 'claim') {
+          nodeResult = await createClaim(token, { content });
+        } else {
+          nodeResult = await createSource(token, { title, content, url: url || null });
         }
 
-        // Handle duplicate errors - All phases
+        if (nodeResult.error) {
+          // Handle title_required error
+          if (nodeResult.error === 'title_required') {
+            nodeBoxRefs.current[0]?.setError('Source title is required');
+            setIsSubmitting(false);
+            return;
+          }
 
-        // Claim duplicates (Phase 2)
-        if (nodeResult.error === 'duplicate_exact' || nodeResult.error === 'duplicate_similar') {
-          const label = nodeResult.error === 'duplicate_exact'
-            ? 'This claim already exists'
-            : 'This claim is very similar to an existing one';
-          const existingContent = nodeResult.data?.existing_content || '';
-          const existingId = nodeResult.data?.existing_node_id;
-          const similarity = nodeResult.data?.similarity_score;
+          // Handle duplicate errors using formatter
+          if (nodeResult.error.startsWith('duplicate_')) {
+            const formattedError = formatDuplicateError(
+              nodeResult.error,
+              nodeResult.data,
+              nodeType
+            );
+            if (formattedError) {
+              nodeBoxRefs.current[0]?.setError(formattedError);
+              setIsSubmitting(false);
+              return;
+            }
+          }
 
-          setError(
-            <div className="duplicate-error">
-              <strong>{label}</strong>
-              <p style={{ fontStyle: 'italic', margin: '8px 0', fontSize: '14px' }}>
-                {existingContent.slice(0, 150)}{existingContent.length > 150 ? '...' : ''}
-              </p>
-              {similarity && (
-                <small style={{ opacity: 0.7 }}>Similarity: {(similarity * 100).toFixed(0)}%</small>
-              )}
-              {existingId && (
-                <a
-                  href={`/context?id=${existingId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline', display: 'block', marginTop: '8px' }}
-                >
-                  View existing claim →
-                </a>
-              )}
-            </div>
-          );
-          setIsSubmitting(false);
-          return;
+          // Generic error
+          const errMsg = typeof nodeResult.error === 'object'
+            ? JSON.stringify(nodeResult.error)
+            : nodeResult.error;
+          throw new Error(errMsg);
         }
 
-        // Source URL duplicate (Phase 1)
-        if (nodeResult.error === 'duplicate_url') {
-          const existingTitle = nodeResult.data?.existing_title || 'Unknown';
-          const existingId = nodeResult.data?.existing_node_id;
-          setError(
-            <div className="duplicate-error">
-              <strong>This URL already exists</strong>
-              <p style={{ fontStyle: 'italic', margin: '8px 0' }}>{existingTitle}</p>
-              {existingId && (
-                <a
-                  href={`/context?id=${existingId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline' }}
-                >
-                  View existing source →
-                </a>
-              )}
-            </div>
-          );
-          setIsSubmitting(false);
-          return;
+        // Get the new node ID
+        newNodeId = nodeResult.data.uuid || nodeResult.data.id || nodeResult.data.node_id;
+        if (!newNodeId) {
+          console.error('Node creation response:', nodeResult.data);
+          throw new Error('Could not get ID from created node');
         }
-
-        // Source title duplicates (Phase 2)
-        if (nodeResult.error === 'duplicate_title_exact' || nodeResult.error === 'duplicate_title_similar') {
-          const label = nodeResult.error === 'duplicate_title_exact'
-            ? 'A source with this title already exists'
-            : 'A source with a very similar title exists';
-          const existingTitle = nodeResult.data?.existing_title || 'Unknown';
-          const existingId = nodeResult.data?.existing_node_id;
-          const similarity = nodeResult.data?.similarity_score;
-
-          setError(
-            <div className="duplicate-error">
-              <strong>{label}</strong>
-              <p style={{ fontStyle: 'italic', margin: '8px 0' }}>{existingTitle}</p>
-              {similarity && (
-                <small style={{ opacity: 0.7 }}>Similarity: {(similarity * 100).toFixed(0)}%</small>
-              )}
-              {existingId && (
-                <a
-                  href={`/context?id=${existingId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--accent-blue)', textDecoration: 'underline', display: 'block', marginTop: '8px' }}
-                >
-                  View existing source →
-                </a>
-              )}
-            </div>
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        const errMsg = typeof nodeResult.error === 'object'
-          ? JSON.stringify(nodeResult.error)
-          : nodeResult.error;
-        throw new Error(errMsg);
-      }
-
-      // Get the new node ID - try common field names
-      const newNodeId = nodeResult.data.uuid || nodeResult.data.id || nodeResult.data.node_id;
-      if (!newNodeId) {
-        console.error('Node creation response:', nodeResult.data);
-        throw new Error('Could not get ID from created node');
       }
 
       // Step 2: Create the connection
@@ -268,25 +209,44 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
 
       // Success - add to graph locally (no refetch needed)
       try {
-        // Add new node to cytoscape with all required fields
-        const nodeData = {
-          id: newNodeId,
-          label: nodeType === 'source' ? 'Source' : 'Claim',
-          content: content.trim(),
-          type: nodeType
-        };
+        // Only add node to cytoscape if we created a new one (not using existing)
+        if (mode !== 'selected') {
+          const nodeDisplayData = {
+            id: newNodeId,
+            label: nodeType === 'source' ? 'Source' : 'Claim',
+            content,
+            type: nodeType
+          };
 
-        // Add source-specific fields
-        if (nodeType === 'source') {
-          nodeData.title = title.trim();
-          if (url.trim()) {
-            nodeData.url = url.trim();
+          if (nodeType === 'source') {
+            nodeDisplayData.title = title;
+            if (url) {
+              nodeDisplayData.url = url;
+            }
+          }
+
+          cy.add({ data: nodeDisplayData });
+
+          // Add attribution to cache (only for newly created nodes)
+          if (updateAttributions && user) {
+            updateAttributions({
+              add: {
+                [newNodeId]: {
+                  creator: {
+                    entity_uuid: newNodeId,
+                    entity_type: nodeType,
+                    username: user.username,
+                    timestamp: new Date().toISOString(),
+                    is_anonymous: false
+                  },
+                  editors: []
+                }
+              }
+            });
           }
         }
 
-        cy.add({ data: nodeData });
-
-        // Add new edge to cytoscape
+        // Add new edge to cytoscape (always, even for existing nodes)
         const { from_node_id, to_node_id, logic_type } = connectionData;
         cy.add({
           data: {
@@ -297,7 +257,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           }
         });
 
-        // Run layout to position new node
+        // Run layout to position graph
         cy.layout({
           name: 'dagre',
           rankDir: 'BT',
@@ -305,24 +265,6 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           rankSep: 120,
           animate: false
         }).run();
-
-        // Add attribution to cache (current user is creator)
-        if (updateAttributions && user) {
-          updateAttributions({
-            add: {
-              [newNodeId]: {
-                creator: {
-                  entity_uuid: newNodeId,
-                  entity_type: nodeType,
-                  username: user.username,
-                  timestamp: new Date().toISOString(),
-                  is_anonymous: false
-                },
-                editors: []
-              }
-            }
-          });
-        }
 
         handleClose();
       } catch (localUpdateError) {
@@ -335,54 +277,84 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       }
 
     } catch (err) {
-      setError(err.message || 'Failed to create node');
+      nodeBoxRefs.current[0]?.setError(err.message || 'Failed to create node');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCreateCompound = async () => {
-    // Compound mode: create multiple claim nodes + compound connection
-    if (!logicType || !connectionNotes.trim()) return;
-    if (!nodes.every(n => n.type === 'claim' && n.content.trim())) return;
-
     if (!isAuthenticated || !token) {
-      setError('You must be logged in to create nodes');
+      nodeBoxRefs.current[0]?.setError('You must be logged in to create nodes');
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
 
     try {
-      // Step 1: Create all claim nodes
-      const createdNodeIds = [];
-      for (const nodeData of nodes) {
-        const result = await createClaim(token, { content: nodeData.content.trim() });
+      // Step 1: Create all nodes (or use existing)
+      const nodeIds = []; // Can be mix of newly created and existing IDs
+      const newlyCreatedIndices = []; // Track which ones were newly created for graph update
 
-        if (result.error) {
-          // Handle errors similar to simple mode
-          if (result.error === 'duplicate_exact' || result.error === 'duplicate_similar') {
-            const label = result.error === 'duplicate_exact'
-              ? 'A claim already exists'
-              : 'A claim is very similar to an existing one';
-            setError(`${label}: "${result.data?.existing_content?.slice(0, 100)}..."`);
-            setIsSubmitting(false);
-            return;
+      for (let i = 0; i < nodeBoxRefs.current.length; i++) {
+        const nodeBox = nodeBoxRefs.current[i];
+        if (!nodeBox) continue;
+
+        const nodeData = nodeBox.getData();
+        const { mode, nodeType, content, title, url, selectedNodeId } = nodeData;
+
+        let nodeId;
+
+        if (mode === 'selected') {
+          // Using existing node - skip creation
+          nodeId = selectedNodeId;
+        } else {
+          // Creating new node
+          let result;
+          if (nodeType === 'claim') {
+            result = await createClaim(token, { content });
+          } else {
+            result = await createSource(token, { title, content, url: url || null });
           }
-          throw new Error(typeof result.error === 'object' ? JSON.stringify(result.error) : result.error);
+
+          if (result.error) {
+            // Handle duplicate errors - inject into SPECIFIC box that failed
+            if (result.error.startsWith('duplicate_')) {
+              const formattedError = formatDuplicateError(
+                result.error,
+                result.data,
+                nodeType
+              );
+              if (formattedError) {
+                nodeBox.setError(formattedError);
+              }
+              setIsSubmitting(false);
+              return;
+            }
+
+            // Handle other errors
+            if (result.error === 'title_required') {
+              nodeBox.setError('Source title is required');
+              setIsSubmitting(false);
+              return;
+            }
+
+            throw new Error(typeof result.error === 'object' ? JSON.stringify(result.error) : result.error);
+          }
+
+          nodeId = result.data.uuid || result.data.id || result.data.node_id;
+          if (!nodeId) {
+            throw new Error('Could not get ID from created node');
+          }
+          newlyCreatedIndices.push(i); // Track that this one was newly created
         }
 
-        const newNodeId = result.data.uuid || result.data.id || result.data.node_id;
-        if (!newNodeId) {
-          throw new Error('Could not get ID from created node');
-        }
-        createdNodeIds.push(newNodeId);
+        nodeIds.push(nodeId);
       }
 
       // Step 2: Create compound connection
       const connResult = await createConnection(token, {
-        source_node_ids: createdNodeIds,
+        source_node_ids: nodeIds,
         target_node_id: existingNodeId,
         logic_type: logicType,
         notes: connectionNotes.trim()
@@ -394,18 +366,46 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
 
       // Step 3: Update local graph
       try {
-        // Add all nodes to cytoscape
-        for (const [index, nodeId] of createdNodeIds.entries()) {
-          cy.add({
-            data: {
-              id: nodeId,
-              label: 'Claim',
-              content: nodes[index].content.trim(),
-              type: 'claim'
-            }
-          });
+        // Add nodes and edges to cytoscape
+        for (let i = 0; i < nodeIds.length; i++) {
+          const nodeId = nodeIds[i];
+          const nodeData = nodeBoxRefs.current[i]?.getData();
 
-          // Add edges (each node gets its own edge with shared composite_id)
+          // Only add node to graph if it was newly created (not using existing)
+          if (newlyCreatedIndices.includes(i)) {
+            cy.add({
+              data: {
+                id: nodeId,
+                label: nodeData.nodeType === 'source' ? 'Source' : 'Claim',
+                content: nodeData.content,
+                type: nodeData.nodeType,
+                ...(nodeData.nodeType === 'source' ? {
+                  title: nodeData.title,
+                  ...(nodeData.url ? { url: nodeData.url } : {})
+                } : {})
+              }
+            });
+
+            // Add attribution (only for newly created nodes)
+            if (updateAttributions && user) {
+              updateAttributions({
+                add: {
+                  [nodeId]: {
+                    creator: {
+                      entity_uuid: nodeId,
+                      entity_type: nodeData.nodeType,
+                      username: user.username,
+                      timestamp: new Date().toISOString(),
+                      is_anonymous: false
+                    },
+                    editors: []
+                  }
+                }
+              });
+            }
+          }
+
+          // Add edges (always, for both new and existing nodes)
           cy.add({
             data: {
               id: `${nodeId}-${existingNodeId}`,
@@ -415,24 +415,6 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
               composite_id: connResult.data?.composite_id || connResult.data?.id
             }
           });
-
-          // Add attribution
-          if (updateAttributions && user) {
-            updateAttributions({
-              add: {
-                [nodeId]: {
-                  creator: {
-                    entity_uuid: nodeId,
-                    entity_type: 'claim',
-                    username: user.username,
-                    timestamp: new Date().toISOString(),
-                    is_anonymous: false
-                  },
-                  editors: []
-                }
-              }
-            });
-          }
         }
 
         // Run layout
@@ -454,97 +436,59 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       }
 
     } catch (err) {
-      setError(err.message || 'Failed to create compound connection');
+      // Generic error - show on first box
+      nodeBoxRefs.current[0]?.setError(err.message || 'Failed to create compound connection');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
-    // Reset all form state
+    // Reset compound mode state
     setIsCompound(false);
     setNodeCount(2);
     setLogicType(null);
-    setNodeType(null);
+
+    // Reset simple mode state
     setRelationship(null);
-    setContent('');
-    setTitle('');
-    setUrl('');
-    setNodes([
-      { type: null, content: '', title: '', url: '' },
-      { type: null, content: '', title: '', url: '' }
-    ]);
+
+    // Reset connection state
     setConnectionNotes('');
-    setError(null);
+
+    // Reset validation tracking
+    setNodeValidations({});
+
+    // Reset all NodeBoxes
+    nodeBoxRefs.current.forEach(ref => ref?.reset());
+
     onClose();
   };
 
   const handleCompoundToggle = () => {
-    setIsCompound(!isCompound);
-    if (!isCompound) {
+    const newIsCompound = !isCompound;
+    setIsCompound(newIsCompound);
+
+    if (newIsCompound) {
       // Switching to compound mode
       setLogicType(null);
       setNodeCount(2);
-      setNodes([
-        { type: null, content: '', title: '', url: '' },
-        { type: null, content: '', title: '', url: '' }
-      ]);
+      setNodeValidations({});
+    } else {
+      // Switching to simple mode
+      setRelationship(null);
+      setNodeValidations({});
     }
   };
 
   const handleNodeCountChange = (newCount) => {
     setNodeCount(newCount);
-    // Adjust nodes array
-    if (newCount > nodes.length) {
-      // Add more nodes
-      setNodes([...nodes, ...Array(newCount - nodes.length).fill({ type: null, content: '', title: '', url: '' })]);
-    } else if (newCount < nodes.length) {
-      // Remove nodes
-      setNodes(nodes.slice(0, newCount));
-    }
+    // Validation state will be rebuilt as new NodeBoxes mount
+    setNodeValidations({});
   };
-
-  const handleNodeTypeChange = (type) => {
-    setNodeType(type);
-    setRelationship(null); // Reset relationship when type changes
-  };
-
-  // Update individual node in compound mode
-  const updateNode = (index, field, value) => {
-    const newNodes = [...nodes];
-    newNodes[index] = { ...newNodes[index], [field]: value };
-    setNodes(newNodes);
-  };
-
-  // Validation
-  const canSubmit = (() => {
-    if (isSubmitting) return false;
-    if (!connectionNotes.trim()) return false;
-
-    if (isCompound) {
-      // Compound mode: need logic type and all nodes filled
-      if (!logicType) return false;
-      // All nodes must have type and content (claims only)
-      return nodes.every(n => n.type === 'claim' && n.content.trim());
-    } else {
-      // Simple mode: need node type, relationship, and content
-      if (!nodeType || !relationship || !content.trim()) return false;
-      // Sources need title
-      if (nodeType === 'source' && !title.trim()) return false;
-      return true;
-    }
-  })();
 
   // Dynamic offset calculation based on OnClickNode frame dimensions
   const getConnectionBoxOffset = (frameRect) => {
-    if (!isCompound) {
-      // Simple mode: position below and to the left of frame
-      return {
-        x: -STANDARD_GAP,
-        y: frameRect.height + STANDARD_GAP
-      };
-    }
-    // Compound mode: position below and to the left, vertically centered
+    // Position below and to the left of frame
     return {
       x: -STANDARD_GAP,
       y: frameRect.height + STANDARD_GAP
@@ -612,47 +556,31 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           getOffset={(frameRect) => getNodeBoxOffset(frameRect, 0, 1)}
         >
           <NodeBox
-            nodeType={nodeType}
-            onNodeTypeChange={handleNodeTypeChange}
-            content={content}
-            onContentChange={setContent}
-            title={title}
-            onTitleChange={setTitle}
-            url={url}
-            onUrlChange={setUrl}
+            ref={(el) => nodeBoxRefs.current[0] = el}
+            index={0}
+            onValidationChange={handleValidationChange}
             onClose={handleClose}
             onSubmit={handleCreate}
-            canSubmit={canSubmit}
             isSubmitting={isSubmitting}
-            error={error}
             showControls={true}
           />
         </PositionedOverlay>
       ) : (
         /* Compound mode: multiple NodeBoxes stacked vertically */
-        nodes.map((nodeData, index) => (
+        Array.from({ length: nodeCount }).map((_, index) => (
           <PositionedOverlay
             key={index}
             domElement={frameRef}
             cy={cy}
-            getOffset={(frameRect) => getNodeBoxOffset(frameRect, index, nodes.length)}
+            getOffset={(frameRect) => getNodeBoxOffset(frameRect, index, nodeCount)}
           >
             <NodeBox
               ref={(el) => nodeBoxRefs.current[index] = el}
               index={index}
-              nodeType={nodeData.type}
-              onNodeTypeChange={(type) => updateNode(index, 'type', type)}
-              content={nodeData.content}
-              onContentChange={(val) => updateNode(index, 'content', val)}
-              title={nodeData.title}
-              onTitleChange={(val) => updateNode(index, 'title', val)}
-              url={nodeData.url}
-              onUrlChange={(val) => updateNode(index, 'url', val)}
+              onValidationChange={handleValidationChange}
               onClose={handleClose}
               onSubmit={handleCreate}
-              canSubmit={canSubmit}
               isSubmitting={isSubmitting}
-              error={index === 0 ? error : null}
               showControls={index === 0}
             />
           </PositionedOverlay>
