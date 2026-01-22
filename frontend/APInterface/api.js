@@ -78,12 +78,14 @@ export async function fetchClaimConnections(claimId) {
 /**
  * Update claim properties
  * PATCH /api/claims/:id/
+ * @param {string} token - Auth token
  * @param {string} claimId
  * @param {Object} data - Properties to update
  */
-export async function updateClaim(claimId, data) {
+export async function updateClaim(token, claimId, data) {
   return apiFetch(`${BASE_URL}/claims/${claimId}/`, {
     method: 'PATCH',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -133,10 +135,12 @@ export async function fetchSourceConnections(sourceId) {
 /**
  * Update source properties
  * PATCH /api/sources/:id/
+ * @param {string} token - Auth token
  */
-export async function updateSource(sourceId, data) {
+export async function updateSource(token, sourceId, data) {
   return apiFetch(`${BASE_URL}/sources/${sourceId}/`, {
     method: 'PATCH',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -172,9 +176,10 @@ export async function createConnection(token, data) {
  * Update connection properties (individual or composite_id)
  * PATCH /api/connections/:id/
  */
-export async function updateConnection(connectionId, data) {
+export async function updateConnection(token, connectionId, data) {
   return apiFetch(`${BASE_URL}/connections/${connectionId}/`, {
     method: 'PATCH',
+    headers: { 'Authorization': `Token ${token}` },
     body: JSON.stringify(data),
   });
 }
@@ -183,9 +188,10 @@ export async function updateConnection(connectionId, data) {
  * Delete connection (individual or composite_id)
  * DELETE /api/connections/:id/
  */
-export async function deleteConnection(connectionId) {
+export async function deleteConnection(token, connectionId) {
   return apiFetch(`${BASE_URL}/connections/${connectionId}/`, {
     method: 'DELETE',
+    headers: { 'Authorization': `Token ${token}` },
   });
 }
 
@@ -585,4 +591,23 @@ export async function fetchGraphSnapshot(timestamp) {
  */
 export async function fetchEntityHistory(entityUuid, entityType) {
   return apiFetch(`${BASE_URL}/temporal/history/?entity_uuid=${entityUuid}&entity_type=${entityType}`);
+}
+
+/**
+ * Track a page view for an entity (Phase 3)
+ * POST /api/pageview/<entity_id>/
+ */
+export async function trackPageView(entityUuid, entityType) {
+  return apiFetch(`${BASE_URL}/pageview/${entityUuid}/`, {
+    method: 'POST',
+    body: JSON.stringify({ entity_type: entityType })
+  });
+}
+
+/**
+ * Get engagement metrics for an entity (Phase 3)
+ * GET /api/engagement/<entity_id>/?entity_type=claim|source|connection
+ */
+export async function fetchEntityEngagement(entityUuid, entityType) {
+  return apiFetch(`${BASE_URL}/engagement/${entityUuid}/?entity_type=${entityType}`);
 }

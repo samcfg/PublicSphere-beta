@@ -15,3 +15,5 @@ https://uiverse.io/profile/JkHuger
 
 
 Emerging pattern: The borders of elements are the vibrant part. 
+
+PublicSphere gets better the more that it is used. therefore it must be nobel and shy in taking. It does not thank or ask. It is a resource which can be donated to, not a charity. 

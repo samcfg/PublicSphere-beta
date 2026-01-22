@@ -157,6 +157,9 @@ export const Graph = forwardRef(({ data, updateAttributions, onGraphChange, cont
         key={activeEdgeTooltip?.edge?.id()}
         activeEdgeTooltip={activeEdgeTooltip}
         cy={cyRef.current}
+        updateAttributions={updateAttributions}
+        onGraphChange={onGraphChange}
+        onClose={() => setActiveEdgeTooltip(null)}
       />
 
       <OnClickNode

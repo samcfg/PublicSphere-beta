@@ -11,7 +11,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
-from social.models import Rating, Comment, FlaggedContent
+from social.models import Rating, Comment, FlaggedContent, ViewCount
 
 
 @admin.register(Rating)
@@ -298,3 +298,35 @@ class FlaggedContentAdmin(admin.ModelAdmin):
             # Moderators: most fields readonly except reason
             readonly.extend(['status', 'reviewed_by', 'resolution_notes'])
         return readonly
+
+
+@admin.register(ViewCount)
+class ViewCountAdmin(admin.ModelAdmin):
+    """Admin interface for ViewCount model (read-only analytics)"""
+
+    list_display = ('id', 'entity_info', 'count')
+    list_filter = ('entity_type',)
+    search_fields = ('entity_uuid',)
+    readonly_fields = ('entity_uuid', 'entity_type', 'count')
+    ordering = ('-count',)
+
+    def entity_info(self, obj):
+        """Display entity type and truncated UUID"""
+        return f"{obj.entity_type} {obj.entity_uuid[:8]}..."
+    entity_info.short_description = 'Entity'
+
+    def has_add_permission(self, request):
+        """View counts created via API only"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Read-only analytics data"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Staff Admins can delete for data cleanup"""
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.filter(name='Staff Admin').exists():
+            return True
+        return False

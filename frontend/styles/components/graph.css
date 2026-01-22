@@ -200,3 +200,65 @@
 .graph-page .nav .rect {
   stroke: var(--graph-text);
 }
+
+/* Responsive controls and title */
+@media (max-width: 1440px) {
+  .header h1 {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .controls {
+    flex-wrap: wrap;
+    max-width: 280px;
+    justify-content: flex-end;
+  }
+
+  .title-section {
+    max-width: calc(100% - 300px);
+  }
+}
+
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: 14px;
+  }
+
+  .graph-stats {
+    font-size: 12px;
+    margin-top: 18px;
+  }
+
+  .controls {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    max-width: none;
+    top: 70px;
+    right: 10px;
+    gap: 5px;
+  }
+
+  .title-section {
+    max-width: calc(100% - 140px);
+  }
+
+  .title-divider {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .header h1 {
+    font-size: 12px;
+  }
+
+  .graph-stats {
+    font-size: 11px;
+    margin-top: 14px;
+  }
+
+  .title-section {
+    max-width: calc(100% - 120px);
+  }
+}

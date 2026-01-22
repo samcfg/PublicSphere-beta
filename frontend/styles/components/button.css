@@ -69,3 +69,20 @@ button {
   background: transparent;
   font-family: var(--font-family-ui);
 }
+
+/* Responsive button sizing */
+@media (max-width: 768px) {
+  .box {
+    width: 120px;
+    padding: 10px;
+    font-size: 0.85em;
+  }
+}
+
+@media (max-width: 480px) {
+  .box {
+    width: 100px;
+    padding: 8px;
+    font-size: 0.8em;
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchGraphData, fetchEntityAttribution, fetchEntityComments } from '../APInterface/api.js';
+import { fetchGraphData, fetchEntityAttribution, fetchEntityComments, fetchEntityEngagement, trackPageView } from '../APInterface/api.js';
 import { ConnectionDisplay } from '../components/common/ConnectionDisplay.jsx';
 import { CommentsThread } from '../components/common/CommentsThread.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
@@ -20,6 +20,7 @@ export function ConnectionView() {
   const [attributions, setAttributions] = useState({});
   const [comments, setComments] = useState([]);
   const [commentSort, setCommentSort] = useState('timestamp');
+  const [engagement, setEngagement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [error, setError] = useState(null);
@@ -147,6 +148,24 @@ export function ConnectionView() {
     loadComments();
   }, [connectionId, commentSort, token, connectionData]);
 
+  // Track page view and fetch engagement metrics
+  useEffect(() => {
+    const loadEngagement = async () => {
+      if (!connectionId || !connectionData) return;
+
+      // Track this page view
+      await trackPageView(connectionId, 'connection');
+
+      // Fetch engagement metrics (will include the view we just tracked)
+      const response = await fetchEntityEngagement(connectionId, 'connection');
+      if (!response.error && response.data) {
+        setEngagement(response.data);
+      }
+    };
+
+    loadEngagement();
+  }, [connectionId, connectionData]);
+
   if (loading) {
     return (
       <div style={{
@@ -190,6 +209,39 @@ export function ConnectionView() {
           notes={connectionData?.notes}
           compositeId={connectionData?.compositeId}
         />
+
+        {/* Engagement Metrics - Always show with loading/error state */}
+        <div style={{
+          width: '100%',
+          maxWidth: '920px',
+          marginTop: '20px',
+          padding: '15px',
+          backgroundColor: '#f5f5f5',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          fontSize: '14px',
+          color: '#333'
+        }}>
+          {engagement ? (
+            <>
+              <div style={{ fontWeight: '600', marginBottom: '8px' }}>
+                Engagement Score: {engagement.engagement_score}
+              </div>
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <span>Views: {engagement.components.page_views}</span>
+                <span>Comments: {engagement.components.comments}</span>
+                <span>Ratings: {engagement.components.ratings.count} (avg: {engagement.components.ratings.avg})</span>
+              </div>
+              <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                Edit window: {engagement.edit_window.max_hours}h max
+                ({engagement.edit_window.hours_elapsed}h elapsed)
+                {!engagement.edit_window.can_edit && ` - ${engagement.edit_window.reason}`}
+              </div>
+            </>
+          ) : (
+            <div style={{ color: '#666' }}>Loading engagement metrics...</div>
+          )}
+        </div>
 
         <div style={{
           width: '100%',

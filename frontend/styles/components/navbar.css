@@ -85,3 +85,36 @@
   right: 10px;
   z-index: 1000;
 }
+
+/* Responsive navbar scaling */
+@media (max-width: 1440px) {
+  .nav {
+    width: 420px;
+  }
+
+  .btn {
+    padding: 0.4em 1.2em;
+    font-size: 0.9em;
+  }
+
+  .outline {
+    transform: scale(0.808);
+    transform-origin: left top;
+  }
+}
+
+@media (max-width: 768px) {
+  .nav {
+    width: 340px;
+  }
+
+  .btn {
+    padding: 0.3em 0.9em;
+    font-size: 0.85em;
+  }
+
+  .outline {
+    transform: scale(0.654);
+    transform-origin: left top;
+  }
+}

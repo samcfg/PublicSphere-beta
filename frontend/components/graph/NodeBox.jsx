@@ -14,6 +14,8 @@ import '../../styles/components/node-creation-panel.css';
  * - Exposes imperative methods via ref for parent to orchestrate submission
  *
  * @param {Object} props
+ * @param {string} props.mode - 'create' | 'edit' (default: 'create')
+ * @param {Object} props.initialData - Pre-fill data for edit mode: {nodeType, content, title?, url?}
  * @param {number} props.index - Index of this node box (for compound connections)
  * @param {Function} props.onValidationChange - Callback: (index, isValid) => void
  * @param {Function} props.onClose - Close/cancel callback
@@ -23,6 +25,8 @@ import '../../styles/components/node-creation-panel.css';
  * @param {React.Ref} ref - Forwarded ref exposing imperative methods
  */
 export const NodeBox = forwardRef(({
+  mode = 'create',
+  initialData = null,
   index = 0,
   onValidationChange,
   onClose,
@@ -30,8 +34,8 @@ export const NodeBox = forwardRef(({
   isSubmitting = false,
   showControls = true
 }, ref) => {
-  // Mode: 'input' (creating new) or 'selected' (using existing)
-  const [mode, setMode] = useState('input');
+  // Input mode: 'input' (creating new) or 'selected' (using existing)
+  const [inputMode, setInputMode] = useState('input');
 
   // Internal state - each box is independent
   const [nodeType, setNodeType] = useState(null); // 'claim' or 'source'
@@ -51,12 +55,12 @@ export const NodeBox = forwardRef(({
 
   // Validation logic
   const isValid = (() => {
-    if (mode === 'selected') {
+    if (inputMode === 'selected') {
       return selectedNode !== null;
     }
-    // Input mode
-    return nodeType && content.trim() &&
-      (nodeType !== 'source' || title.trim());
+    // Input mode - coerce to boolean to avoid string/truthy confusion
+    return !!(nodeType && content.trim() &&
+      (nodeType !== 'source' || title.trim()));
   })();
 
   // Notify parent whenever validation state changes
@@ -69,16 +73,27 @@ export const NodeBox = forwardRef(({
   // Internal DOM ref for height measurement
   const domRef = useRef(null);
 
+  // Pre-populate fields in edit mode
+  useEffect(() => {
+    if (mode === 'edit' && initialData) {
+      setNodeType(initialData.nodeType);
+      setContent(initialData.content || '');
+      setTitle(initialData.title || '');
+      setUrl(initialData.url || '');
+      // Stay in 'input' mode for editing (not 'selected')
+    }
+  }, [mode, initialData]);
+
   // Expose imperative methods to parent via ref
   useImperativeHandle(ref, () => ({
     /**
      * Get current data - either new node data or selected existing node
-     * @returns {Object} {mode: 'input'|'selected', nodeType, content, title, url, selectedNodeId?}
+     * @returns {Object} {inputMode: 'input'|'selected', nodeType, content, title, url, selectedNodeId?}
      */
     getData: () => {
-      if (mode === 'selected') {
+      if (inputMode === 'selected') {
         return {
-          mode: 'selected',
+          inputMode: 'selected',
           selectedNodeId: selectedNode.id,
           nodeType: selectedNode.node_type,
           content: selectedNode.content,
@@ -87,7 +102,7 @@ export const NodeBox = forwardRef(({
         };
       }
       return {
-        mode: 'input',
+        inputMode: 'input',
         nodeType,
         content: content.trim(),
         title: title.trim(),
@@ -111,7 +126,7 @@ export const NodeBox = forwardRef(({
      * Reset all form state
      */
     reset: () => {
-      setMode('input');
+      setInputMode('input');
       setNodeType(null);
       setContent('');
       setTitle('');
@@ -158,7 +173,7 @@ export const NodeBox = forwardRef(({
 
   // Debounced search on content change
   useEffect(() => {
-    if (mode !== 'input' || !nodeType) return;
+    if (inputMode !== 'input' || !nodeType) return;
 
     // Clear previous timer
     if (debounceTimer.current) {
@@ -180,11 +195,11 @@ export const NodeBox = forwardRef(({
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [content, nodeType, mode]);
+  }, [content, nodeType, inputMode]);
 
   // Debounced search on title/URL change (for sources)
   useEffect(() => {
-    if (mode !== 'input' || nodeType !== 'source') return;
+    if (inputMode !== 'input' || nodeType !== 'source') return;
 
     // Clear previous timer
     if (debounceTimer.current) {
@@ -208,7 +223,7 @@ export const NodeBox = forwardRef(({
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [title, url, nodeType, mode, content]);
+  }, [title, url, nodeType, inputMode, content]);
 
   // Internal handlers
   const handleNodeTypeChange = (type) => {
@@ -235,19 +250,19 @@ export const NodeBox = forwardRef(({
 
   const handleSelectNode = (node) => {
     setSelectedNode(node);
-    setMode('selected');
+    setInputMode('selected');
     setShowResults(false);
     setError(null);
   };
 
   const handleUnselectNode = () => {
     setSelectedNode(null);
-    setMode('input');
+    setInputMode('input');
   };
 
   // Determine highlight color based on node type
   const getHighlightColor = () => {
-    const type = mode === 'selected' ? selectedNode?.node_type : nodeType;
+    const type = inputMode === 'selected' ? selectedNode?.node_type : nodeType;
     if (!type) return 'var(--accent-blue)'; // Default neutral
     if (type === 'source') return 'var(--accent-green)';
     return 'var(--accent-blue)'; // claim
@@ -259,7 +274,9 @@ export const NodeBox = forwardRef(({
         <div className="node-creation-inner">
           <div className="node-creation-header">
             <h2 className="node-creation-title" style={{ color: getHighlightColor() }}>
-              {index > 0 ? `Node ${index + 1}` : 'New Node'}
+              {mode === 'edit'
+                ? `Edit ${nodeType === 'source' ? 'Evidence' : 'Claim'}`
+                : (index > 0 ? `Node ${index + 1}` : 'New Node')}
             </h2>
             {showControls && (
               <button className="node-creation-close" onClick={onClose}>
@@ -270,7 +287,7 @@ export const NodeBox = forwardRef(({
 
           <div className="node-creation-content">
             {/* SELECTED MODE: Show selected node with NodeDisplay */}
-            {mode === 'selected' && selectedNode && (
+            {inputMode === 'selected' && selectedNode && (
               <div>
                 <div style={{
                   display: 'flex',
@@ -333,34 +350,36 @@ export const NodeBox = forwardRef(({
             )}
 
             {/* INPUT MODE: Show form fields */}
-            {mode === 'input' && (
+            {inputMode === 'input' && (
               <>
-                {/* Node type selection */}
-                <div className="node-creation-field">
-                  <label className="node-creation-label">What are you adding?</label>
-                  <div className="node-creation-type-buttons">
-                    <button
-                      className={`node-creation-type-btn ${nodeType === 'source' ? 'selected' : ''}`}
-                      onClick={() => handleNodeTypeChange('source')}
-                      style={{
-                        backgroundColor: nodeType === 'source' ? 'var(--accent-green)' : 'transparent',
-                        borderColor: nodeType === 'source' ? 'var(--accent-green)' : 'var(--attr-border)'
-                      }}
-                    >
-                      Evidence
-                    </button>
-                    <button
-                      className={`node-creation-type-btn ${nodeType === 'claim' ? 'selected' : ''}`}
-                      onClick={() => handleNodeTypeChange('claim')}
-                      style={{
-                        backgroundColor: nodeType === 'claim' ? 'var(--accent-blue)' : 'transparent',
-                        borderColor: nodeType === 'claim' ? 'var(--accent-blue)' : 'var(--attr-border)'
-                      }}
-                    >
-                      Claim
-                    </button>
+                {/* Node type selection - only show in create mode */}
+                {mode === 'create' && (
+                  <div className="node-creation-field">
+                    <label className="node-creation-label">What are you adding?</label>
+                    <div className="node-creation-type-buttons">
+                      <button
+                        className={`node-creation-type-btn ${nodeType === 'source' ? 'selected' : ''}`}
+                        onClick={() => handleNodeTypeChange('source')}
+                        style={{
+                          backgroundColor: nodeType === 'source' ? 'var(--accent-green)' : 'transparent',
+                          borderColor: nodeType === 'source' ? 'var(--accent-green)' : 'var(--attr-border)'
+                        }}
+                      >
+                        Evidence
+                      </button>
+                      <button
+                        className={`node-creation-type-btn ${nodeType === 'claim' ? 'selected' : ''}`}
+                        onClick={() => handleNodeTypeChange('claim')}
+                        style={{
+                          backgroundColor: nodeType === 'claim' ? 'var(--accent-blue)' : 'transparent',
+                          borderColor: nodeType === 'claim' ? 'var(--accent-blue)' : 'var(--attr-border)'
+                        }}
+                      >
+                        Claim
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Source-specific fields */}
                 {nodeType === 'source' && (
@@ -393,7 +412,7 @@ export const NodeBox = forwardRef(({
 
                 {/* Content field - shown after type is selected */}
                 {nodeType && (
-                  <div className="node-creation-field" style={{ position: 'relative' }}>
+                  <div className="node-creation-field">
                     <label className="node-creation-label">
                       {nodeType === 'source' ? 'Description' : 'Claim'}
                     </label>
@@ -407,18 +426,13 @@ export const NodeBox = forwardRef(({
                     {/* Search results dropdown */}
                     {showResults && searchResults.length > 0 && (
                       <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
                         backgroundColor: 'var(--bg-secondary)',
                         border: '1px solid var(--accent-blue)',
                         borderRadius: '4px',
                         maxHeight: '200px',
                         overflowY: 'auto',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-                        zIndex: 100,
-                        marginTop: '4px'
+                        marginTop: '8px'
                       }}>
                         <div style={{
                           padding: '8px 12px',
@@ -503,7 +517,9 @@ export const NodeBox = forwardRef(({
                 disabled={!isValid || isSubmitting}
                 onClick={onSubmit}
               >
-                {isSubmitting ? 'Creating...' : 'Create'}
+                {mode === 'edit'
+                  ? (isSubmitting ? 'Saving...' : 'Save Changes')
+                  : (isSubmitting ? 'Creating...' : 'Create')}
               </button>
             </div>
           )}

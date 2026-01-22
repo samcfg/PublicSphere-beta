@@ -19,4 +19,10 @@ urlpatterns = [
 
     # Search endpoint
     path('search/', views.search_nodes, name='search-nodes'),
+
+    # Engagement metrics endpoint
+    path('engagement/<uuid:entity_id>/', views.entity_engagement, name='entity-engagement'),
+
+    # Page view tracking endpoint
+    path('pageview/<uuid:entity_id>/', views.track_page_view, name='track-page-view'),
 ]

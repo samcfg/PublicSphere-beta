@@ -208,3 +208,6 @@ Make node creation
   - Notes? 
 Make node page
 Things always get wonky in the frontend. The API needs to be strong to keep things organized. 
+Added search to createnodemodal
+Added basic owner edit to nodes and edges (added delete to edges)
+Made basic "engagement calculation" in graph/views.py, and for it an incrementing viewcounter, just counts page refreshes. This is used to reduce the time that an entity can be edited or deleted without a vote. Think about storing in db engagement as it becomes more used for performance

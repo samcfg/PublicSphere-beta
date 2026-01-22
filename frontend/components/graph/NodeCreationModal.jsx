@@ -142,12 +142,12 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         throw new Error('Could not get node data');
       }
 
-      const { mode, nodeType, content, title, url, selectedNodeId } = nodeData;
+      const { inputMode, nodeType, content, title, url, selectedNodeId } = nodeData;
 
       let newNodeId;
 
       // Step 1: Create node OR use existing node
-      if (mode === 'selected') {
+      if (inputMode === 'selected') {
         // Using existing node - skip creation
         newNodeId = selectedNodeId;
       } else {
@@ -210,7 +210,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       // Success - add to graph locally (no refetch needed)
       try {
         // Only add node to cytoscape if we created a new one (not using existing)
-        if (mode !== 'selected') {
+        if (inputMode !== 'selected') {
           const nodeDisplayData = {
             id: newNodeId,
             label: nodeType === 'source' ? 'Source' : 'Claim',
@@ -237,7 +237,8 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
                     entity_type: nodeType,
                     username: user.username,
                     timestamp: new Date().toISOString(),
-                    is_anonymous: false
+                    is_anonymous: false,
+                    is_own: true
                   },
                   editors: []
                 }
@@ -247,15 +248,36 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         }
 
         // Add new edge to cytoscape (always, even for existing nodes)
-        const { from_node_id, to_node_id, logic_type } = connectionData;
+        const { from_node_id, to_node_id, logic_type, notes } = connectionData;
+        const edgeId = connResult.data?.id || connResult.data?.uuid || `${from_node_id}-${to_node_id}`;
         cy.add({
           data: {
-            id: connResult.data?.id || connResult.data?.uuid || `${from_node_id}-${to_node_id}`,
+            id: edgeId,
             source: from_node_id,
             target: to_node_id,
-            ...(logic_type ? { logic_type } : {})
+            ...(logic_type ? { logic_type } : {}),
+            ...(notes ? { notes } : {})
           }
         });
+
+        // Add connection attribution to cache
+        if (updateAttributions && user) {
+          updateAttributions({
+            add: {
+              [edgeId]: {
+                creator: {
+                  entity_uuid: edgeId,
+                  entity_type: 'connection',
+                  username: user.username,
+                  timestamp: new Date().toISOString(),
+                  is_anonymous: false,
+                  is_own: true
+                },
+                editors: []
+              }
+            }
+          });
+        }
 
         // Run layout to position graph
         cy.layout({
@@ -301,11 +323,11 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         if (!nodeBox) continue;
 
         const nodeData = nodeBox.getData();
-        const { mode, nodeType, content, title, url, selectedNodeId } = nodeData;
+        const { inputMode, nodeType, content, title, url, selectedNodeId } = nodeData;
 
         let nodeId;
 
-        if (mode === 'selected') {
+        if (inputMode === 'selected') {
           // Using existing node - skip creation
           nodeId = selectedNodeId;
         } else {
@@ -396,7 +418,8 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
                       entity_type: nodeData.nodeType,
                       username: user.username,
                       timestamp: new Date().toISOString(),
-                      is_anonymous: false
+                      is_anonymous: false,
+                      is_own: true
                     },
                     editors: []
                   }
@@ -406,15 +429,38 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           }
 
           // Add edges (always, for both new and existing nodes)
+          const edgeId = `${nodeId}-${existingNodeId}`;
           cy.add({
             data: {
-              id: `${nodeId}-${existingNodeId}`,
+              id: edgeId,
               source: nodeId,
               target: existingNodeId,
               logic_type: logicType,
-              composite_id: connResult.data?.composite_id || connResult.data?.id
+              composite_id: connResult.data?.composite_id || connResult.data?.id,
+              notes: connectionNotes.trim()
             }
           });
+
+          // Add edge attribution to cache (only once for the compound connection)
+          if (i === 0 && updateAttributions && user) {
+            // Use composite_id if available, otherwise use first edge id
+            const attributionId = connResult.data?.composite_id || connResult.data?.id || edgeId;
+            updateAttributions({
+              add: {
+                [attributionId]: {
+                  creator: {
+                    entity_uuid: attributionId,
+                    entity_type: 'connection',
+                    username: user.username,
+                    timestamp: new Date().toISOString(),
+                    is_anonymous: false,
+                    is_own: true
+                  },
+                  editors: []
+                }
+              }
+            });
+          }
         }
 
         // Run layout

@@ -4,11 +4,12 @@ import { PositionedOverlay } from './PositionedOverlay.jsx';
 import { UserAttribution } from '../common/UserAttribution.jsx';
 import { CommentsRating } from '../common/CommentsRating.jsx';
 import { NodeCreationModal } from './NodeCreationModal.jsx';
+import { NodeBox } from './NodeBox.jsx';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import { useAttributions } from '../../utilities/AttributionContext.jsx';
-import { deleteClaim, deleteSource } from '../../APInterface/api.js';
+import { deleteClaim, deleteSource, updateClaim, updateSource } from '../../APInterface/api.js';
 import { FaMagnifyingGlassArrowRight } from "react-icons/fa6";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus, FaRegEdit } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
 
 /**
@@ -28,9 +29,12 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   const [activeTab, setActiveTab] = useState(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const contentRef = useRef(null);
   const frameRef = useRef(null); // Frame container for positioning NodeCreationModal
+  const nodeBoxRef = useRef(null); // Ref for edit NodeBox
 
   // ResizeObserver to measure content height dynamically
   useEffect(() => {
@@ -104,6 +108,53 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
     }
   };
 
+  // Edit handler
+  const handleEditSubmit = async () => {
+    if (!nodeBoxRef.current) return;
+
+    setIsEditSubmitting(true);
+    const data = nodeBoxRef.current.getData();
+
+    // If user selected different node during edit, that's a replacement (future: fork)
+    if (data.inputMode === 'selected') {
+      // For now, just close - future: implement fork/replace logic
+      alert('Switching to existing node not yet implemented');
+      setIsEditSubmitting(false);
+      return;
+    }
+
+    try {
+      const updateFn = nodeType === 'source' ? updateSource : updateClaim;
+      const updateData = nodeType === 'source'
+        ? { title: data.title, url: data.url, content: data.content }
+        : { content: data.content };
+
+      const result = await updateFn(token, nodeId, updateData);
+
+      if (result.error) {
+        nodeBoxRef.current.setError(result.error || 'Cannot edit this node');
+        setIsEditSubmitting(false);
+        return;
+      }
+
+      // Success: update cytoscape node
+      if (nodeType === 'source') {
+        node.data('label', data.title);
+        node.data('url', data.url);
+        node.data('content', data.content);
+      } else {
+        node.data('label', data.content);
+      }
+
+      // Close modal
+      setShowEditModal(false);
+      setIsEditSubmitting(false);
+    } catch (err) {
+      nodeBoxRef.current.setError(err.message);
+      setIsEditSubmitting(false);
+    }
+  };
+
   if (!activeNodeTooltip || !cy) return null;
 
   const node = activeNodeTooltip.node;
@@ -116,9 +167,9 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   // Determine entity type for attribution/comments
   const entityType = nodeType === 'source' ? 'source' : 'claim';
 
-  // Check if current user is creator (for delete permission)
+  // Check if current user is creator (for edit/delete permission)
   const attribution = attributionsCache[nodeId];
-  const isCreator = user && attribution?.creator?.username === user.username;
+  const isCreator = attribution?.creator?.is_own === true;
 
   // Determine highlight color based on node type
   const getNodeColor = () => {
@@ -290,6 +341,27 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                     </button>
                     {isCreator && (
                       <button
+                        onClick={() => setShowEditModal(true)}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          padding: '2px',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Edit node"
+                      >
+                        <FaRegEdit />
+                      </button>
+                    )}
+                    {isCreator && (
+                      <button
                         onClick={handleDelete}
                         disabled={isDeleting}
                         style={{
@@ -386,6 +458,47 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
         updateAttributions={updateAttributions}
         onGraphChange={onGraphChange}
       />
+      {/* Edit Modal */}
+      {showEditModal && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setShowEditModal(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 9999
+            }}
+          />
+          {/* Modal */}
+          <div style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10000
+          }}>
+            <NodeBox
+              ref={nodeBoxRef}
+              mode="edit"
+              initialData={{
+                nodeType: nodeType,
+                content: node.data('content') || '',
+                title: nodeType === 'source' ? (node.data('title') || nodeLabel) : '',
+                url: nodeUrl || ''
+              }}
+              showControls={true}
+              onClose={() => setShowEditModal(false)}
+              onSubmit={handleEditSubmit}
+              isSubmitting={isEditSubmitting}
+            />
+          </div>
+        </>
+      )}
     </>
   );
 }

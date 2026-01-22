@@ -172,6 +172,46 @@ class Comment(models.Model):
         return self.content
 
 
+class ViewCount(models.Model):
+    """
+    Simple view counter for entities. GDPR-compliant (no personal data).
+    Stores only aggregate counts, not individual views.
+    """
+    ENTITY_TYPE_CHOICES = [
+        ('claim', 'Claim'),
+        ('source', 'Source'),
+        ('connection', 'Connection'),
+    ]
+
+    entity_uuid = models.CharField(
+        max_length=36,
+        unique=True,
+        db_index=True,
+        help_text="UUID of the entity"
+    )
+    entity_type = models.CharField(
+        max_length=20,
+        choices=ENTITY_TYPE_CHOICES
+    )
+    count = models.IntegerField(
+        default=0,
+        help_text="Total view count"
+    )
+
+    class Meta:
+        db_table = 'view_counts'
+        verbose_name = 'View Count'
+        verbose_name_plural = 'View Counts'
+        indexes = [
+            models.Index(fields=['entity_uuid']),
+        ]
+        # One counter per entity
+        unique_together = [['entity_uuid', 'entity_type']]
+
+    def __str__(self):
+        return f"{self.entity_type} {self.entity_uuid[:8]}: {self.count} views"
+
+
 class FlaggedContent(models.Model):
     """
     Moderation flags for review.
