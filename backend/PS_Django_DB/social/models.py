@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from users.models import User
@@ -21,6 +22,7 @@ class Rating(models.Model):
         ('source', 'Source'),
         ('connection', 'Connection'),
         ('comment', 'Comment'),
+        ('suggested_edit', 'Suggested Edit'),
     ]
 
     user = models.ForeignKey(
@@ -210,6 +212,87 @@ class ViewCount(models.Model):
 
     def __str__(self):
         return f"{self.entity_type} {self.entity_uuid[:8]}: {self.count} views"
+
+
+class SuggestedEdit(models.Model):
+    """
+    User-proposed modifications to locked nodes (past edit window or not owned).
+    Community rates suggestions; accepted suggestions apply changes to target node.
+
+    Workflow:
+    1. User creates suggestion → status='pending'
+    2. Community rates the suggestion (Rating model with entity_type='suggested_edit')
+    3. Moderator reviews OR threshold auto-triggers → status='accepted'/'rejected'
+    4. Accepted suggestions apply changes via ops.edit_node()
+    """
+    ENTITY_TYPE_CHOICES = [
+        ('claim', 'Claim'),
+        ('source', 'Source'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+
+    suggestion_id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="UUID for this suggestion"
+    )
+    entity_uuid = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID of the target claim or source to modify"
+    )
+    entity_type = models.CharField(
+        max_length=20,
+        choices=ENTITY_TYPE_CHOICES
+    )
+    suggested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='suggested_edits'
+    )
+    proposed_changes = models.JSONField(
+        help_text="Dict of property: new_value pairs. E.g. {'content': 'new text'}"
+    )
+    rationale = models.TextField(
+        help_text="Why this change improves the node"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    resolved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resolved_suggestions'
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'suggested_edits'
+        verbose_name = 'Suggested Edit'
+        verbose_name_plural = 'Suggested Edits'
+        indexes = [
+            models.Index(fields=['entity_uuid']),
+            models.Index(fields=['status']),
+            models.Index(fields=['suggested_by']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        user_display = self.suggested_by.username if self.suggested_by else '[deleted]'
+        return f"Suggestion for {self.entity_type} {self.entity_uuid[:8]} by {user_display} ({self.status})"
 
 
 class FlaggedContent(models.Model):

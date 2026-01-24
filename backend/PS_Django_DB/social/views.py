@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from django.shortcuts import get_object_or_404
 
-from social.models import Comment, FlaggedContent
+from social.models import Comment, FlaggedContent, SuggestedEdit
 from social.serializers import (
     RatingSerializer,
     RatingCreateSerializer,
@@ -19,12 +19,15 @@ from social.serializers import (
     FlagSerializer,
     FlagCreateSerializer,
     FlagResolveSerializer,
+    SuggestedEditSerializer,
+    SuggestedEditCreateSerializer,
 )
 from social.services import (
     RatingService,
     CommentService,
     ModerationService,
     SocialAnonymityService,
+    SuggestionService,
 )
 from common.api_standards import standard_response
 
@@ -460,3 +463,144 @@ class ToggleSocialAnonymityView(APIView):
                 status_code=status.HTTP_404_NOT_FOUND,
                 source='social'
             )
+
+
+class CreateSuggestionView(APIView):
+    """
+    Create a suggested edit for a node.
+    POST /api/social/suggestions/
+    Body: {entity_uuid, entity_type, proposed_changes, rationale}
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = SuggestedEditCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            suggestion_service = SuggestionService()
+            suggestion = suggestion_service.create_suggestion(
+                user_id=request.user.id,
+                entity_uuid=serializer.validated_data['entity_uuid'],
+                entity_type=serializer.validated_data['entity_type'],
+                proposed_changes=serializer.validated_data['proposed_changes'],
+                rationale=serializer.validated_data['rationale']
+            )
+            response_serializer = SuggestedEditSerializer(suggestion)
+            return standard_response(
+                data=response_serializer.data,
+                status_code=status.HTTP_201_CREATED,
+                source='social'
+            )
+        return standard_response(
+            error={'code': 'validation_error', 'message': serializer.errors},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            source='social'
+        )
+
+
+class EntitySuggestionsView(APIView):
+    """
+    Get all suggestions for an entity.
+    GET /api/social/suggestions/?entity=<uuid>&status=<pending|accepted|rejected>
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        entity_uuid = request.query_params.get('entity')
+        status_filter = request.query_params.get('status')
+
+        if not entity_uuid:
+            return standard_response(
+                error={'code': 'missing_parameter', 'message': 'entity parameter is required'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
+
+        # Validate status if provided
+        if status_filter and status_filter not in ['pending', 'accepted', 'rejected']:
+            return standard_response(
+                error={'code': 'validation_error', 'message': 'status must be pending, accepted, or rejected'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                source='social'
+            )
+
+        suggestion_service = SuggestionService()
+        suggestions = suggestion_service.get_entity_suggestions(entity_uuid, status=status_filter)
+
+        serializer = SuggestedEditSerializer(suggestions, many=True)
+        return standard_response(data=serializer.data, source='social')
+
+
+class SuggestionDetailView(APIView):
+    """
+    Get details of a specific suggestion.
+    GET /api/social/suggestions/<suggestion_id>/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, suggestion_id):
+        suggestion_service = SuggestionService()
+        suggestion = suggestion_service.get_suggestion(str(suggestion_id))
+
+        if not suggestion:
+            return standard_response(
+                error={'code': 'not_found', 'message': 'Suggestion not found'},
+                status_code=status.HTTP_404_NOT_FOUND,
+                source='social'
+            )
+
+        serializer = SuggestedEditSerializer(suggestion)
+        return standard_response(data=serializer.data, source='social')
+
+
+class CheckSuggestionThresholdView(APIView):
+    """
+    Check if a suggestion meets acceptance threshold.
+    GET /api/social/suggestions/<suggestion_id>/check-threshold/
+    Returns: {can_accept: bool, reason: str|null, rating_stats: {...}}
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, suggestion_id):
+        suggestion_service = SuggestionService()
+        suggestion = suggestion_service.get_suggestion(str(suggestion_id))
+
+        if not suggestion:
+            return standard_response(
+                error={'code': 'not_found', 'message': 'Suggestion not found'},
+                status_code=status.HTTP_404_NOT_FOUND,
+                source='social'
+            )
+
+        # Calculate engagement for target node
+        from graph.views import calculate_engagement
+        engagement = calculate_engagement(suggestion.entity_uuid, suggestion.entity_type)
+
+        # Check threshold
+        can_accept, reason = suggestion_service.check_acceptance_threshold(
+            str(suggestion_id),
+            engagement
+        )
+
+        # Get rating stats
+        from django.db.models import Avg, Count
+        from social.models import Rating
+        stats = Rating.objects.filter(
+            entity_uuid=str(suggestion_id),
+            entity_type='suggested_edit'
+        ).aggregate(
+            count=Count('id'),
+            avg=Avg('score')
+        )
+
+        return standard_response(
+            data={
+                'can_accept': can_accept,
+                'reason': reason,
+                'rating_stats': {
+                    'count': stats['count'] or 0,
+                    'avg': round(stats['avg'], 1) if stats['avg'] is not None else None
+                },
+                'node_engagement': round(engagement, 2)
+            },
+            source='social'
+        )

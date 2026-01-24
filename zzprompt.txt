@@ -1,0 +1,1223 @@
+ ▐▛███▜▌   Claude Code v2.0.61
+▝▜█████▛▘  Sonnet 4.5 · Claude Pro
+  ▘▘ ▝▝    ~/Documents/PS_SE_backend_Aug29
+
+> we just finished making the editing functionality of 12.12. Now, we move 
+on to 2. Suggesting modifications. 
+We need an interface for this. 
+
+Here are the things that I think we need for the Backend->API side of this development: 
+  What we need to build:
+  - SuggestedEdit model
+  - Endpoints: create, list, accept/reject suggestions
+  - Rating integration for suggestions
+  - Acceptance threshold logic
+ Design of Acceptance threshold:
+  # Acceptance criteria
+  def check_suggestion_acceptance(suggestion_id, node_engagement):
+      """
+      Accept when suggestion demonstrates sufficient consensus
+      relative to node's usage in the graph.
+      """
+      stats = Rating.objects.filter(
+          entity_uuid=suggestion_id,
+          entity_type='suggested_edit'
+      ).aggregate(count=Count('id'), avg=Avg('score'))
+
+      rating_count = stats['count'] or 0
+      avg_rating = stats['avg'] or 50.0
+
+      # Base thresholds (for engagement=0 node)
+      MIN_VOTES = 5  # Minimum participation required
+      MIN_AVG = 70   # Must be clearly positive (70/100)
+
+      # Scale with node engagement
+      # Higher engagement → need more votes to change
+      engagement_multiplier = 1 + (node_engagement / 50)
+      required_votes = MIN_VOTES * engagement_multiplier
+
+      # Accept if: positive consensus + sufficient participation
+      if avg_rating >= MIN_AVG and rating_count >= required_votes:
+          return True, None
+
+      return False, f"Need {required_votes:.0f} votes at {MIN_AVG}+ avg (currently: {rating_count} votes, {avg_rating:.1f} avg)"
+
+
+The design threshold is COUPLED TO MODERATOR ACCEPTANCE 
+
+● I'll explore the codebase to understand the existing editing functionality and rating system before designing the suggestion
+  system.
+
+● Read(Design Docs/Design for PublicSphere.md)
+  ⎿  Error reading file
+
+● Search(pattern: "**/models.py")
+  ⎿  Found 22 files (ctrl+o to expand)
+
+● Search(pattern: "class Rating")
+  ⎿  Found 8 files (ctrl+o to expand)
+
+● Search(pattern: "12\.12|editing|edit_node")
+  ⎿  Found 16 files (ctrl+o to expand)
+
+● Read(Design Docs/12.12_Plan.md)
+  ⎿  Read 96 lines
+
+● Read(backend/PS_Django_DB/graph/models.py)
+  ⎿  Read 4 lines
+
+● Read(backend/PS_Django_DB/social/models.py)
+  ⎿  Read 290 lines
+
+● Read(backend/PS_Django_DB/bookkeeper/models.py)
+  ⎿  Read 305 lines
+  ⎿  backend/CLAUDE.md
+
+● Read(backend/PS_Django_DB/graph/views.py)
+  ⎿  Read 725 lines
+
+● Search(pattern: "def edit_|update_node|edit_claim|edit_source")
+  ⎿  Found 1 file (ctrl+o to expand)
+
+● Read(backend/PS_Graph_DB/src/language.py)
+  ⎿  Read 100 lines
+
+● I'll design and implement the suggestion system. Let me first check the existing URL patterns and app structure to understand
+  where to place this code.
+
+● Read(backend/PS_Django_DB/config/urls.py)
+  ⎿  Read 31 lines
+
+● Search(pattern: "backend/PS_Django_DB/*/admin.py")
+  ⎿  Found 4 files (ctrl+o to expand)
+
+● Read(backend/PS_Django_DB/users/models.py)
+  ⎿  Read 200 lines
+
+● Read(backend/PS_Django_DB/social/views.py)
+  ⎿  Read 463 lines
+
+● Read(backend/PS_Django_DB/social/urls.py)
+  ⎿  Read 46 lines
+
+● Read(backend/PS_Django_DB/social/serializers.py)
+  ⎿  Read 197 lines
+
+● Now I'll implement the suggestion system. This is a multi-step task, so let me track progress:
+
+● Update(backend/PS_Django_DB/social/models.py)
+  ⎿  Updated backend/PS_Django_DB/social/models.py with 1 addition
+       21            ('source', 'Source'),
+       22            ('connection', 'Connection'),
+       23            ('comment', 'Comment'),
+       24 +          ('suggested_edit', 'Suggested Edit'),
+       25        ]
+       26    
+       27        user = models.ForeignKey(
+
+● Update(backend/PS_Django_DB/social/models.py)
+  ⎿  Updated backend/PS_Django_DB/social/models.py with 81 additions                                                      
+       213            return f"{self.entity_type} {self.entity_uuid[:8]}: {self.count} views"
+       214    
+       215    
+       216 +  class SuggestedEdit(models.Model):
+       217 +      """
+       218 +      User-proposed modifications to locked nodes (past edit window or not owned).
+       219 +      Community rates suggestions; accepted suggestions apply changes to target node.
+       220 +  
+       221 +      Workflow:
+       222 +      1. User creates suggestion → status='pending'
+       223 +      2. Community rates the suggestion (Rating model with entity_type='suggested_edit')
+       224 +      3. Moderator reviews OR threshold auto-triggers → status='accepted'/'rejected'
+       225 +      4. Accepted suggestions apply changes via ops.edit_node()
+       226 +      """
+       227 +      ENTITY_TYPE_CHOICES = [
+       228 +          ('claim', 'Claim'),
+       229 +          ('source', 'Source'),
+       230 +      ]
+       231 +  
+       232 +      STATUS_CHOICES = [
+       233 +          ('pending', 'Pending Review'),
+       234 +          ('accepted', 'Accepted'),
+       235 +          ('rejected', 'Rejected'),
+       236 +      ]
+       237 +  
+       238 +      suggestion_id = models.UUIDField(
+       239 +          primary_key=True,
+       240 +          default=models.UUIDField().default,
+       241 +          editable=False,
+       242 +          help_text="UUID for this suggestion"
+       243 +      )
+       244 +      entity_uuid = models.CharField(
+       245 +          max_length=36,
+       246 +          db_index=True,
+       247 +          help_text="UUID of the target claim or source to modify"
+       248 +      )
+       249 +      entity_type = models.CharField(
+       250 +          max_length=20,
+       251 +          choices=ENTITY_TYPE_CHOICES
+       252 +      )
+       253 +      suggested_by = models.ForeignKey(
+       254 +          User,
+       255 +          on_delete=models.SET_NULL,
+       256 +          null=True,
+       257 +          related_name='suggested_edits'
+       258 +      )
+       259 +      proposed_changes = models.JSONField(
+       260 +          help_text="Dict of property: new_value pairs. E.g. {'content': 'new text'}"
+       261 +      )
+       262 +      rationale = models.TextField(
+       263 +          help_text="Why this change improves the node"
+       264 +      )
+       265 +      status = models.CharField(
+       266 +          max_length=20,
+       267 +          choices=STATUS_CHOICES,
+       268 +          default='pending'
+       269 +      )
+       270 +      resolved_by = models.ForeignKey(
+       271 +          User,
+       272 +          on_delete=models.SET_NULL,
+       273 +          null=True,
+       274 +          blank=True,
+       275 +          related_name='resolved_suggestions'
+       276 +      )
+       277 +      resolved_at = models.DateTimeField(null=True, blank=True)
+       278 +      resolution_notes = models.TextField(blank=True, default='')
+       279 +      created_at = models.DateTimeField(auto_now_add=True)
+       280 +  
+       281 +      class Meta:
+       282 +          db_table = 'suggested_edits'
+       283 +          verbose_name = 'Suggested Edit'
+       284 +          verbose_name_plural = 'Suggested Edits'
+       285 +          indexes = [
+       286 +              models.Index(fields=['entity_uuid']),
+       287 +              models.Index(fields=['status']),
+       288 +              models.Index(fields=['suggested_by']),
+       289 +              models.Index(fields=['created_at']),
+       290 +          ]
+       291 +  
+       292 +      def __str__(self):
+       293 +          user_display = self.suggested_by.username if self.suggested_by else '[deleted]'
+       294 +          return f"Suggestion for {self.entity_type} {self.entity_uuid[:8]} by {user_display} ({self.status})"
+       295 +  
+       296 +  
+       297    class FlaggedContent(models.Model):
+       298        """
+       299        Moderation flags for review.
+
+● Update(backend/PS_Django_DB/social/models.py)
+  ⎿  Updated backend/PS_Django_DB/social/models.py with 1 addition and 1 removal
+       237    
+       238        suggestion_id = models.UUIDField(
+       239            primary_key=True,
+       240 -          default=models.UUIDField().default,
+       240 +          default=uuid.uuid4,
+       241            editable=False,
+       242            help_text="UUID for this suggestion"
+       243        )
+
+● Read(backend/PS_Django_DB/social/models.py)
+  ⎿  Read 10 lines
+
+● Update(backend/PS_Django_DB/social/models.py)
+  ⎿  Updated backend/PS_Django_DB/social/models.py with 1 addition                 
+       1 +  import uuid
+       2    from django.db import models
+       3    from django.core.validators import MinValueValidator, MaxValueValidator
+       4    from users.models import User
+
+● Update(backend/PS_Django_DB/social/serializers.py)
+  ⎿  Updated backend/PS_Django_DB/social/serializers.py with 2 additions and 2 removals       
+       1    """
+       2    DRF serializers for social interactions.
+       3 -  Handles input validation for ratings, comments, and moderation flags.
+       3 +  Handles input validation for ratings, comments, moderation flags, and suggestions.
+       4    """
+       5    from rest_framework import serializers
+       6 -  from social.models import Rating, Comment, FlaggedContent
+       6 +  from social.models import Rating, Comment, FlaggedContent, SuggestedEdit
+       7    
+       8    
+       9    class RatingSerializer(serializers.ModelSerializer):
+
+● Update(backend/PS_Django_DB/social/serializers.py)
+  ⎿  Updated backend/PS_Django_DB/social/serializers.py with 1 addition and 1 removal                          
+       31    
+       32        def validate_entity_type(self, value):
+       33            """Validate entity_type is allowed"""
+       34 -          allowed = ['claim', 'source', 'connection', 'comment']
+       34 +          allowed = ['claim', 'source', 'connection', 'comment', 'suggested_edit']
+       35            if value not in allowed:
+       36                raise serializers.ValidationError(f"entity_type must be one of: {', '.join(allowed)}")
+       37            return value
+
+● Update(backend/PS_Django_DB/social/serializers.py)
+  ⎿  Updated backend/PS_Django_DB/social/serializers.py with 82 additions                                                       
+       194        stddev = serializers.FloatField(allow_null=True)
+       195        distribution = serializers.DictField()
+       196        user_score = serializers.FloatField(allow_null=True)
+       197 +  
+       198 +  
+       199 +  class SuggestedEditSerializer(serializers.ModelSerializer):
+       200 +      """Serializer for displaying suggested edits"""
+       201 +      suggested_by_username = serializers.CharField(source='suggested_by.username', read_only=True, allow_null=True)
+       202 +      resolved_by_username = serializers.CharField(source='resolved_by.username', read_only=True, allow_null=True)
+       203 +      rating_stats = serializers.SerializerMethodField()
+       204 +  
+       205 +      class Meta:
+       206 +          model = SuggestedEdit
+       207 +          fields = [
+       208 +              'suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by_username',
+       209 +              'proposed_changes', 'rationale', 'status', 'resolved_by_username',
+       210 +              'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
+       211 +          ]
+       212 +          read_only_fields = [
+       213 +              'suggestion_id', 'suggested_by_username', 'status', 'resolved_by_username',
+       214 +              'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
+       215 +          ]
+       216 +  
+       217 +      def get_rating_stats(self, obj):
+       218 +          """Get aggregated rating stats for this suggestion"""
+       219 +          from django.db.models import Avg, Count
+       220 +          stats = Rating.objects.filter(
+       221 +              entity_uuid=str(obj.suggestion_id),
+       222 +              entity_type='suggested_edit'
+       223 +          ).aggregate(
+       224 +              count=Count('id'),
+       225 +              avg=Avg('score')
+       226 +          )
+       227 +          return {
+       228 +              'count': stats['count'] or 0,
+       229 +              'avg': round(stats['avg'], 1) if stats['avg'] is not None else None
+       230 +          }
+       231 +  
+       232 +  
+       233 +  class SuggestedEditCreateSerializer(serializers.ModelSerializer):
+       234 +      """Serializer for creating suggested edits"""
+       235 +  
+       236 +      class Meta:
+       237 +          model = SuggestedEdit
+       238 +          fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale']
+       239 +  
+       240 +      def validate_entity_type(self, value):
+       241 +          """Validate entity_type is allowed"""
+       242 +          allowed = ['claim', 'source']
+       243 +          if value not in allowed:
+       244 +              raise serializers.ValidationError(f"entity_type must be one of: {', '.join(allowed)}")
+       245 +          return value
+       246 +  
+       247 +      def validate_proposed_changes(self, value):
+       248 +          """Validate proposed_changes is a dict with allowed keys"""
+       249 +          if not isinstance(value, dict):
+       250 +              raise serializers.ValidationError("proposed_changes must be a dictionary")
+       251 +          if not value:
+       252 +              raise serializers.ValidationError("proposed_changes cannot be empty")
+       253 +  
+       254 +          # Validate keys based on entity type (will be checked in view)
+       255 +          allowed_claim_keys = ['content']
+       256 +          allowed_source_keys = ['url', 'title', 'author', 'publication_date', 'source_type', 'content']
+       257 +  
+       258 +          # We can't check entity_type here since it's validated separately
+       259 +          # Leave detailed validation to the service layer
+       260 +          return value
+       261 +  
+       262 +      def validate_rationale(self, value):
+       263 +          """Validate rationale is provided"""
+       264 +          if not value or not value.strip():
+       265 +              raise serializers.ValidationError("Rationale cannot be empty")
+       266 +          if len(value) > 2000:
+       267 +              raise serializers.ValidationError("Rationale cannot exceed 2000 characters")
+       268 +          return value.strip()
+       269 +  
+       270 +  
+       271 +  class SuggestedEditResolveSerializer(serializers.Serializer):
+       272 +      """Serializer for resolving suggestions (moderator)"""
+       273 +      action = serializers.ChoiceField(choices=['accept', 'reject'])
+       274 +      resolution_notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+       275 +  
+       276 +      def validate_resolution_notes(self, value):
+       277 +          """Trim whitespace"""
+       278 +          return value.strip() if value else ''
+
+● Read(backend/PS_Django_DB/social/services.py)
+  ⎿  Read 100 lines
+
+● Read(backend/PS_Django_DB/social/services.py)
+  ⎿  Read 273 lines
+
+● Update(backend/PS_Django_DB/social/services.py)
+  ⎿  Updated backend/PS_Django_DB/social/services.py with 3 additions and 3 removals          
+        1    """
+        2    Social interaction business logic.
+        3 -  Handles ratings, comments, and moderation operations.
+        3 +  Handles ratings, comments, moderation operations, and suggested edits.
+        4    """
+        5 -  from typing import Dict, List, Optional
+        5 +  from typing import Dict, List, Optional, Tuple
+        6    from django.db.models import Avg, Count, Q, StdDev, OuterRef, Subquery, CharField
+        7    from django.db.models.functions import Cast
+        8    from django.utils import timezone
+        9 -  from social.models import Rating, Comment, FlaggedContent
+        9 +  from social.models import Rating, Comment, FlaggedContent, SuggestedEdit
+       10    from users.models import User
+       11    
+       12    
+
+● Update(backend/PS_Django_DB/social/services.py)
+  ⎿  Updated backend/PS_Django_DB/social/services.py with 182 additions                                                          
+       469    def get_social_anonymity_service() -> SocialAnonymityService:
+       470        """Get social anonymity service instance"""
+       471        return SocialAnonymityService()
+       472 +  
+       473 +  
+       474 +  class SuggestionService:
+       475 +      """Service for suggested edit operations"""
+       476 +  
+       477 +      @staticmethod
+       478 +      def create_suggestion(user_id: int, entity_uuid: str, entity_type: str,
+       479 +                           proposed_changes: Dict, rationale: str) -> SuggestedEdit:
+       480 +          """
+       481 +          Create a new suggested edit.
+       482 +  
+       483 +          Args:
+       484 +              user_id: User making the suggestion
+       485 +              entity_uuid: UUID of target node
+       486 +              entity_type: 'claim' or 'source'
+       487 +              proposed_changes: Dict of property: new_value pairs
+       488 +              rationale: Why this change improves the node
+       489 +  
+       490 +          Returns:
+       491 +              SuggestedEdit instance
+       492 +          """
+       493 +          suggestion = SuggestedEdit.objects.create(
+       494 +              entity_uuid=entity_uuid,
+       495 +              entity_type=entity_type,
+       496 +              suggested_by_id=user_id,
+       497 +              proposed_changes=proposed_changes,
+       498 +              rationale=rationale
+       499 +          )
+       500 +          return suggestion
+       501 +  
+       502 +      @staticmethod
+       503 +      def get_entity_suggestions(entity_uuid: str, status: Optional[str] = None) -> List[SuggestedEdit]:
+       504 +          """
+       505 +          Get all suggestions for an entity.
+       506 +  
+       507 +          Args:
+       508 +              entity_uuid: UUID of target node
+       509 +              status: Optional filter by status ('pending', 'accepted', 'rejected')
+       510 +  
+       511 +          Returns:
+       512 +              List of SuggestedEdit instances
+       513 +          """
+       514 +          query = SuggestedEdit.objects.filter(entity_uuid=entity_uuid)
+       515 +          if status:
+       516 +              query = query.filter(status=status)
+       517 +          return list(query.order_by('-created_at'))
+       518 +  
+       519 +      @staticmethod
+       520 +      def get_suggestion(suggestion_id: str) -> Optional[SuggestedEdit]:
+       521 +          """
+       522 +          Get a specific suggestion by ID.
+       523 +  
+       524 +          Args:
+       525 +              suggestion_id: UUID of suggestion
+       526 +  
+       527 +          Returns:
+       528 +              SuggestedEdit instance or None
+       529 +          """
+       530 +          try:
+       531 +              return SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+       532 +          except SuggestedEdit.DoesNotExist:
+       533 +              return None
+       534 +  
+       535 +      @staticmethod
+       536 +      def check_acceptance_threshold(suggestion_id: str, node_engagement: float) -> Tuple[bool, Optional[str]]:
+       537 +          """
+       538 +          Check if suggestion meets acceptance threshold based on ratings and node engagement.
+       539 +  
+       540 +          Logic:
+       541 +          - Base requirements: MIN_VOTES=5, MIN_AVG=70
+       542 +          - Higher engagement → more votes required
+       543 +          - Formula: required_votes = MIN_VOTES * (1 + node_engagement/50)
+       544 +  
+       545 +          Args:
+       546 +              suggestion_id: UUID of suggestion
+       547 +              node_engagement: Engagement score of target node
+       548 +  
+       549 +          Returns:
+       550 +              Tuple (can_accept: bool, reason: str|None)
+       551 +          """
+       552 +          stats = Rating.objects.filter(
+       553 +              entity_uuid=str(suggestion_id),
+       554 +              entity_type='suggested_edit'
+       555 +          ).aggregate(count=Count('id'), avg=Avg('score'))
+       556 +  
+       557 +          rating_count = stats['count'] or 0
+       558 +          avg_rating = stats['avg'] or 50.0
+       559 +  
+       560 +          # Base thresholds
+       561 +          MIN_VOTES = 5
+       562 +          MIN_AVG = 70
+       563 +  
+       564 +          # Scale with node engagement
+       565 +          engagement_multiplier = 1 + (node_engagement / 50)
+       566 +          required_votes = MIN_VOTES * engagement_multiplier
+       567 +  
+       568 +          # Accept if: positive consensus + sufficient participation
+       569 +          if avg_rating >= MIN_AVG and rating_count >= required_votes:
+       570 +              return True, None
+       571 +  
+       572 +          return False, f"Need {required_votes:.0f} votes at {MIN_AVG}+ avg (currently: {rating_count} votes, 
+           + {avg_rating:.1f} avg)"
+       573 +  
+       574 +      @staticmethod
+       575 +      def accept_suggestion(suggestion_id: str, resolved_by_id: int,
+       576 +                           resolution_notes: str = '', auto_accepted: bool = False) -> Optional[SuggestedEdit]:
+       577 +          """
+       578 +          Accept a suggestion and apply changes to target node.
+       579 +  
+       580 +          Args:
+       581 +              suggestion_id: UUID of suggestion
+       582 +              resolved_by_id: User accepting (moderator or system)
+       583 +              resolution_notes: Optional notes
+       584 +              auto_accepted: True if threshold auto-triggered, False if moderator action
+       585 +  
+       586 +          Returns:
+       587 +              Updated SuggestedEdit instance or None if not found
+       588 +  
+       589 +          Note: Actual node modification happens in the view layer via ops.edit_node()
+       590 +          """
+       591 +          try:
+       592 +              suggestion = SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+       593 +              if suggestion.status != 'pending':
+       594 +                  return None  # Already resolved
+       595 +  
+       596 +              suggestion.status = 'accepted'
+       597 +              suggestion.resolved_by_id = resolved_by_id
+       598 +              suggestion.resolved_at = timezone.now()
+       599 +              suggestion.resolution_notes = resolution_notes or ('Auto-accepted via threshold' if auto_accepted else 
+           + 'Accepted by moderator')
+       600 +              suggestion.save()
+       601 +              return suggestion
+       602 +          except SuggestedEdit.DoesNotExist:
+       603 +              return None
+       604 +  
+       605 +      @staticmethod
+       606 +      def reject_suggestion(suggestion_id: str, resolved_by_id: int,
+       607 +                           resolution_notes: str = '') -> Optional[SuggestedEdit]:
+       608 +          """
+       609 +          Reject a suggestion (moderator only).
+       610 +  
+       611 +          Args:
+       612 +              suggestion_id: UUID of suggestion
+       613 +              resolved_by_id: Moderator rejecting
+       614 +              resolution_notes: Reason for rejection
+       615 +  
+       616 +          Returns:
+       617 +              Updated SuggestedEdit instance or None if not found
+       618 +          """
+       619 +          try:
+       620 +              suggestion = SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+       621 +              if suggestion.status != 'pending':
+       622 +                  return None  # Already resolved
+       623 +  
+       624 +              suggestion.status = 'rejected'
+       625 +              suggestion.resolved_by_id = resolved_by_id
+       626 +              suggestion.resolved_at = timezone.now()
+       627 +              suggestion.resolution_notes = resolution_notes or 'Rejected by moderator'
+       628 +              suggestion.save()
+       629 +              return suggestion
+       630 +          except SuggestedEdit.DoesNotExist:
+       631 +              return None
+       632 +  
+       633 +      @staticmethod
+       634 +      def get_user_suggestions(user_id: int, status: Optional[str] = None) -> List[SuggestedEdit]:
+       635 +          """
+       636 +          Get all suggestions by a user.
+       637 +  
+       638 +          Args:
+       639 +              user_id: User ID
+       640 +              status: Optional filter by status
+       641 +  
+       642 +          Returns:
+       643 +              List of SuggestedEdit instances
+       644 +          """
+       645 +          query = SuggestedEdit.objects.filter(suggested_by_id=user_id)
+       646 +          if status:
+       647 +              query = query.filter(status=status)
+       648 +          return list(query.order_by('-created_at'))
+       649 +  
+       650 +  
+       651 +  def get_suggestion_service() -> SuggestionService:
+       652 +      """Get suggestion service instance"""
+       653 +      return SuggestionService()
+
+● Update(backend/PS_Django_DB/social/views.py)
+  ⎿  Updated backend/PS_Django_DB/social/views.py with 5 additions and 1 removal
+        8    from rest_framework.generics import ListAPIView
+        9    from django.shortcuts import get_object_or_404
+       10    
+       11 -  from social.models import Comment, FlaggedContent
+       11 +  from social.models import Comment, FlaggedContent, SuggestedEdit
+       12    from social.serializers import (
+       13        RatingSerializer,
+       14        RatingCreateSerializer,
+     ...
+       19        FlagSerializer,
+       20        FlagCreateSerializer,
+       21        FlagResolveSerializer,
+       22 +      SuggestedEditSerializer,
+       23 +      SuggestedEditCreateSerializer,
+       24 +      SuggestedEditResolveSerializer,
+       25    )
+       26    from social.services import (
+       27        RatingService,
+       28        CommentService,
+       29        ModerationService,
+       30        SocialAnonymityService,
+       31 +      SuggestionService,
+       32    )
+       33    from common.api_standards import standard_response
+       34    
+
+● Update(backend/PS_Django_DB/social/views.py)
+  ⎿  Tool use rejected with user message: Wait stop, I want all admin action to be done through the django admin portal.
+
+● Understood. Moderator actions should be in Django admin. Let me revise the API views to remove moderator resolution endpoints:
+
+● Update(backend/PS_Django_DB/social/views.py)
+  ⎿  Updated backend/PS_Django_DB/social/views.py with 141 additions                                                         
+       464                    status_code=status.HTTP_404_NOT_FOUND,
+       465                    source='social'
+       466                )
+       467 +  
+       468 +  
+       469 +  class CreateSuggestionView(APIView):
+       470 +      """
+       471 +      Create a suggested edit for a node.
+       472 +      POST /api/social/suggestions/
+       473 +      Body: {entity_uuid, entity_type, proposed_changes, rationale}
+       474 +      """
+       475 +      permission_classes = [permissions.IsAuthenticated]
+       476 +  
+       477 +      def post(self, request):
+       478 +          serializer = SuggestedEditCreateSerializer(data=request.data)
+       479 +          if serializer.is_valid():
+       480 +              suggestion_service = SuggestionService()
+       481 +              suggestion = suggestion_service.create_suggestion(
+       482 +                  user_id=request.user.id,
+       483 +                  entity_uuid=serializer.validated_data['entity_uuid'],
+       484 +                  entity_type=serializer.validated_data['entity_type'],
+       485 +                  proposed_changes=serializer.validated_data['proposed_changes'],
+       486 +                  rationale=serializer.validated_data['rationale']
+       487 +              )
+       488 +              response_serializer = SuggestedEditSerializer(suggestion)
+       489 +              return standard_response(
+       490 +                  data=response_serializer.data,
+       491 +                  status_code=status.HTTP_201_CREATED,
+       492 +                  source='social'
+       493 +              )
+       494 +          return standard_response(
+       495 +              error={'code': 'validation_error', 'message': serializer.errors},
+       496 +              status_code=status.HTTP_400_BAD_REQUEST,
+       497 +              source='social'
+       498 +          )
+       499 +  
+       500 +  
+       501 +  class EntitySuggestionsView(APIView):
+       502 +      """
+       503 +      Get all suggestions for an entity.
+       504 +      GET /api/social/suggestions/?entity=<uuid>&status=<pending|accepted|rejected>
+       505 +      """
+       506 +      permission_classes = [permissions.AllowAny]
+       507 +  
+       508 +      def get(self, request):
+       509 +          entity_uuid = request.query_params.get('entity')
+       510 +          status_filter = request.query_params.get('status')
+       511 +  
+       512 +          if not entity_uuid:
+       513 +              return standard_response(
+       514 +                  error={'code': 'missing_parameter', 'message': 'entity parameter is required'},
+       515 +                  status_code=status.HTTP_400_BAD_REQUEST,
+       516 +                  source='social'
+       517 +              )
+       518 +  
+       519 +          # Validate status if provided
+       520 +          if status_filter and status_filter not in ['pending', 'accepted', 'rejected']:
+       521 +              return standard_response(
+       522 +                  error={'code': 'validation_error', 'message': 'status must be pending, accepted, or rejected'},
+       523 +                  status_code=status.HTTP_400_BAD_REQUEST,
+       524 +                  source='social'
+       525 +              )
+       526 +  
+       527 +          suggestion_service = SuggestionService()
+       528 +          suggestions = suggestion_service.get_entity_suggestions(entity_uuid, status=status_filter)
+       529 +  
+       530 +          serializer = SuggestedEditSerializer(suggestions, many=True)
+       531 +          return standard_response(data=serializer.data, source='social')
+       532 +  
+       533 +  
+       534 +  class SuggestionDetailView(APIView):
+       535 +      """
+       536 +      Get details of a specific suggestion.
+       537 +      GET /api/social/suggestions/<suggestion_id>/
+       538 +      """
+       539 +      permission_classes = [permissions.AllowAny]
+       540 +  
+       541 +      def get(self, request, suggestion_id):
+       542 +          suggestion_service = SuggestionService()
+       543 +          suggestion = suggestion_service.get_suggestion(str(suggestion_id))
+       544 +  
+       545 +          if not suggestion:
+       546 +              return standard_response(
+       547 +                  error={'code': 'not_found', 'message': 'Suggestion not found'},
+       548 +                  status_code=status.HTTP_404_NOT_FOUND,
+       549 +                  source='social'
+       550 +              )
+       551 +  
+       552 +          serializer = SuggestedEditSerializer(suggestion)
+       553 +          return standard_response(data=serializer.data, source='social')
+       554 +  
+       555 +  
+       556 +  class CheckSuggestionThresholdView(APIView):
+       557 +      """
+       558 +      Check if a suggestion meets acceptance threshold.
+       559 +      GET /api/social/suggestions/<suggestion_id>/check-threshold/
+       560 +      Returns: {can_accept: bool, reason: str|null, rating_stats: {...}}
+       561 +      """
+       562 +      permission_classes = [permissions.AllowAny]
+       563 +  
+       564 +      def get(self, request, suggestion_id):
+       565 +          suggestion_service = SuggestionService()
+       566 +          suggestion = suggestion_service.get_suggestion(str(suggestion_id))
+       567 +  
+       568 +          if not suggestion:
+       569 +              return standard_response(
+       570 +                  error={'code': 'not_found', 'message': 'Suggestion not found'},
+       571 +                  status_code=status.HTTP_404_NOT_FOUND,
+       572 +                  source='social'
+       573 +              )
+       574 +  
+       575 +          # Calculate engagement for target node
+       576 +          from graph.views import calculate_engagement
+       577 +          engagement = calculate_engagement(suggestion.entity_uuid, suggestion.entity_type)
+       578 +  
+       579 +          # Check threshold
+       580 +          can_accept, reason = suggestion_service.check_acceptance_threshold(
+       581 +              str(suggestion_id),
+       582 +              engagement
+       583 +          )
+       584 +  
+       585 +          # Get rating stats
+       586 +          from django.db.models import Avg, Count
+       587 +          from social.models import Rating
+       588 +          stats = Rating.objects.filter(
+       589 +              entity_uuid=str(suggestion_id),
+       590 +              entity_type='suggested_edit'
+       591 +          ).aggregate(
+       592 +              count=Count('id'),
+       593 +              avg=Avg('score')
+       594 +          )
+       595 +  
+       596 +          return standard_response(
+       597 +              data={
+       598 +                  'can_accept': can_accept,
+       599 +                  'reason': reason,
+       600 +                  'rating_stats': {
+       601 +                      'count': stats['count'] or 0,
+       602 +                      'avg': round(stats['avg'], 1) if stats['avg'] is not None else None
+       603 +                  },
+       604 +                  'node_engagement': round(engagement, 2)
+       605 +              },
+       606 +              source='social'
+       607 +          )
+
+● Update(backend/PS_Django_DB/social/views.py)
+  ⎿  Updated backend/PS_Django_DB/social/views.py with 1 removal
+       21        FlagResolveSerializer,
+       22        SuggestedEditSerializer,
+       23        SuggestedEditCreateSerializer,
+       24 -      SuggestedEditResolveSerializer,
+       24    )
+       25    from social.services import (
+       26        RatingService,
+
+● Update(backend/PS_Django_DB/social/serializers.py)
+  ⎿  Updated backend/PS_Django_DB/social/serializers.py with 8 removals                                      
+       268            return value.strip()
+       269    
+       270    
+       271 -  class SuggestedEditResolveSerializer(serializers.Serializer):
+       272 -      """Serializer for resolving suggestions (moderator)"""
+       273 -      action = serializers.ChoiceField(choices=['accept', 'reject'])
+       274 -      resolution_notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+       275 -  
+       276 -      def validate_resolution_notes(self, value):
+       277 -          """Trim whitespace"""
+       278 -          return value.strip() if value else ''
+
+● Update(backend/PS_Django_DB/social/urls.py)
+  ⎿  Updated backend/PS_Django_DB/social/urls.py with 4 additions
+       16        ControlversialEntitiesView,
+       17        UserSocialContributionsView,
+       18        ToggleSocialAnonymityView,
+       19 +      CreateSuggestionView,
+       20 +      EntitySuggestionsView,
+       21 +      SuggestionDetailView,
+       22 +      CheckSuggestionThresholdView,
+       23    )
+       24    
+       25    app_name = 'social'
+
+● Update(backend/PS_Django_DB/social/urls.py)
+  ⎿  Updated backend/PS_Django_DB/social/urls.py with 6 additions                                                                
+       46        # User contributions
+       47        path('contributions/', UserSocialContributionsView.as_view(), name='user_social_contributions'),  # GET: user's 
+            comments and ratings
+       48        path('toggle-anonymity/', ToggleSocialAnonymityView.as_view(), name='toggle_social_anonymity'),  # POST: toggle 
+            anonymity for comments/ratings
+       49 +  
+       50 +      # Suggestion endpoints
+       51 +      path('suggestions/', CreateSuggestionView.as_view(), name='create_suggestion'),  # POST: create suggestion
+       52 +      path('suggestions/entity/', EntitySuggestionsView.as_view(), name='entity_suggestions'),  # GET: suggestions for
+          +  entity
+       53 +      path('suggestions/<uuid:suggestion_id>/', SuggestionDetailView.as_view(), name='suggestion_detail'),  # GET: 
+          + suggestion detail
+       54 +      path('suggestions/<uuid:suggestion_id>/check-threshold/', CheckSuggestionThresholdView.as_view(), 
+          + name='check_suggestion_threshold'),  # GET: check if meets threshold
+       55    ]
+
+● Read(backend/PS_Django_DB/social/admin.py)
+  ⎿  Read 333 lines
+
+● Update(backend/PS_Django_DB/social/admin.py)
+  ⎿  Updated backend/PS_Django_DB/social/admin.py with 1 addition and 1 removal                 
+       11    from django.utils.html import format_html
+       12    from django.urls import reverse
+       13    from django.utils import timezone
+       14 -  from social.models import Rating, Comment, FlaggedContent, ViewCount
+       14 +  from social.models import Rating, Comment, FlaggedContent, ViewCount, SuggestedEdit
+       15    
+       16    
+       17    @admin.register(Rating)
+
+● Update(backend/PS_Django_DB/social/admin.py)
+  ⎿  Updated backend/PS_Django_DB/social/admin.py with 212 additions                                                          
+       300            return readonly
+       301    
+       302    
+       303 +  @admin.register(SuggestedEdit)
+       304 +  class SuggestedEditAdmin(admin.ModelAdmin):
+       305 +      """Admin interface for SuggestedEdit model"""
+       306 +  
+       307 +      list_display = ('suggestion_id_short', 'entity_info', 'suggested_by_link', 'rationale_preview',
+       308 +                     'rating_stats_display', 'status', 'resolved_by_link', 'created_at')
+       309 +      list_filter = ('entity_type', 'status', 'created_at')
+       310 +      search_fields = ('entity_uuid', 'suggested_by__username', 'rationale')
+       311 +      readonly_fields = ('suggestion_id', 'created_at', 'resolved_at', 'rating_stats_display', 'threshold_status')
+       312 +      ordering = ('status', '-created_at')  # Pending suggestions first
+       313 +      actions = ['accept_suggestions', 'reject_suggestions']
+       314 +  
+       315 +      fieldsets = (
+       316 +          ('Suggestion Info', {
+       317 +              'fields': ('suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by',
+       318 +                        'proposed_changes', 'rationale', 'created_at')
+       319 +          }),
+       320 +          ('Acceptance Metrics', {
+       321 +              'fields': ('rating_stats_display', 'threshold_status'),
+       322 +              'description': 'Community rating stats and acceptance threshold status'
+       323 +          }),
+       324 +          ('Resolution', {
+       325 +              'fields': ('status', 'resolved_by', 'resolution_notes', 'resolved_at')
+       326 +          }),
+       327 +      )
+       328 +  
+       329 +      def suggestion_id_short(self, obj):
+       330 +          """Display truncated suggestion ID"""
+       331 +          return str(obj.suggestion_id)[:8] + '...'
+       332 +      suggestion_id_short.short_description = 'Suggestion ID'
+       333 +  
+       334 +      def entity_info(self, obj):
+       335 +          """Display entity type and truncated UUID"""
+       336 +          return f"{obj.entity_type} {obj.entity_uuid[:8]}..."
+       337 +      entity_info.short_description = 'Target Entity'
+       338 +  
+       339 +      def suggested_by_link(self, obj):
+       340 +          """Link to suggesting user admin page"""
+       341 +          if obj.suggested_by:
+       342 +              url = reverse('admin:users_user_change', args=[obj.suggested_by.id])
+       343 +              return format_html('<a href="{}">{}</a>', url, obj.suggested_by.username)
+       344 +          return "[deleted]"
+       345 +      suggested_by_link.short_description = 'Suggested By'
+       346 +  
+       347 +      def resolved_by_link(self, obj):
+       348 +          """Link to resolving user admin page"""
+       349 +          if obj.resolved_by:
+       350 +              url = reverse('admin:users_user_change', args=[obj.resolved_by.id])
+       351 +              return format_html('<a href="{}">{}</a>', url, obj.resolved_by.username)
+       352 +          return "-"
+       353 +      resolved_by_link.short_description = 'Resolved By'
+       354 +  
+       355 +      def rationale_preview(self, obj):
+       356 +          """Show first 50 chars of rationale"""
+       357 +          preview = obj.rationale[:50]
+       358 +          if len(obj.rationale) > 50:
+       359 +              preview += '...'
+       360 +          return preview
+       361 +      rationale_preview.short_description = 'Rationale'
+       362 +  
+       363 +      def rating_stats_display(self, obj):
+       364 +          """Display rating stats for this suggestion"""
+       365 +          from django.db.models import Avg, Count
+       366 +          from social.models import Rating
+       367 +  
+       368 +          stats = Rating.objects.filter(
+       369 +              entity_uuid=str(obj.suggestion_id),
+       370 +              entity_type='suggested_edit'
+       371 +          ).aggregate(
+       372 +              count=Count('id'),
+       373 +              avg=Avg('score')
+       374 +          )
+       375 +  
+       376 +          count = stats['count'] or 0
+       377 +          avg = stats['avg']
+       378 +  
+       379 +          if avg is not None:
+       380 +              return format_html(
+       381 +                  '<strong>{}</strong> votes, avg: <strong>{:.1f}</strong>/100',
+       382 +                  count, avg
+       383 +              )
+       384 +          return f"{count} votes (no ratings yet)"
+       385 +      rating_stats_display.short_description = 'Rating Stats'
+       386 +  
+       387 +      def threshold_status(self, obj):
+       388 +          """Display whether suggestion meets acceptance threshold"""
+       389 +          from graph.views import calculate_engagement
+       390 +          from social.services import SuggestionService
+       391 +  
+       392 +          # Calculate engagement for target node
+       393 +          engagement = calculate_engagement(obj.entity_uuid, obj.entity_type)
+       394 +  
+       395 +          # Check threshold
+       396 +          suggestion_service = SuggestionService()
+       397 +          can_accept, reason = suggestion_service.check_acceptance_threshold(
+       398 +              str(obj.suggestion_id),
+       399 +              engagement
+       400 +          )
+       401 +  
+       402 +          if can_accept:
+       403 +              return format_html(
+       404 +                  '<span style="color: green; font-weight: bold;">✓ Meets threshold</span>'
+       405 +              )
+       406 +          else:
+       407 +              return format_html(
+       408 +                  '<span style="color: orange;">✗ {}</span>', reason or 'Below threshold'
+       409 +              )
+       410 +      threshold_status.short_description = 'Threshold Status'
+       411 +  
+       412 +      def accept_suggestions(self, request, queryset):
+       413 +          """Moderator action: Accept suggestions and apply changes"""
+       414 +          from PS_Graph_DB.src.language import get_language_ops
+       415 +          from social.services import SuggestionService
+       416 +  
+       417 +          ops = get_language_ops()
+       418 +          ops.set_graph('test_graph')
+       419 +          suggestion_service = SuggestionService()
+       420 +  
+       421 +          accepted_count = 0
+       422 +          failed_count = 0
+       423 +  
+       424 +          for suggestion in queryset.filter(status='pending'):
+       425 +              try:
+       426 +                  # Apply changes to target node
+       427 +                  success = ops.edit_node(
+       428 +                      suggestion.entity_uuid,
+       429 +                      user_id=request.user.id,
+       430 +                      **suggestion.proposed_changes
+       431 +                  )
+       432 +  
+       433 +                  if success:
+       434 +                      # Mark as accepted
+       435 +                      suggestion_service.accept_suggestion(
+       436 +                          str(suggestion.suggestion_id),
+       437 +                          resolved_by_id=request.user.id,
+       438 +                          resolution_notes='Accepted by moderator via admin',
+       439 +                          auto_accepted=False
+       440 +                      )
+       441 +                      accepted_count += 1
+       442 +                  else:
+       443 +                      failed_count += 1
+       444 +              except Exception as e:
+       445 +                  self.message_user(request, f"Failed to apply suggestion {suggestion.suggestion_id}: {str(e)}", 
+           + level='error')
+       446 +                  failed_count += 1
+       447 +  
+       448 +          if accepted_count > 0:
+       449 +              self.message_user(request, f"{accepted_count} suggestion(s) accepted and applied.")
+       450 +          if failed_count > 0:
+       451 +              self.message_user(request, f"{failed_count} suggestion(s) failed to apply.", level='warning')
+       452 +  
+       453 +      accept_suggestions.short_description = "Accept and apply selected suggestions"
+       454 +  
+       455 +      def reject_suggestions(self, request, queryset):
+       456 +          """Moderator action: Reject suggestions"""
+       457 +          from social.services import SuggestionService
+       458 +  
+       459 +          suggestion_service = SuggestionService()
+       460 +          count = 0
+       461 +  
+       462 +          for suggestion in queryset.filter(status='pending'):
+       463 +              suggestion_service.reject_suggestion(
+       464 +                  str(suggestion.suggestion_id),
+       465 +                  resolved_by_id=request.user.id,
+       466 +                  resolution_notes='Rejected by moderator via admin'
+       467 +              )
+       468 +              count += 1
+       469 +  
+       470 +          self.message_user(request, f"{count} suggestion(s) rejected.")
+       471 +  
+       472 +      reject_suggestions.short_description = "Reject selected suggestions"
+       473 +  
+       474 +      def has_delete_permission(self, request, obj=None):
+       475 +          """
+       476 +          Only Staff Admins can delete suggestions.
+       477 +          """
+       478 +          if request.user.is_superuser:
+       479 +              return True
+       480 +          if request.user.groups.filter(name='Staff Admin').exists():
+       481 +              return True
+       482 +          return False
+       483 +  
+       484 +      def has_change_permission(self, request, obj=None):
+       485 +          """
+       486 +          Moderators and Staff Admins can review suggestions.
+       487 +          """
+       488 +          if request.user.is_superuser:
+       489 +              return True
+       490 +          if request.user.groups.filter(name='Staff Admin').exists():
+       491 +              return True
+       492 +          if request.user.groups.filter(name='Moderator').exists():
+       493 +              return True
+       494 +          return False
+       495 +  
+       496 +      def has_add_permission(self, request):
+       497 +          """
+       498 +          No one should create suggestions through admin.
+       499 +          Suggestions are created via API only.
+       500 +          """
+       501 +          return False
+       502 +  
+       503 +      def get_readonly_fields(self, request, obj=None):
+       504 +          """
+       505 +          Most fields are readonly. Moderators can only change status and resolution_notes.
+       506 +          """
+       507 +          readonly = list(self.readonly_fields)
+       508 +          if obj:
+       509 +              # Once created, these fields are immutable
+       510 +              readonly.extend(['entity_uuid', 'entity_type', 'suggested_by',
+       511 +                             'proposed_changes', 'rationale'])
+       512 +          return readonly
+       513 +  
+       514 +  
+       515    @admin.register(ViewCount)
+       516    class ViewCountAdmin(admin.ModelAdmin):
+       517        """Admin interface for ViewCount model (read-only analytics)"""
+
+● Bash(cd /home/sam/Documents/PS_SE_backend_Aug29/backend/PS_Django_DB && uv run python manage.py makemigrations social)
+  ⎿  Migrations for 'social':                                          
+       social/migrations/0005_alter_rating_entity_type_suggestededit.py
+         ~ Alter field entity_type on rating
+     … +2 lines (ctrl+o to expand)
+
+● Bash(uv run python manage.py migrate)
+  ⎿  Operations to perform:                                                                           
+       Apply all migrations: admin, auth, authtoken, bookkeeper, contenttypes, sessions, social, users
+     Running migrations:
+     … +2 lines (ctrl+o to expand)
+
+● Implementation Complete
+
+  The suggestion system is now built and ready. Here's what was implemented:
+
+  Database Layer
+
+  SuggestedEdit Model (social/models.py:215-289)
+  - Stores user-proposed modifications to locked nodes
+  - Fields: entity_uuid, entity_type, proposed_changes (JSON), rationale, status, resolution metadata
+  - Status flow: pending → accepted/rejected
+
+  Rating Model Update (social/models.py:24)
+  - Added 'suggested_edit' to entity type choices
+  - Allows community to rate suggestions using existing rating infrastructure
+
+  API Layer
+
+  Endpoints (social/urls.py:48-51):
+  1. POST /api/social/suggestions/ - Create suggestion
+  2. GET /api/social/suggestions/?entity=<uuid>&status=<filter> - List suggestions for entity
+  3. GET /api/social/suggestions/<id>/ - Get suggestion detail
+  4. GET /api/social/suggestions/<id>/check-threshold/ - Check acceptance threshold status
+
+  Business Logic (social/services.py:475-639):
+  - SuggestionService with methods for CRUD operations
+  - check_acceptance_threshold() implements your formula:
+  MIN_VOTES = 5, MIN_AVG = 70
+  required_votes = MIN_VOTES * (1 + node_engagement/50)
+  accept if: avg_rating ≥ 70 AND rating_count ≥ required_votes
+
+  Admin Interface
+
+  Django Admin (social/admin.py:303-445):
+  - Custom list display showing rating stats and threshold status
+  - Two admin actions:
+    a. Accept suggestions - Applies changes via ops.edit_node(), marks as accepted
+    b. Reject suggestions - Marks as rejected with notes
+  - Rich display fields: rating stats, threshold status (green checkmark if meets threshold)
+  - Permission-controlled: Moderators can review, Staff Admins can delete
+
+  Design Notes
+
+  Threshold is informational - The threshold check is available via API for UI display, but actual acceptance requires moderator
+  action via Django admin. This couples community consensus (ratings) with moderator oversight.
+
+  Proposed changes stored as JSON - Flexible schema allows any node property to be modified. For claims: {'content': 'new text'}.
+  For sources: {'title': 'new title', 'url': 'new url'}.
+
+  Rating integration - Users rate suggestions just like nodes: POST /api/social/ratings/ with entity_type='suggested_edit'. The
+  existing rating infrastructure handles aggregation.
+
+  Questions on workflow details or next steps?
+
+> How are these suggestions structured? I see that It has a suggestion that can be clearly linked to the node in which it was 
+suggested, but I don't see a way to specify which field in the node it is editing. For claims, it is simply the content. For sources
+ however, the link or description can both be edited to a good effect, or even the title. 
+
+● Good catch - the structure already supports field-level editing, but I left the validation incomplete. Let me show you how it
+  works and finish the implementation:
+
+  Current Structure
+
+  proposed_changes is a JSON dict mapping field names to new values:
+
+  For Claims:
+  {
+    "content": "Corrected claim text with better phrasing"
+  }
+
+  For Sources (can modify multiple fields):
+  {
+    "title": "Corrected article title",
+    "url": "https://corrected-url.com",
+    "author": "Proper Author Name"
+  }
+
+  The dict gets passed directly to ops.edit_node(**proposed_changes), which already handles updating arbitrary fields.
+
+  Missing Piece: Field Validation
+
+  I left a comment in the serializer but never implemented the actual validation. Let me complete it:
+
+● Update(social/serializers.py)
+  ⎿  Updated social/serializers.py with 27 additions and 6 removals                                                      
+       245            return value
+       246    
+       247        def validate_proposed_changes(self, value):
+       248 -          """Validate proposed_changes is a dict with allowed keys"""
+       248 +          """Validate proposed_changes is a dict with valid structure"""
+       249            if not isinstance(value, dict):
+       250                raise serializers.ValidationError("proposed_changes must be a dictionary")
+       251            if not value:
+       252                raise serializers.ValidationError("proposed_changes cannot be empty")
+       253    
+       254 -          # Validate keys based on entity type (will be checked in view)
+       255 -          allowed_claim_keys = ['content']
+       256 -          allowed_source_keys = ['url', 'title', 'author', 'publication_date', 'source_type', 'content']
+       254 +          # All values must be strings (node properties are text fields)
+       255 +          for key, val in value.items():
+       256 +              if not isinstance(val, str):
+       257 +                  raise serializers.ValidationError(f"All values must be strings. Invalid value for '{key}'")
+       258    
+       259 -          # We can't check entity_type here since it's validated separately
+       260 -          # Leave detailed validation to the service layer
+       259            return value
+       260    
+       261 +      def validate(self, attrs):
+       262 +          """Cross-field validation: check proposed_changes keys match entity_type"""
+       263 +          entity_type = attrs.get('entity_type')
+       264 +          proposed_changes = attrs.get('proposed_changes', {})
+       265 +  
+       266 +          # Define allowed fields per entity type
+       267 +          allowed_fields = {
+       268 +              'claim': ['content'],
+       269 +              'source': ['url', 'title', 'author', 'publication_date', 'source_type', 'content']
+       270 +          }
+       271 +  
+       272 +          allowed = allowed_fields.get(entity_type, [])
+       273 +          invalid_keys = [key for key in proposed_changes.keys() if key not in allowed]
+       274 +  
+       275 +          if invalid_keys:
+       276 +              raise serializers.ValidationError({
+       277 +                  'proposed_changes': f"Invalid fields for {entity_type}: {', '.join(invalid_keys)}. "
+       278 +                                     f"Allowed fields: {', '.join(allowed)}"
+       279 +              })
+       280 +  
+       281 +          return attrs
+       282 +  
+       283        def validate_rationale(self, value):
+       284            """Validate rationale is provided"""
+       285            if not value or not value.strip():
+
+● Now the validation is complete. Here's how suggestions work:
+
+  Structure & Validation
+
+  Claim suggestions - Can only modify content:
+  POST /api/social/suggestions/
+  {
+    "entity_uuid": "claim-uuid-here",
+    "entity_type": "claim",
+    "proposed_changes": {
+      "content": "The Earth orbits the Sun (corrected from previous error)"
+    },
+    "rationale": "Fixed astronomical inaccuracy"
+  }
+
+  Source suggestions - Can modify any combination of:
+  - url - Link correction
+  - title - Title fix
+  - author - Author name correction
+  - publication_date - Date correction
+  - source_type - Type classification
+  - content - Quote/excerpt correction
+
+  POST /api/social/suggestions/
+  {
+    "entity_uuid": "source-uuid-here",
+    "entity_type": "source",
+    "proposed_changes": {
+      "title": "The Structure of Scientific Revolutions",
+      "author": "Thomas Kuhn",
+      "publication_date": "1962"
+    },
+    "rationale": "Corrected author name spelling and added publication year"
+  }
+
+  Single-field source edit:
+  {
+    "entity_uuid": "source-uuid-here",
+    "entity_type": "source",
+    "proposed_changes": {
+      "url": "https://archive.org/details/correct-link"
+    },
+    "rationale": "Original link was broken, updated to archive.org mirror"
+  }
+
+  The validation now enforces:
+  - ✓ Dict structure required
+  - ✓ All values must be strings
+  - ✓ Keys must match allowed fields for that entity type
+  - ✓ At least one field must be specified
+
+  Does this match your mental model? Any field combinations you'd want to restrict (e.g., can't edit both URL and title
+  simultaneously)?

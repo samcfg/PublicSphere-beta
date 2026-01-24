@@ -1,9 +1,9 @@
 """
 DRF serializers for social interactions.
-Handles input validation for ratings, comments, and moderation flags.
+Handles input validation for ratings, comments, moderation flags, and suggestions.
 """
 from rest_framework import serializers
-from social.models import Rating, Comment, FlaggedContent
+from social.models import Rating, Comment, FlaggedContent, SuggestedEdit
 
 
 class RatingSerializer(serializers.ModelSerializer):
@@ -31,7 +31,7 @@ class RatingCreateSerializer(serializers.ModelSerializer):
 
     def validate_entity_type(self, value):
         """Validate entity_type is allowed"""
-        allowed = ['claim', 'source', 'connection', 'comment']
+        allowed = ['claim', 'source', 'connection', 'comment', 'suggested_edit']
         if value not in allowed:
             raise serializers.ValidationError(f"entity_type must be one of: {', '.join(allowed)}")
         return value
@@ -194,3 +194,98 @@ class RatingAggregateSerializer(serializers.Serializer):
     stddev = serializers.FloatField(allow_null=True)
     distribution = serializers.DictField()
     user_score = serializers.FloatField(allow_null=True)
+
+
+class SuggestedEditSerializer(serializers.ModelSerializer):
+    """Serializer for displaying suggested edits"""
+    suggested_by_username = serializers.CharField(source='suggested_by.username', read_only=True, allow_null=True)
+    resolved_by_username = serializers.CharField(source='resolved_by.username', read_only=True, allow_null=True)
+    rating_stats = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SuggestedEdit
+        fields = [
+            'suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by_username',
+            'proposed_changes', 'rationale', 'status', 'resolved_by_username',
+            'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
+        ]
+        read_only_fields = [
+            'suggestion_id', 'suggested_by_username', 'status', 'resolved_by_username',
+            'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
+        ]
+
+    def get_rating_stats(self, obj):
+        """Get aggregated rating stats for this suggestion"""
+        from django.db.models import Avg, Count
+        stats = Rating.objects.filter(
+            entity_uuid=str(obj.suggestion_id),
+            entity_type='suggested_edit'
+        ).aggregate(
+            count=Count('id'),
+            avg=Avg('score')
+        )
+        return {
+            'count': stats['count'] or 0,
+            'avg': round(stats['avg'], 1) if stats['avg'] is not None else None
+        }
+
+
+class SuggestedEditCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating suggested edits"""
+
+    class Meta:
+        model = SuggestedEdit
+        fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale']
+
+    def validate_entity_type(self, value):
+        """Validate entity_type is allowed"""
+        allowed = ['claim', 'source']
+        if value not in allowed:
+            raise serializers.ValidationError(f"entity_type must be one of: {', '.join(allowed)}")
+        return value
+
+    def validate_proposed_changes(self, value):
+        """Validate proposed_changes is a dict with valid structure"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("proposed_changes must be a dictionary")
+        if not value:
+            raise serializers.ValidationError("proposed_changes cannot be empty")
+
+        # All values must be strings (node properties are text fields)
+        for key, val in value.items():
+            if not isinstance(val, str):
+                raise serializers.ValidationError(f"All values must be strings. Invalid value for '{key}'")
+
+        return value
+
+    def validate(self, attrs):
+        """Cross-field validation: check proposed_changes keys match entity_type"""
+        entity_type = attrs.get('entity_type')
+        proposed_changes = attrs.get('proposed_changes', {})
+
+        # Define allowed fields per entity type
+        allowed_fields = {
+            'claim': ['content'],
+            'source': ['url', 'title', 'author', 'publication_date', 'source_type', 'content']
+        }
+
+        allowed = allowed_fields.get(entity_type, [])
+        invalid_keys = [key for key in proposed_changes.keys() if key not in allowed]
+
+        if invalid_keys:
+            raise serializers.ValidationError({
+                'proposed_changes': f"Invalid fields for {entity_type}: {', '.join(invalid_keys)}. "
+                                   f"Allowed fields: {', '.join(allowed)}"
+            })
+
+        return attrs
+
+    def validate_rationale(self, value):
+        """Validate rationale is provided"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Rationale cannot be empty")
+        if len(value) > 2000:
+            raise serializers.ValidationError("Rationale cannot exceed 2000 characters")
+        return value.strip()
+
+

@@ -16,6 +16,10 @@ from social.views import (
     ControlversialEntitiesView,
     UserSocialContributionsView,
     ToggleSocialAnonymityView,
+    CreateSuggestionView,
+    EntitySuggestionsView,
+    SuggestionDetailView,
+    CheckSuggestionThresholdView,
 )
 
 app_name = 'social'
@@ -42,4 +46,10 @@ urlpatterns = [
     # User contributions
     path('contributions/', UserSocialContributionsView.as_view(), name='user_social_contributions'),  # GET: user's comments and ratings
     path('toggle-anonymity/', ToggleSocialAnonymityView.as_view(), name='toggle_social_anonymity'),  # POST: toggle anonymity for comments/ratings
+
+    # Suggestion endpoints
+    path('suggestions/', CreateSuggestionView.as_view(), name='create_suggestion'),  # POST: create suggestion
+    path('suggestions/entity/', EntitySuggestionsView.as_view(), name='entity_suggestions'),  # GET: suggestions for entity
+    path('suggestions/<uuid:suggestion_id>/', SuggestionDetailView.as_view(), name='suggestion_detail'),  # GET: suggestion detail
+    path('suggestions/<uuid:suggestion_id>/check-threshold/', CheckSuggestionThresholdView.as_view(), name='check_suggestion_threshold'),  # GET: check if meets threshold
 ]

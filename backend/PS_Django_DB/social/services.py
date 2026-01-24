@@ -1,12 +1,12 @@
 """
 Social interaction business logic.
-Handles ratings, comments, and moderation operations.
+Handles ratings, comments, moderation operations, and suggested edits.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from django.db.models import Avg, Count, Q, StdDev, OuterRef, Subquery, CharField
 from django.db.models.functions import Cast
 from django.utils import timezone
-from social.models import Rating, Comment, FlaggedContent
+from social.models import Rating, Comment, FlaggedContent, SuggestedEdit
 from users.models import User
 
 
@@ -469,3 +469,185 @@ class SocialAnonymityService:
 def get_social_anonymity_service() -> SocialAnonymityService:
     """Get social anonymity service instance"""
     return SocialAnonymityService()
+
+
+class SuggestionService:
+    """Service for suggested edit operations"""
+
+    @staticmethod
+    def create_suggestion(user_id: int, entity_uuid: str, entity_type: str,
+                         proposed_changes: Dict, rationale: str) -> SuggestedEdit:
+        """
+        Create a new suggested edit.
+
+        Args:
+            user_id: User making the suggestion
+            entity_uuid: UUID of target node
+            entity_type: 'claim' or 'source'
+            proposed_changes: Dict of property: new_value pairs
+            rationale: Why this change improves the node
+
+        Returns:
+            SuggestedEdit instance
+        """
+        suggestion = SuggestedEdit.objects.create(
+            entity_uuid=entity_uuid,
+            entity_type=entity_type,
+            suggested_by_id=user_id,
+            proposed_changes=proposed_changes,
+            rationale=rationale
+        )
+        return suggestion
+
+    @staticmethod
+    def get_entity_suggestions(entity_uuid: str, status: Optional[str] = None) -> List[SuggestedEdit]:
+        """
+        Get all suggestions for an entity.
+
+        Args:
+            entity_uuid: UUID of target node
+            status: Optional filter by status ('pending', 'accepted', 'rejected')
+
+        Returns:
+            List of SuggestedEdit instances
+        """
+        query = SuggestedEdit.objects.filter(entity_uuid=entity_uuid)
+        if status:
+            query = query.filter(status=status)
+        return list(query.order_by('-created_at'))
+
+    @staticmethod
+    def get_suggestion(suggestion_id: str) -> Optional[SuggestedEdit]:
+        """
+        Get a specific suggestion by ID.
+
+        Args:
+            suggestion_id: UUID of suggestion
+
+        Returns:
+            SuggestedEdit instance or None
+        """
+        try:
+            return SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+        except SuggestedEdit.DoesNotExist:
+            return None
+
+    @staticmethod
+    def check_acceptance_threshold(suggestion_id: str, node_engagement: float) -> Tuple[bool, Optional[str]]:
+        """
+        Check if suggestion meets acceptance threshold based on ratings and node engagement.
+
+        Logic:
+        - Base requirements: MIN_VOTES=5, MIN_AVG=70
+        - Higher engagement → more votes required
+        - Formula: required_votes = MIN_VOTES * (1 + node_engagement/50)
+
+        Args:
+            suggestion_id: UUID of suggestion
+            node_engagement: Engagement score of target node
+
+        Returns:
+            Tuple (can_accept: bool, reason: str|None)
+        """
+        stats = Rating.objects.filter(
+            entity_uuid=str(suggestion_id),
+            entity_type='suggested_edit'
+        ).aggregate(count=Count('id'), avg=Avg('score'))
+
+        rating_count = stats['count'] or 0
+        avg_rating = stats['avg'] or 50.0
+
+        # Base thresholds
+        MIN_VOTES = 5
+        MIN_AVG = 70
+
+        # Scale with node engagement
+        engagement_multiplier = 1 + (node_engagement / 50)
+        required_votes = MIN_VOTES * engagement_multiplier
+
+        # Accept if: positive consensus + sufficient participation
+        if avg_rating >= MIN_AVG and rating_count >= required_votes:
+            return True, None
+
+        return False, f"Need {required_votes:.0f} votes at {MIN_AVG}+ avg (currently: {rating_count} votes, {avg_rating:.1f} avg)"
+
+    @staticmethod
+    def accept_suggestion(suggestion_id: str, resolved_by_id: int,
+                         resolution_notes: str = '', auto_accepted: bool = False) -> Optional[SuggestedEdit]:
+        """
+        Accept a suggestion and apply changes to target node.
+
+        Args:
+            suggestion_id: UUID of suggestion
+            resolved_by_id: User accepting (moderator or system)
+            resolution_notes: Optional notes
+            auto_accepted: True if threshold auto-triggered, False if moderator action
+
+        Returns:
+            Updated SuggestedEdit instance or None if not found
+
+        Note: Actual node modification happens in the view layer via ops.edit_node()
+        """
+        try:
+            suggestion = SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+            if suggestion.status != 'pending':
+                return None  # Already resolved
+
+            suggestion.status = 'accepted'
+            suggestion.resolved_by_id = resolved_by_id
+            suggestion.resolved_at = timezone.now()
+            suggestion.resolution_notes = resolution_notes or ('Auto-accepted via threshold' if auto_accepted else 'Accepted by moderator')
+            suggestion.save()
+            return suggestion
+        except SuggestedEdit.DoesNotExist:
+            return None
+
+    @staticmethod
+    def reject_suggestion(suggestion_id: str, resolved_by_id: int,
+                         resolution_notes: str = '') -> Optional[SuggestedEdit]:
+        """
+        Reject a suggestion (moderator only).
+
+        Args:
+            suggestion_id: UUID of suggestion
+            resolved_by_id: Moderator rejecting
+            resolution_notes: Reason for rejection
+
+        Returns:
+            Updated SuggestedEdit instance or None if not found
+        """
+        try:
+            suggestion = SuggestedEdit.objects.get(suggestion_id=suggestion_id)
+            if suggestion.status != 'pending':
+                return None  # Already resolved
+
+            suggestion.status = 'rejected'
+            suggestion.resolved_by_id = resolved_by_id
+            suggestion.resolved_at = timezone.now()
+            suggestion.resolution_notes = resolution_notes or 'Rejected by moderator'
+            suggestion.save()
+            return suggestion
+        except SuggestedEdit.DoesNotExist:
+            return None
+
+    @staticmethod
+    def get_user_suggestions(user_id: int, status: Optional[str] = None) -> List[SuggestedEdit]:
+        """
+        Get all suggestions by a user.
+
+        Args:
+            user_id: User ID
+            status: Optional filter by status
+
+        Returns:
+            List of SuggestedEdit instances
+        """
+        query = SuggestedEdit.objects.filter(suggested_by_id=user_id)
+        if status:
+            query = query.filter(status=status)
+        return list(query.order_by('-created_at'))
+
+
+def get_suggestion_service() -> SuggestionService:
+    """Get suggestion service instance"""
+    return SuggestionService()
