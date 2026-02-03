@@ -198,7 +198,7 @@ class RatingAggregateSerializer(serializers.Serializer):
 
 class SuggestedEditSerializer(serializers.ModelSerializer):
     """Serializer for displaying suggested edits"""
-    suggested_by_username = serializers.CharField(source='suggested_by.username', read_only=True, allow_null=True)
+    suggested_by_username = serializers.SerializerMethodField()
     resolved_by_username = serializers.CharField(source='resolved_by.username', read_only=True, allow_null=True)
     rating_stats = serializers.SerializerMethodField()
 
@@ -206,13 +206,17 @@ class SuggestedEditSerializer(serializers.ModelSerializer):
         model = SuggestedEdit
         fields = [
             'suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by_username',
-            'proposed_changes', 'rationale', 'status', 'resolved_by_username',
+            'proposed_changes', 'rationale', 'is_anonymous', 'status', 'resolved_by_username',
             'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
         ]
         read_only_fields = [
             'suggestion_id', 'suggested_by_username', 'status', 'resolved_by_username',
-            'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
+            'resolution_notes', 'created_at', 'resolved_at', 'rating_stats', 'is_anonymous'
         ]
+
+    def get_suggested_by_username(self, obj):
+        """Return username respecting anonymity"""
+        return obj.get_display_name()
 
     def get_rating_stats(self, obj):
         """Get aggregated rating stats for this suggestion"""
@@ -235,7 +239,7 @@ class SuggestedEditCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SuggestedEdit
-        fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale']
+        fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale', 'is_anonymous']
 
     def validate_entity_type(self, value):
         """Validate entity_type is allowed"""

@@ -315,7 +315,7 @@ class SuggestedEditAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Suggestion Info', {
             'fields': ('suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by',
-                      'proposed_changes', 'rationale', 'created_at')
+                      'is_anonymous', 'proposed_changes', 'rationale', 'created_at')
         }),
         ('Acceptance Metrics', {
             'fields': ('rating_stats_display', 'threshold_status'),
@@ -337,11 +337,12 @@ class SuggestedEditAdmin(admin.ModelAdmin):
     entity_info.short_description = 'Target Entity'
 
     def suggested_by_link(self, obj):
-        """Link to suggesting user admin page"""
-        if obj.suggested_by:
+        """Link to suggesting user admin page (respects anonymity for display)"""
+        display_name = obj.get_display_name()
+        if obj.suggested_by and not obj.is_anonymous:
             url = reverse('admin:users_user_change', args=[obj.suggested_by.id])
             return format_html('<a href="{}">{}</a>', url, obj.suggested_by.username)
-        return "[deleted]"
+        return display_name
     suggested_by_link.short_description = 'Suggested By'
 
     def resolved_by_link(self, obj):

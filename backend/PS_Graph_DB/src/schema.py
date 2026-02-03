@@ -30,12 +30,39 @@ class BasicSchema:
                 label='Source',
                 required_properties={'id': str},
                 optional_properties={
-                    'url': str,
+                    # Core citation fields
                     'title': str,
-                    'author': str,
+                    'source_type': str,  # 'journal_article', 'book', 'book_chapter', 'website',
+                                        # 'newspaper', 'magazine', 'conference_paper', 'thesis',
+                                        # 'report', 'personal_communication', 'observation', 'preprint'
+                    'authors': str,  # JSON string: [{"name": "...", "role": "author"}]
+                    'author': str,   # Legacy field (deprecated)
+
+                    # Publication metadata
                     'publication_date': str,
-                    'source_type': str,  # 'web', 'book', 'paper', 'observation'
-                    'content': str       # quotes/excerpts
+                    'container_title': str,  # Journal/book/website/conference name
+                    'publisher': str,
+                    'publisher_location': str,
+
+                    # Volume/Issue/Pages
+                    'volume': str,
+                    'issue': str,
+                    'pages': str,
+
+                    # Identifiers
+                    'url': str,
+                    'doi': str,
+                    'isbn': str,
+                    'issn': str,
+
+                    # Web-specific
+                    'accessed_date': str,  # ISO 8601 date
+
+                    # Flexible metadata
+                    'metadata': str,  # JSON string for additional fields
+
+                    # Content
+                    'content': str   # quotes/excerpts
                 }
             )
         }

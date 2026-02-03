@@ -476,7 +476,7 @@ class SuggestionService:
 
     @staticmethod
     def create_suggestion(user_id: int, entity_uuid: str, entity_type: str,
-                         proposed_changes: Dict, rationale: str) -> SuggestedEdit:
+                         proposed_changes: Dict, rationale: str, is_anonymous: bool = False) -> SuggestedEdit:
         """
         Create a new suggested edit.
 
@@ -486,6 +486,7 @@ class SuggestionService:
             entity_type: 'claim' or 'source'
             proposed_changes: Dict of property: new_value pairs
             rationale: Why this change improves the node
+            is_anonymous: Whether to display as anonymous
 
         Returns:
             SuggestedEdit instance
@@ -495,7 +496,8 @@ class SuggestionService:
             entity_type=entity_type,
             suggested_by_id=user_id,
             proposed_changes=proposed_changes,
-            rationale=rationale
+            rationale=rationale,
+            is_anonymous=is_anonymous
         )
         return suggestion
 

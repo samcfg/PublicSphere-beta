@@ -177,14 +177,35 @@ class LanguageOperations:
         return claim_id
 
     def create_source(self, source_id: Optional[str] = None,
-                     url: Optional[str] = None,
+                     # Core citation fields
                      title: Optional[str] = None,
-                     author: Optional[str] = None,
-                     publication_date: Optional[str] = None,
                      source_type: Optional[str] = None,
+                     authors: Optional[list] = None,  # [{"name": "...", "role": "author"}]
+                     author: Optional[str] = None,  # Legacy field (deprecated)
+                     # Publication metadata
+                     publication_date: Optional[str] = None,
+                     container_title: Optional[str] = None,
+                     publisher: Optional[str] = None,
+                     publisher_location: Optional[str] = None,
+                     # Volume/Issue/Pages
+                     volume: Optional[str] = None,
+                     issue: Optional[str] = None,
+                     pages: Optional[str] = None,
+                     # Identifiers
+                     url: Optional[str] = None,
+                     doi: Optional[str] = None,
+                     isbn: Optional[str] = None,
+                     issn: Optional[str] = None,
+                     # Web-specific
+                     accessed_date: Optional[str] = None,
+                     # Flexible metadata
+                     metadata: Optional[dict] = None,
+                     # Content
                      content: Optional[str] = None,
                      user_id: Optional[int] = None) -> str:
         """Create a new Source node with UUID and optional properties"""
+        import json
+
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -195,30 +216,41 @@ class LanguageOperations:
         cypher_props = f"id: '{source_id}'"
         log_props = {}
 
-        if url is not None:
-            escaped_url = self._escape_cypher_string(url)
-            cypher_props += f", url: '{escaped_url}'"
-            log_props['url'] = url
-        if title is not None:
-            escaped_title = self._escape_cypher_string(title)
-            cypher_props += f", title: '{escaped_title}'"
-            log_props['title'] = title
-        if author is not None:
-            escaped_author = self._escape_cypher_string(author)
-            cypher_props += f", author: '{escaped_author}'"
-            log_props['author'] = author
-        if publication_date is not None:
-            escaped_date = self._escape_cypher_string(publication_date)
-            cypher_props += f", publication_date: '{escaped_date}'"
-            log_props['publication_date'] = publication_date
-        if source_type is not None:
-            escaped_type = self._escape_cypher_string(source_type)
-            cypher_props += f", source_type: '{escaped_type}'"
-            log_props['source_type'] = source_type
-        if content is not None:
-            escaped_content = self._escape_cypher_string(content)
-            cypher_props += f", content: '{escaped_content}'"
-            log_props['content'] = content
+        # Helper function to add property
+        def add_prop(name: str, value, is_json: bool = False):
+            if value is not None:
+                if is_json:
+                    # Serialize JSON to string for AGE storage
+                    json_str = json.dumps(value)
+                    escaped_value = self._escape_cypher_string(json_str)
+                    nonlocal cypher_props
+                    cypher_props += f", {name}: '{escaped_value}'"
+                    log_props[name] = value  # Store original object in Django
+                else:
+                    escaped_value = self._escape_cypher_string(str(value))
+                    nonlocal cypher_props
+                    cypher_props += f", {name}: '{escaped_value}'"
+                    log_props[name] = value
+
+        # Add all properties
+        add_prop('title', title)
+        add_prop('source_type', source_type)
+        add_prop('authors', authors, is_json=True)
+        add_prop('author', author)  # Legacy
+        add_prop('publication_date', publication_date)
+        add_prop('container_title', container_title)
+        add_prop('publisher', publisher)
+        add_prop('publisher_location', publisher_location)
+        add_prop('volume', volume)
+        add_prop('issue', issue)
+        add_prop('pages', pages)
+        add_prop('url', url)
+        add_prop('doi', doi)
+        add_prop('isbn', isbn)
+        add_prop('issn', issn)
+        add_prop('accessed_date', accessed_date)
+        add_prop('metadata', metadata, is_json=True)
+        add_prop('content', content)
 
         self._execute_with_logging(
             cypher_query=f"CREATE (s:Source {{{cypher_props}}}) RETURN s",

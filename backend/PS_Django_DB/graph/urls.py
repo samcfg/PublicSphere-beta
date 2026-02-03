@@ -9,6 +9,7 @@ urlpatterns = [
     # Sources endpoints
     path('sources/', views.sources_list, name='sources-list'),
     path('sources/<uuid:source_id>/', views.source_detail, name='source-detail'),
+    path('sources/fetch-metadata/', views.fetch_citation_metadata, name='fetch-citation-metadata'),
 
     # Connections endpoints
     path('connections/', views.connections_list, name='connections-list'),

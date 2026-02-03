@@ -15,31 +15,87 @@ class ClaimCreateSerializer(serializers.Serializer):
 class SourceSerializer(serializers.Serializer):
     """Serializer for Source nodes"""
     id = serializers.UUIDField(read_only=True)
-    url = serializers.URLField(max_length=2000, required=False, allow_blank=True, allow_null=True)
+
+    # Core citation fields
     title = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)
-    publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
     source_type = serializers.ChoiceField(
-        choices=['web', 'book', 'paper', 'observation'],
+        choices=['journal_article', 'book', 'book_chapter', 'website',
+                'newspaper', 'magazine', 'conference_paper', 'thesis',
+                'report', 'personal_communication', 'observation', 'preprint'],
         required=False,
         allow_blank=True,
         allow_null=True
     )
+    authors = serializers.JSONField(required=False, allow_null=True)
+    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)  # Legacy
+
+    # Publication metadata
+    publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    container_title = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
+    publisher = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    publisher_location = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+
+    # Volume/Issue/Pages
+    volume = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    issue = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    pages = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+
+    # Identifiers
+    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
+    doi = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    isbn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    issn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+
+    # Web-specific
+    accessed_date = serializers.DateField(required=False, allow_null=True)
+
+    # Flexible metadata
+    metadata = serializers.JSONField(required=False, allow_null=True)
+
+    # Content
     content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
 
 
 class SourceCreateSerializer(serializers.Serializer):
     """Serializer for creating Source nodes"""
-    url = serializers.URLField(max_length=2000, required=False, allow_blank=True, allow_null=True)
+    # Core citation fields
     title = serializers.CharField(max_length=500, required=True, allow_blank=False)  # REQUIRED
-    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)
-    publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
     source_type = serializers.ChoiceField(
-        choices=['web', 'book', 'paper', 'observation'],
+        choices=['journal_article', 'book', 'book_chapter', 'website',
+                'newspaper', 'magazine', 'conference_paper', 'thesis',
+                'report', 'personal_communication', 'observation', 'preprint'],
         required=False,
         allow_blank=True,
         allow_null=True
     )
+    authors = serializers.JSONField(required=False, allow_null=True)
+    # Expected format: [{"name": "Last, First", "role": "author", "affiliation": "..."}]
+    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)  # Legacy
+
+    # Publication metadata
+    publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    container_title = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
+    publisher = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    publisher_location = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+
+    # Volume/Issue/Pages
+    volume = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    issue = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    pages = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+
+    # Identifiers
+    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
+    doi = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    isbn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    issn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+
+    # Web-specific
+    accessed_date = serializers.DateField(required=False, allow_null=True)
+
+    # Flexible metadata
+    metadata = serializers.JSONField(required=False, allow_null=True)
+
+    # Content
     content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
 
 

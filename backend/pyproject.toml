@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "PublicSphere Backend"
 requires-python = ">=3.11"
 dependencies = [
+    "beautifulsoup4>=4.14.3",
     "django==5.2.8",
     "djangorestframework==3.16.1",
+    "habanero>=2.3.0",
+    "lxml>=6.0.2",
     "psycopg2-binary==2.9.10",
+    "pypdf2>=3.0.1",
 ]
 
 [project.optional-dependencies]

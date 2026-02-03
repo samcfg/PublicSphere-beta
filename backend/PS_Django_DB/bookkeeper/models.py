@@ -83,17 +83,70 @@ class SourceVersion(models.Model):
         help_text="Sequential version number (v1, v2, v3...)"
     )
 
-    # Source properties (mirrors PS_Graph_DB BasicSchema Source node)
-    url = models.URLField(max_length=500, null=True, blank=True)
-    title = models.TextField(null=False, blank=False)  # REQUIRED - primary searchable identifier
-    author = models.CharField(max_length=200, null=True, blank=True)
-    publication_date = models.CharField(max_length=100, null=True, blank=True)
-    source_type = models.CharField(max_length=50, null=True, blank=True)  # 'web', 'book', 'paper', 'observation'
-    content = models.TextField(null=True, blank=True)  # quotes/excerpts
+    # ===== CORE CITATION FIELDS =====
 
-    # Search and deduplication fields
+    # Primary identification
+    title = models.TextField(null=False, blank=False)  # REQUIRED - primary searchable identifier
+    source_type = models.CharField(max_length=50, null=True, blank=True)
+    # Values: 'journal_article', 'book', 'book_chapter', 'website',
+    #         'newspaper', 'magazine', 'conference_paper', 'thesis',
+    #         'report', 'personal_communication', 'observation', 'preprint'
+
+    # Authors/Contributors (structured as JSON for flexibility)
+    authors = models.JSONField(null=True, blank=True)
+    # Structure: [{"name": "Last, First", "role": "author", "affiliation": "..."}]
+    # Roles: 'author', 'editor', 'translator', 'compiler'
+
+    # Legacy author field (deprecated, kept for backward compatibility)
+    author = models.CharField(max_length=200, null=True, blank=True)
+
+    # Publication metadata
+    publication_date = models.CharField(max_length=100, null=True, blank=True)
+    # ISO 8601 preferred, but accepts partial dates: "2024", "2024-03", "2024-03-15"
+
+    # Container (journal/book/website/conference name)
+    container_title = models.TextField(null=True, blank=True)
+    # Journal name, book title (for chapters), website name, conference name
+
+    # Publisher information
+    publisher = models.CharField(max_length=255, null=True, blank=True)
+    publisher_location = models.CharField(max_length=255, null=True, blank=True)
+
+    # Volume/Issue/Pages (journals, magazines, newspapers)
+    volume = models.CharField(max_length=50, null=True, blank=True)
+    issue = models.CharField(max_length=50, null=True, blank=True)
+    pages = models.CharField(max_length=50, null=True, blank=True)  # "123-145" or "E456"
+
+    # Identifiers
+    url = models.URLField(max_length=2048, null=True, blank=True)
+    doi = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    # Digital Object Identifier - unique, persistent
+    isbn = models.CharField(max_length=20, null=True, blank=True)
+    issn = models.CharField(max_length=20, null=True, blank=True)
+
+    # Web-specific metadata
+    accessed_date = models.DateField(null=True, blank=True)
+    # When URL was accessed (important for web sources that change)
+
+    # Additional metadata (flexible overflow for specialized fields)
+    metadata = models.JSONField(null=True, blank=True)
+    # Examples:
+    # - edition: "3rd edition"
+    # - series: "Lecture Notes in Computer Science"
+    # - version: "preprint v2"
+    # - archive: "arXiv"
+    # - arxiv_id: "2301.12345"
+    # - original_publication: {...} for translations/reprints
+    # - presentation_type: "poster" or "talk" for conferences
+
+    # Content (quotes/excerpts - separate from citation)
+    content = models.TextField(null=True, blank=True)
+
+    # ===== SEARCH AND DEDUPLICATION FIELDS =====
     url_normalized = models.CharField(max_length=2048, null=True, blank=True, db_index=True)
     # ↑ Auto-populated from url via save() override. Canonical form for duplicate detection.
+    doi_normalized = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    # ↑ Auto-populated from doi via save() override. Canonical form (lowercase, strip prefix).
     title_search = SearchVectorField(null=True, blank=True)
     # ↑ Auto-populated by DB trigger on INSERT/UPDATE. Full-text search on title.
     title_normalized = models.TextField(null=True, blank=True, db_index=True)
@@ -121,7 +174,10 @@ class SourceVersion(models.Model):
             models.Index(fields=['timestamp']),
             models.Index(fields=['valid_from', 'valid_to']),
             models.Index(fields=['node_id', 'version_number']),  # Lookup by entity + version
+            models.Index(fields=['source_type']),  # Filter by source type
             models.Index(fields=['url_normalized']),  # URL deduplication (Phase 1)
+            models.Index(fields=['doi_normalized']),  # DOI deduplication (highest priority)
+            models.Index(fields=['publication_date']),  # Chronological queries
             GinIndex(fields=['title_search'], name='source_title_search_idx'),  # Full-text search on title (Phase 3)
             GinIndex(fields=['title'], opclasses=['gin_trgm_ops'], name='source_title_trgm_idx'),  # Trigram similarity on title (Phase 2)
         ]
@@ -129,13 +185,19 @@ class SourceVersion(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to auto-populate normalized fields"""
-        from graph.utils import normalize_url, normalize_content
+        from graph.utils import normalize_url, normalize_content, normalize_doi
 
         # Auto-populate url_normalized if url is provided
         if self.url:
             self.url_normalized = normalize_url(self.url)
         else:
             self.url_normalized = None
+
+        # Auto-populate doi_normalized if doi is provided
+        if self.doi:
+            self.doi_normalized = normalize_doi(self.doi)
+        else:
+            self.doi_normalized = None
 
         # Auto-populate title_normalized for exact duplicate detection
         if self.title:

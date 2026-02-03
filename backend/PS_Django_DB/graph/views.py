@@ -15,6 +15,7 @@ from .serializers import (
     EdgeUpdateSerializer
 )
 from .services import DeduplicationService, SearchService
+from .citation_fetcher import CitationFetcher
 
 
 # Initialize language operations with graph
@@ -318,8 +319,9 @@ def sources_list(request):
         # Check for duplicates before creation
         url = serializer.validated_data.get('url')
         title = serializer.validated_data.get('title')
+        doi = serializer.validated_data.get('doi')
 
-        duplicate = DeduplicationService.check_duplicate_source(url=url, title=title)
+        duplicate = DeduplicationService.check_duplicate_source(url=url, title=title, doi=doi)
         if duplicate:
             return standard_response(
                 error=f"duplicate_{duplicate['duplicate_type']}",
@@ -336,17 +338,82 @@ def sources_list(request):
         try:
             user_id = request.user.id if request.user.is_authenticated else None
             source_id = ops.create_source(
-                url=url,
+                # Core citation fields
                 title=title,
-                author=serializer.validated_data.get('author'),
-                publication_date=serializer.validated_data.get('publication_date'),
                 source_type=serializer.validated_data.get('source_type'),
+                authors=serializer.validated_data.get('authors'),
+                author=serializer.validated_data.get('author'),  # Legacy
+                # Publication metadata
+                publication_date=serializer.validated_data.get('publication_date'),
+                container_title=serializer.validated_data.get('container_title'),
+                publisher=serializer.validated_data.get('publisher'),
+                publisher_location=serializer.validated_data.get('publisher_location'),
+                # Volume/Issue/Pages
+                volume=serializer.validated_data.get('volume'),
+                issue=serializer.validated_data.get('issue'),
+                pages=serializer.validated_data.get('pages'),
+                # Identifiers
+                url=url,
+                doi=serializer.validated_data.get('doi'),
+                isbn=serializer.validated_data.get('isbn'),
+                issn=serializer.validated_data.get('issn'),
+                # Web-specific
+                accessed_date=serializer.validated_data.get('accessed_date'),
+                # Flexible metadata
+                metadata=serializer.validated_data.get('metadata'),
+                # Content
                 content=serializer.validated_data.get('content'),
                 user_id=user_id
             )
             return standard_response(data={'id': source_id}, status_code=201, source='graph_db')
         except Exception as e:
             return standard_response(error=str(e), status_code=500, source='graph_db')
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Allow anyone to fetch citation metadata
+def fetch_citation_metadata(request):
+    """
+    POST: Fetch citation metadata from URL or PDF.
+
+    Body (one of):
+        - {"url": "..."} - Extract metadata from URL
+        - multipart form with pdf_file - Extract metadata from PDF
+
+    Returns:
+        {
+            data: {
+                success: bool,
+                source: 'crossref'|'arxiv'|'html_meta'|'pdf'|'fallback',
+                confidence: 'high'|'medium'|'low',
+                metadata: {...}  # Fields match SourceCreateSerializer
+            }
+        }
+    """
+    url = request.data.get('url')
+    pdf_file = request.FILES.get('pdf_file')
+
+    if not url and not pdf_file:
+        return standard_response(
+            error="Either 'url' or 'pdf_file' is required",
+            status_code=400,
+            source='citation_fetcher'
+        )
+
+    try:
+        if url:
+            result = CitationFetcher.fetch_from_url(url)
+        else:  # pdf_file
+            result = CitationFetcher.fetch_from_pdf(pdf_file)
+
+        return standard_response(data=result, source='citation_fetcher')
+
+    except Exception as e:
+        return standard_response(
+            error=f"Citation fetching failed: {str(e)}",
+            status_code=500,
+            source='citation_fetcher'
+        )
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])

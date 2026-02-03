@@ -482,7 +482,8 @@ class CreateSuggestionView(APIView):
                 entity_uuid=serializer.validated_data['entity_uuid'],
                 entity_type=serializer.validated_data['entity_type'],
                 proposed_changes=serializer.validated_data['proposed_changes'],
-                rationale=serializer.validated_data['rationale']
+                rationale=serializer.validated_data['rationale'],
+                is_anonymous=serializer.validated_data.get('is_anonymous', False)
             )
             response_serializer = SuggestedEditSerializer(suggestion)
             return standard_response(

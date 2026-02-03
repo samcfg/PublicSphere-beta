@@ -263,6 +263,10 @@ class SuggestedEdit(models.Model):
     rationale = models.TextField(
         help_text="Why this change improves the node"
     )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="If True, display as [anonymous] in public queries"
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -291,8 +295,18 @@ class SuggestedEdit(models.Model):
         ]
 
     def __str__(self):
-        user_display = self.suggested_by.username if self.suggested_by else '[deleted]'
+        user_display = self.get_display_name()
         return f"Suggestion for {self.entity_type} {self.entity_uuid[:8]} by {user_display} ({self.status})"
+
+    def get_display_name(self):
+        """
+        Returns the display name for UI rendering.
+        - [anonymous] if suggested_by is None (account deleted) OR is_anonymous is True
+        - username otherwise
+        """
+        if self.suggested_by is None or self.is_anonymous:
+            return "[anonymous]"
+        return self.suggested_by.username
 
 
 class FlaggedContent(models.Model):

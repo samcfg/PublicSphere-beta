@@ -83,31 +83,54 @@ class DeduplicationService:
         return None
 
     @staticmethod
-    def check_duplicate_source(url: str = None, title: str = None) -> dict | None:
+    def check_duplicate_source(url: str = None, title: str = None, doi: str = None) -> dict | None:
         """
-        Three-tier source deduplication.
+        Four-tier source deduplication.
 
         Args:
-            url: Source URL (optional but recommended)
+            url: Source URL (optional)
             title: Source title (required)
+            doi: Digital Object Identifier (optional, highest priority)
 
         Returns:
             {
-                'duplicate_type': 'url' | 'title_exact' | 'title_similar',
+                'duplicate_type': 'doi' | 'url' | 'title_exact' | 'title_similar',
                 'existing_id': str (node_id),
                 'existing_title': str,
                 'existing_url': str,
+                'existing_doi': str,
                 'similarity_score': float  # For 'title_similar' only
             } or None if no duplicate found
 
         Matching strategy (in order):
-            1. URL normalized match (hard block - same document)
-            2. Title exact match on title_normalized
-            3. Title trigram similarity > 0.85 (catches typos like "IPCC 2021" vs "IPCC Report 2021")
+            1. DOI normalized match (highest priority - globally unique identifier)
+            2. URL normalized match (hard block - same document)
+            3. Title exact match on title_normalized
+            4. Title trigram similarity > 0.85 (catches typos like "IPCC 2021" vs "IPCC Report 2021")
 
         Note: Source content field is NOT checked - it's user's personal summary.
         """
-        # 1. URL deduplication (Phase 1)
+        from .utils import normalize_doi
+
+        # 1. DOI deduplication (highest priority)
+        if doi:
+            doi_norm = normalize_doi(doi)
+            if doi_norm:
+                duplicate = SourceVersion.objects.filter(
+                    doi_normalized=doi_norm,
+                    valid_to__isnull=True
+                ).first()
+
+                if duplicate:
+                    return {
+                        'duplicate_type': 'doi',
+                        'existing_id': duplicate.node_id,
+                        'existing_title': duplicate.title,
+                        'existing_url': duplicate.url,
+                        'existing_doi': duplicate.doi,
+                    }
+
+        # 2. URL deduplication
         if url:
             url_norm = normalize_url(url)
             if url_norm:
