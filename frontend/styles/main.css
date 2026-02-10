@@ -11,6 +11,7 @@
 @import './components/modal.css';
 @import './components/comments-rating.css';
 @import './components/checkbox.css';
+@import './components/suggested-edits.css';
 
 /* Global Reset */
 html,

@@ -9,8 +9,8 @@ import '../../styles/components/ConnectionDisplay.css';
  *
  * @param {Object} props
  * @param {string} props.connectionId - Connection UUID
- * @param {Array<Object>} props.fromNodes - Source nodes [{id, content, type, url}, ...]
- * @param {Object} props.toNode - Target node {id, content, type, url}
+ * @param {Array<Object>} props.fromNodes - Source nodes [{id, content, type, url, sourceData?}, ...]
+ * @param {Object} props.toNode - Target node {id, content, type, url, sourceData?}
  * @param {string} props.logicType - 'AND'|'OR'|'NOT'|'NAND'
  * @param {string} props.notes - Optional connection notes
  * @param {string} props.compositeId - UUID for compound connections
@@ -157,6 +157,7 @@ export function ConnectionDisplay({
               nodeType={pos.node.type}
               content={pos.node.content}
               url={pos.node.url}
+              sourceData={pos.node.sourceData}
               contentStyle={{ maxWidth: '370px' }}
             />
           </div>
@@ -178,6 +179,7 @@ export function ConnectionDisplay({
           nodeType={toNode.type}
           content={toNode.content}
           url={toNode.url}
+          sourceData={toNode.sourceData}
           contentStyle={{ maxWidth: '370px' }}
         />
       </div>

@@ -9,26 +9,31 @@ import { formatDuplicateError } from '../../utilities/duplicateErrorFormatter.js
 import '../../styles/components/node-creation-panel.css';
 
 /**
- * Node-styled panel for creating a new node connected to an existing node
+ * Node-styled panel for creating a new node (optionally connected to an existing node)
  *
  * Architecture:
  * - NodeBox components are self-contained with their own state
  * - Modal orchestrates submission sequence and tracks validation
  * - Errors are injected into specific NodeBoxes via imperative refs
  *
+ * Modes:
+ * - Standalone (existingNodeId=null): Creates orphan node, no ConnectionBox
+ * - Connected (existingNodeId set): Creates node + connection, shows ConnectionBox
+ *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether panel is visible
  * @param {Function} props.onClose - Close handler
- * @param {Object} props.node - Cytoscape node element
- * @param {Object} props.cy - Cytoscape instance
- * @param {Object} props.frameRef - React ref to OnClickNode frame DOM element (for positioning)
- * @param {string} props.existingNodeId - UUID of node to connect to
- * @param {string} props.existingNodeType - 'claim' or 'source'
- * @param {string} props.existingNodeLabel - Text content of existing node
+ * @param {Object} props.node - Cytoscape node element (null for standalone mode)
+ * @param {Object} props.cy - Cytoscape instance (null for standalone mode)
+ * @param {Object} props.frameRef - React ref to OnClickNode frame DOM element (null for standalone mode)
+ * @param {string} props.existingNodeId - UUID of node to connect to (null for standalone)
+ * @param {string} props.existingNodeType - 'claim' or 'source' (null for standalone)
+ * @param {string} props.existingNodeLabel - Text content of existing node (null for standalone)
  * @param {Function} props.updateAttributions - Function to update attribution cache locally
  * @param {Function} props.onGraphChange - Fallback callback for complex graph changes
+ * @param {Function} props.onSuccess - Callback after successful creation: (nodeId) => void
  */
-export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existingNodeId, existingNodeType, existingNodeLabel, updateAttributions, onGraphChange }) {
+export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existingNodeId, existingNodeType, existingNodeLabel, updateAttributions, onGraphChange, onSuccess }) {
   const { user, token, isAuthenticated } = useAuth();
 
   // Compound mode state
@@ -78,9 +83,20 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
     }
   }, [isCompound, needsRecalc]);
 
-  // Global validation: all boxes must be valid + connection requirements met
+  // Determine if this is standalone mode (no connection)
+  const isStandalone = !existingNodeId;
+
+  // Global validation: all boxes must be valid + connection requirements met (unless standalone)
   const canSubmit = useMemo(() => {
-    if (isSubmitting || !connectionNotes.trim()) return false;
+    if (isSubmitting) return false;
+
+    // Standalone mode: only need node validation
+    if (isStandalone) {
+      return nodeValidations[0] === true;
+    }
+
+    // Connected mode: need connection notes
+    if (!connectionNotes.trim()) return false;
 
     if (isCompound) {
       // Compound: need logic type + all nodes valid
@@ -93,9 +109,12 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       // Simple: need relationship + node valid
       return relationship && nodeValidations[0] === true;
     }
-  }, [isCompound, nodeValidations, nodeCount, connectionNotes, logicType, relationship, isSubmitting]);
+  }, [isCompound, nodeValidations, nodeCount, connectionNotes, logicType, relationship, isSubmitting, isStandalone]);
 
-  if (!isOpen || !node || !cy || !frameRef) return null;
+  if (!isOpen) return null;
+
+  // Standalone mode doesn't require node, cy, or frameRef
+  if (!isStandalone && (!node || !cy || !frameRef)) return null;
 
   // Triangle layout: standard gap between boxes
   const STANDARD_GAP = 24;
@@ -142,7 +161,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         throw new Error('Could not get node data');
       }
 
-      const { inputMode, nodeType, content, title, url, selectedNodeId } = nodeData;
+      const { inputMode, nodeType, content, title, url, selectedNodeId, ...metadata } = nodeData;
 
       let newNodeId;
 
@@ -156,19 +175,35 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         if (nodeType === 'claim') {
           nodeResult = await createClaim(token, { content });
         } else {
-          nodeResult = await createSource(token, { title, content, url: url || null });
+          // Build source payload with all metadata
+          const sourcePayload = {
+            title,
+            content,
+            url: url || null,
+            ...metadata // Includes source_type, authors, doi, publication_date, etc.
+          };
+          nodeResult = await createSource(token, sourcePayload);
         }
 
         if (nodeResult.error) {
-          // Handle title_required error
+          // Handle validation errors (object format from Django)
+          if (typeof nodeResult.error === 'object') {
+            const firstError = Object.values(nodeResult.error)[0];
+            const errorMsg = Array.isArray(firstError) ? firstError[0] : firstError;
+            nodeBoxRefs.current[0]?.setError(errorMsg || 'Validation error');
+            setIsSubmitting(false);
+            return;
+          }
+
+          // Handle title_required error (string)
           if (nodeResult.error === 'title_required') {
             nodeBoxRefs.current[0]?.setError('Source title is required');
             setIsSubmitting(false);
             return;
           }
 
-          // Handle duplicate errors using formatter
-          if (nodeResult.error.startsWith('duplicate_')) {
+          // Handle duplicate errors using formatter (string)
+          if (typeof nodeResult.error === 'string' && nodeResult.error.startsWith('duplicate_')) {
             const formattedError = formatDuplicateError(
               nodeResult.error,
               nodeResult.data,
@@ -196,45 +231,79 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         }
       }
 
-      // Step 2: Create the connection
-      const connectionData = getConnectionData(newNodeId);
-      const connResult = await createConnection(token, connectionData);
+      // Step 2: Create connection (skip in standalone mode)
+      if (!isStandalone) {
+        const connectionData = getConnectionData(newNodeId);
+        const connResult = await createConnection(token, connectionData);
 
-      if (connResult.error) {
-        const errMsg = typeof connResult.error === 'object'
-          ? JSON.stringify(connResult.error)
-          : connResult.error;
-        throw new Error(errMsg);
-      }
+        if (connResult.error) {
+          const errMsg = typeof connResult.error === 'object'
+            ? JSON.stringify(connResult.error)
+            : connResult.error;
+          throw new Error(errMsg);
+        }
 
-      // Success - add to graph locally (no refetch needed)
-      try {
-        // Only add node to cytoscape if we created a new one (not using existing)
-        if (inputMode !== 'selected') {
-          const nodeDisplayData = {
-            id: newNodeId,
-            label: nodeType === 'source' ? 'Source' : 'Claim',
-            content,
-            type: nodeType
-          };
+        // Success - add to graph locally (no refetch needed)
+        try {
+          // Only add node to cytoscape if we created a new one (not using existing)
+          if (inputMode !== 'selected') {
+            const nodeDisplayData = {
+              id: newNodeId,
+              label: nodeType === 'source' ? 'Source' : 'Claim',
+              content,
+              type: nodeType
+            };
 
-          if (nodeType === 'source') {
-            nodeDisplayData.title = title;
-            if (url) {
-              nodeDisplayData.url = url;
+            if (nodeType === 'source') {
+              nodeDisplayData.title = title;
+              if (url) {
+                nodeDisplayData.url = url;
+              }
+            }
+
+            cy.add({ data: nodeDisplayData });
+
+            // Add attribution to cache (only for newly created nodes)
+            if (updateAttributions && user) {
+              updateAttributions({
+                add: {
+                  [newNodeId]: {
+                    creator: {
+                      entity_uuid: newNodeId,
+                      entity_type: nodeType,
+                      username: user.username,
+                      timestamp: new Date().toISOString(),
+                      is_anonymous: false,
+                      is_own: true
+                    },
+                    editors: []
+                  }
+                }
+              });
             }
           }
 
-          cy.add({ data: nodeDisplayData });
+          // Add new edge to cytoscape (always, even for existing nodes)
+          const { from_node_id, to_node_id, logic_type, notes } = connectionData;
+          const edgeId = connResult.data?.id || connResult.data?.uuid || `${from_node_id}-${to_node_id}`;
+          cy.add({
+            data: {
+              id: edgeId,
+              source: from_node_id,
+              target: to_node_id,
+              ...(logic_type ? { logic_type } : {}),
+              ...(notes ? { notes } : {})
+            }
+          });
 
-          // Add attribution to cache (only for newly created nodes)
+          // Add connection attribution to cache
           if (updateAttributions && user) {
             updateAttributions({
               add: {
-                [newNodeId]: {
+                [edgeId]: {
                   creator: {
-                    entity_uuid: newNodeId,
-                    entity_type: nodeType,
+                    entity_uuid: edgeId,
+                    entity_type: 'connection',
                     username: user.username,
                     timestamp: new Date().toISOString(),
                     is_anonymous: false,
@@ -245,57 +314,31 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
               }
             });
           }
-        }
 
-        // Add new edge to cytoscape (always, even for existing nodes)
-        const { from_node_id, to_node_id, logic_type, notes } = connectionData;
-        const edgeId = connResult.data?.id || connResult.data?.uuid || `${from_node_id}-${to_node_id}`;
-        cy.add({
-          data: {
-            id: edgeId,
-            source: from_node_id,
-            target: to_node_id,
-            ...(logic_type ? { logic_type } : {}),
-            ...(notes ? { notes } : {})
+          // Run layout to position graph
+          cy.layout({
+            name: 'dagre',
+            rankDir: 'BT',
+            nodeSep: 80,
+            rankSep: 120,
+            animate: false
+          }).run();
+
+          handleClose();
+        } catch (localUpdateError) {
+          // If local update fails, fall back to full refetch
+          console.error('Local graph update failed, falling back to refetch:', localUpdateError);
+          if (onGraphChange) {
+            onGraphChange();
           }
-        });
-
-        // Add connection attribution to cache
-        if (updateAttributions && user) {
-          updateAttributions({
-            add: {
-              [edgeId]: {
-                creator: {
-                  entity_uuid: edgeId,
-                  entity_type: 'connection',
-                  username: user.username,
-                  timestamp: new Date().toISOString(),
-                  is_anonymous: false,
-                  is_own: true
-                },
-                editors: []
-              }
-            }
-          });
+          handleClose();
         }
-
-        // Run layout to position graph
-        cy.layout({
-          name: 'dagre',
-          rankDir: 'BT',
-          nodeSep: 80,
-          rankSep: 120,
-          animate: false
-        }).run();
-
+      } else {
+        // Standalone mode - no graph update, just call success callback
         handleClose();
-      } catch (localUpdateError) {
-        // If local update fails, fall back to full refetch
-        console.error('Local graph update failed, falling back to refetch:', localUpdateError);
-        if (onGraphChange) {
-          onGraphChange();
+        if (onSuccess) {
+          onSuccess(newNodeId);
         }
-        handleClose();
       }
 
     } catch (err) {
@@ -323,7 +366,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         if (!nodeBox) continue;
 
         const nodeData = nodeBox.getData();
-        const { inputMode, nodeType, content, title, url, selectedNodeId } = nodeData;
+        const { inputMode, nodeType, content, title, url, selectedNodeId, ...metadata } = nodeData;
 
         let nodeId;
 
@@ -336,12 +379,28 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           if (nodeType === 'claim') {
             result = await createClaim(token, { content });
           } else {
-            result = await createSource(token, { title, content, url: url || null });
+            // Build source payload with all metadata
+            const sourcePayload = {
+              title,
+              content,
+              url: url || null,
+              ...metadata // Includes source_type, authors, doi, publication_date, etc.
+            };
+            result = await createSource(token, sourcePayload);
           }
 
           if (result.error) {
-            // Handle duplicate errors - inject into SPECIFIC box that failed
-            if (result.error.startsWith('duplicate_')) {
+            // Handle validation errors (object format from Django)
+            if (typeof result.error === 'object') {
+              const firstError = Object.values(result.error)[0];
+              const errorMsg = Array.isArray(firstError) ? firstError[0] : firstError;
+              nodeBox.setError(errorMsg || 'Validation error');
+              setIsSubmitting(false);
+              return;
+            }
+
+            // Handle duplicate errors - inject into SPECIFIC box that failed (string)
+            if (typeof result.error === 'string' && result.error.startsWith('duplicate_')) {
               const formattedError = formatDuplicateError(
                 result.error,
                 result.data,
@@ -571,6 +630,45 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
     return { x: baseX, y: yOffset };
   };
 
+  // Standalone mode: render as centered modal without positioning overlay
+  if (isStandalone) {
+    return (
+      <div className="modal-backdrop" onClick={handleClose}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ width: '500px', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 className="modal-title" style={{ margin: 0 }}>Create Node</h2>
+            <button
+              onClick={handleClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: 'var(--modal-text)',
+                padding: '0',
+                lineHeight: '1',
+                opacity: '0.6'
+              }}
+            >
+              &times;
+            </button>
+          </div>
+
+          <NodeBox
+            ref={(el) => nodeBoxRefs.current[0] = el}
+            index={0}
+            onValidationChange={handleValidationChange}
+            onClose={handleClose}
+            onSubmit={handleCreate}
+            isSubmitting={isSubmitting}
+            showControls={true}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Connected mode: render with positioned overlays
   return (
     <>
       {/* Connection Box - positioned below and left of OnClickNode frame */}

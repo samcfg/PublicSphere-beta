@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import { fetchUserDataExport } from '../../APInterface/api.js';
+import { formatSourceType, formatAuthors } from '../../utilities/formatters.js';
 
 /**
  * UserData component - GDPR data export
@@ -275,8 +276,11 @@ export function UserData() {
               <tr>
                 <th>UUID</th>
                 <th>Title</th>
-                <th>URL</th>
                 <th>Type</th>
+                <th>Authors</th>
+                <th>URL</th>
+                <th>DOI</th>
+                <th>Publication Date</th>
                 <th>Created</th>
                 <th>Anonymous</th>
               </tr>
@@ -286,6 +290,8 @@ export function UserData() {
                 <tr key={source.uuid}>
                   <td className="uuid-cell">{source.uuid.substring(0, 8)}...</td>
                   <td className="content-cell">{source.title || '[No title]'}</td>
+                  <td>{source.source_type ? formatSourceType(source.source_type) : 'N/A'}</td>
+                  <td className="content-cell">{formatAuthors(source.authors) || 'N/A'}</td>
                   <td className="content-cell">
                     {source.url ? (
                       <a href={source.url} target="_blank" rel="noopener noreferrer">
@@ -295,7 +301,8 @@ export function UserData() {
                       'N/A'
                     )}
                   </td>
-                  <td>{source.source_type}</td>
+                  <td className="content-cell">{source.doi || 'N/A'}</td>
+                  <td>{source.publication_date || 'N/A'}</td>
                   <td>{new Date(source.created_at).toLocaleDateString()}</td>
                   <td>{source.is_anonymous ? 'Yes' : 'No'}</td>
                 </tr>

@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { PositionedOverlay } from './PositionedOverlay.jsx';
 import { UserAttribution } from '../common/UserAttribution.jsx';
 import { CommentsRating } from '../common/CommentsRating.jsx';
+import { SourceMetadataDisplay } from '../common/SourceMetadataDisplay.jsx';
 import { NodeCreationModal } from './NodeCreationModal.jsx';
 import { NodeBox } from './NodeBox.jsx';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import { useAttributions } from '../../utilities/AttributionContext.jsx';
-import { deleteClaim, deleteSource, updateClaim, updateSource } from '../../APInterface/api.js';
+import { deleteClaim, deleteSource, updateClaim, updateSource, fetchGraphData } from '../../APInterface/api.js';
 import { FaMagnifyingGlassArrowRight } from "react-icons/fa6";
 import { FaPlus, FaRegEdit } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
@@ -32,6 +33,8 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   const [showEditModal, setShowEditModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [sourceData, setSourceData] = useState(null); // Full source metadata
+  const [loadingSourceData, setLoadingSourceData] = useState(false);
   const contentRef = useRef(null);
   const frameRef = useRef(null); // Frame container for positioning NodeCreationModal
   const nodeBoxRef = useRef(null); // Ref for edit NodeBox
@@ -55,7 +58,50 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
   useLayoutEffect(() => {
     if (!activeNodeTooltip) {
       setActiveTab(null);
+      setSourceData(null);
     }
+  }, [activeNodeTooltip]);
+
+  // Fetch full source data when source node tooltip opens
+  useEffect(() => {
+    const loadSourceData = async () => {
+      if (!activeNodeTooltip) return;
+
+      const node = activeNodeTooltip.node;
+      const nodeType = node.data('type');
+      const nodeId = node.data('id');
+
+      // Only fetch for source nodes
+      if (nodeType !== 'source') {
+        setSourceData(null);
+        return;
+      }
+
+      setLoadingSourceData(true);
+      try {
+        const response = await fetchGraphData();
+        if (response.error) {
+          console.error('Failed to fetch source data:', response.error);
+          setLoadingSourceData(false);
+          return;
+        }
+
+        // Find the source in the response
+        const source = response.data?.sources?.find(
+          s => s?.source?.properties?.id === nodeId
+        );
+
+        if (source) {
+          setSourceData(source.source.properties);
+        }
+      } catch (err) {
+        console.error('Error loading source data:', err);
+      } finally {
+        setLoadingSourceData(false);
+      }
+    };
+
+    loadSourceData();
   }, [activeNodeTooltip]);
 
   // Delete handler
@@ -125,9 +171,20 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
 
     try {
       const updateFn = nodeType === 'source' ? updateSource : updateClaim;
-      const updateData = nodeType === 'source'
-        ? { title: data.title, url: data.url, content: data.content }
-        : { content: data.content };
+
+      // Build update payload - for sources, include all metadata
+      let updateData;
+      if (nodeType === 'source') {
+        const { inputMode, selectedNodeId, nodeType: _, ...metadata } = data;
+        updateData = {
+          title: data.title,
+          url: data.url,
+          content: data.content,
+          ...metadata // Includes sourceType, authors, doi, publicationDate, etc.
+        };
+      } else {
+        updateData = { content: data.content };
+      }
 
       const result = await updateFn(token, nodeId, updateData);
 
@@ -406,24 +463,39 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                       <div className="tooltip-attribution">
                         <UserAttribution entityUuid={nodeId} entityType={entityType} showTimestamp={true} />
                       </div>
-                      {nodeType === 'source' && nodeUrl && (
+
+                      {/* Source metadata display - compact mode */}
+                      {nodeType === 'source' && (
                         <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '0.5px solid var(--border-color)' }}>
-                          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                            URL
-                          </div>
-                          <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                            <a href={nodeUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>{nodeUrl}</a>
-                          </div>
-                        </div>
-                      )}
-                      {nodeType === 'source' && node.data('content') && (
-                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '0.5px solid var(--border-color)' }}>
-                          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                            Summary
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                            {node.data('content')}
-                          </div>
+                          <SourceMetadataDisplay
+                            sourceData={sourceData}
+                            loading={loadingSourceData}
+                            compact={true}
+                            fallback={
+                              <>
+                                {nodeUrl && (
+                                  <div style={{ marginBottom: '6px' }}>
+                                    <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px', fontWeight: '600' }}>
+                                      URL:
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                      <a href={nodeUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>{nodeUrl}</a>
+                                    </div>
+                                  </div>
+                                )}
+                                {node.data('content') && (
+                                  <div>
+                                    <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '2px', fontWeight: '600' }}>
+                                      Summary:
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                                      {node.data('content')}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            }
+                          />
                         </div>
                       )}
                     </div>
@@ -489,7 +561,23 @@ export function OnClickNode({ activeNodeTooltip, cy, updateAttributions, onGraph
                 nodeType: nodeType,
                 content: node.data('content') || '',
                 title: nodeType === 'source' ? (node.data('title') || nodeLabel) : '',
-                url: nodeUrl || ''
+                url: nodeUrl || '',
+                // Include all source metadata if available
+                ...(nodeType === 'source' && sourceData ? {
+                  sourceType: sourceData.source_type || '',
+                  authors: sourceData.authors || [],
+                  doi: sourceData.doi || '',
+                  publicationDate: sourceData.publication_date || '',
+                  containerTitle: sourceData.container_title || '',
+                  publisher: sourceData.publisher || '',
+                  volume: sourceData.volume || '',
+                  issue: sourceData.issue || '',
+                  pages: sourceData.pages || '',
+                  edition: sourceData.edition || '',
+                  isbn: sourceData.isbn || '',
+                  issn: sourceData.issn || '',
+                  arxivId: sourceData.arxiv_id || ''
+                } : {})
               }}
               showControls={true}
               onClose={() => setShowEditModal(false)}

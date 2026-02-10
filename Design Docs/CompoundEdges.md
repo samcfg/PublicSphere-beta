@@ -111,3 +111,36 @@ functions work with compound edges just the same.
   5. Add bezier bundling calculator
   6. Test and iterate
 
+
+
+## Compound Edges: Design & Implementation
+
+### Motivation
+Multi-premise argument. Shows logical relationships while maintaining individual edge identity for graph operations. All edges in a compound group share the same target node.
+
+### Data Model
+**Shared Metadata Fields (synchronized across group):**
+- `composite_id` (UUID): Identifies the compound group
+- `logic_type` ('AND' | 'OR' | 'NOT' | 'NAND'): Logical operator for the group (validated at creation)
+- `notes` (str): Shared interpretation/context
+
+**Individual Fields (per edge):**
+- `id` (UUID): Individual edge identifier
+- `source_node_id`, `target_node_id`: Node topology (supports Claims, Sources, any node type)
+
+### API Design Pattern: Try-Single-First
+Operations accept either individual `edge_id` or `composite_id`:
+
+1. Query as individual edge ID (fast path for majority case)
+2. If not found, query as composite_id (compound group operation)
+3. Apply operation to all edges in group if compound
+
+### Frontend Data Flow
+- Backend returns individual edges with compound metadata
+- Frontend receives all edges separately
+- Client groups by `composite_id` for visualization, constructs visual
+
+### Temporal Behavior
+Historical snapshots preserve compound metadata. Temporal queries return individual edges with `logic_type` and `composite_id`, allowing reconstruction of compound groups at any point in time.
+
+---

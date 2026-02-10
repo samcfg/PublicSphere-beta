@@ -1,12 +1,13 @@
 """
-Citation metadata extraction from URLs, identifiers, and PDFs.
+Citation metadata extraction from URLs and identifiers.
 
 Waterfall strategy:
 1. Identifier extraction (DOI, ISBN, ISSN, arXiv, bioRxiv, etc.)
 2. API lookup (CrossRef, OpenLibrary, arXiv API)
 3. HTML metadata tags (Highwire Press, Dublin Core, OpenGraph)
-4. PDF metadata (XMP, DOI extraction, structure parsing)
-5. Fallback: basic web page metadata
+4. Fallback: basic web page metadata
+
+Note: PDF extraction moved to pdf_citation_fetcher.py (unused)
 """
 
 import re
@@ -15,15 +16,10 @@ from bs4 import BeautifulSoup
 from datetime import date
 from typing import Optional
 from urllib.parse import urlparse
-try:
-    import PyPDF2
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
 
 
 class CitationFetcher:
-    """Extract citation metadata from URLs, identifiers, and PDFs"""
+    """Extract citation metadata from URLs and identifiers"""
 
     # User agent for HTTP requests (identify as PublicSphere)
     USER_AGENT = 'PublicSphere/1.0 (https://publicsphere.org; mailto:contact@publicsphere.org)'
@@ -128,65 +124,6 @@ class CitationFetcher:
             }
         }
 
-    @classmethod
-    def fetch_from_pdf(cls, pdf_file) -> dict:
-        """
-        Extract metadata from uploaded PDF file.
-
-        Args:
-            pdf_file: Django UploadedFile object
-
-        Returns: Same format as fetch_from_url()
-        """
-        if not PDF_AVAILABLE:
-            return {
-                'success': False,
-                'source': 'pdf_unavailable',
-                'confidence': 'low',
-                'metadata': {'error': 'PDF extraction not available (PyPDF2 not installed)'}
-            }
-
-        # 1. Extract XMP metadata (embedded by publishers)
-        metadata = cls._extract_pdf_xmp(pdf_file)
-        if metadata.get('doi'):
-            # If we found DOI in PDF, fetch from CrossRef
-            crossref_data = cls._fetch_crossref(metadata['doi'])
-            if crossref_data:
-                return {
-                    'success': True,
-                    'source': 'pdf_xmp_crossref',
-                    'confidence': 'high',
-                    'metadata': crossref_data
-                }
-
-        # 2. Pattern match for DOI in PDF text
-        doi = cls._extract_doi_from_pdf_text(pdf_file)
-        if doi:
-            crossref_data = cls._fetch_crossref(doi)
-            if crossref_data:
-                return {
-                    'success': True,
-                    'source': 'pdf_text_crossref',
-                    'confidence': 'high',
-                    'metadata': crossref_data
-                }
-
-        # 3. Return whatever we extracted from PDF metadata
-        if metadata:
-            return {
-                'success': True,
-                'source': 'pdf_metadata',
-                'confidence': 'medium',
-                'metadata': metadata
-            }
-
-        # Fallback: no metadata found
-        return {
-            'success': False,
-            'source': 'pdf_fallback',
-            'confidence': 'low',
-            'metadata': {'source_type': 'unknown'}
-        }
 
     # ========== IDENTIFIER EXTRACTION ==========
 
@@ -855,82 +792,3 @@ class CitationFetcher:
             metadata['metadata'] = {'section': section}
 
         return {k: v for k, v in metadata.items() if v is not None}
-
-    # ========== PDF METADATA EXTRACTION ==========
-
-    @staticmethod
-    def _extract_pdf_xmp(pdf_file) -> dict:
-        """Extract XMP metadata embedded in PDF"""
-        if not PDF_AVAILABLE:
-            return {}
-
-        try:
-            # Reset file pointer to beginning
-            pdf_file.seek(0)
-            reader = PyPDF2.PdfReader(pdf_file)
-            info = reader.metadata
-
-            if not info:
-                return {}
-
-            # Parse PDF date format (D:20210115120000) to ISO 8601
-            creation_date = info.get('/CreationDate', '')
-            pub_date = None
-            if creation_date and creation_date.startswith('D:'):
-                date_str = creation_date[2:10]  # Extract YYYYMMDD
-                if len(date_str) == 8:
-                    pub_date = f"{date_str[0:4]}-{date_str[4:6]}-{date_str[6:8]}"
-
-            authors = []
-            author_str = info.get('/Author')
-            if author_str:
-                authors.append({'name': author_str, 'role': 'author'})
-
-            metadata = {
-                'title': info.get('/Title'),
-                'authors': authors if authors else None,
-                'publication_date': pub_date,
-                'source_type': 'unknown',
-            }
-
-            return {k: v for k, v in metadata.items() if v is not None}
-
-        except Exception as e:
-            print(f"PDF XMP extraction failed: {e}")
-            return {}
-
-    @staticmethod
-    def _extract_doi_from_pdf_text(pdf_file) -> Optional[str]:
-        """
-        Extract DOI by pattern matching in PDF text.
-
-        Checks first 2 pages and last page (common DOI locations).
-        """
-        if not PDF_AVAILABLE:
-            return None
-
-        try:
-            # Reset file pointer
-            pdf_file.seek(0)
-            reader = PyPDF2.PdfReader(pdf_file)
-
-            # Check first 2 pages and last page
-            pages_to_check = [0, 1]
-            if len(reader.pages) > 2:
-                pages_to_check.append(len(reader.pages) - 1)
-
-            for page_num in pages_to_check:
-                if page_num < len(reader.pages):
-                    text = reader.pages[page_num].extract_text()
-
-                    # Pattern: doi: 10.1234/foo or DOI: 10.1234/foo
-                    pattern = r'doi:?\s*(10\.\d{4,}/[^\s]+)'
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match:
-                        return match.group(1).rstrip('.')
-
-            return None
-
-        except Exception as e:
-            print(f"PDF DOI extraction failed: {e}")
-            return None

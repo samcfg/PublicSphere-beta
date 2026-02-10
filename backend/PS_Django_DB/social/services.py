@@ -482,10 +482,13 @@ class SuggestionService:
 
         Args:
             user_id: User making the suggestion
-            entity_uuid: UUID of target node
-            entity_type: 'claim' or 'source'
+            entity_uuid: UUID of target entity
+            entity_type: 'claim', 'source', or 'connection'
             proposed_changes: Dict of property: new_value pairs
-            rationale: Why this change improves the node
+                - Claims: {'content': str}
+                - Sources: various metadata fields
+                - Connections: {'notes': str} only
+            rationale: Why this change improves the entity
             is_anonymous: Whether to display as anonymous
 
         Returns:
@@ -507,7 +510,7 @@ class SuggestionService:
         Get all suggestions for an entity.
 
         Args:
-            entity_uuid: UUID of target node
+            entity_uuid: UUID of target entity (claim, source, or connection)
             status: Optional filter by status ('pending', 'accepted', 'rejected')
 
         Returns:
@@ -577,7 +580,7 @@ class SuggestionService:
     def accept_suggestion(suggestion_id: str, resolved_by_id: int,
                          resolution_notes: str = '', auto_accepted: bool = False) -> Optional[SuggestedEdit]:
         """
-        Accept a suggestion and apply changes to target node.
+        Accept a suggestion and apply changes to target entity.
 
         Args:
             suggestion_id: UUID of suggestion
@@ -588,7 +591,7 @@ class SuggestionService:
         Returns:
             Updated SuggestedEdit instance or None if not found
 
-        Note: Actual node modification happens in the view layer via ops.edit_node()
+        Note: Actual entity modification happens in the view layer via ops.edit_node() or ops.edit_edge()
         """
         try:
             suggestion = SuggestedEdit.objects.get(suggestion_id=suggestion_id)

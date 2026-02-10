@@ -235,7 +235,7 @@ class SuggestedEditSerializer(serializers.ModelSerializer):
 
 
 class SuggestedEditCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating suggested edits"""
+    """Serializer for creating suggested edits with strict validation"""
 
     class Meta:
         model = SuggestedEdit
@@ -243,10 +243,20 @@ class SuggestedEditCreateSerializer(serializers.ModelSerializer):
 
     def validate_entity_type(self, value):
         """Validate entity_type is allowed"""
-        allowed = ['claim', 'source']
+        allowed = ['claim', 'source', 'connection']
         if value not in allowed:
             raise serializers.ValidationError(f"entity_type must be one of: {', '.join(allowed)}")
         return value
+
+    def validate_rationale(self, value):
+        """Validate rationale is provided and sufficient"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Rationale cannot be empty")
+        if len(value.strip()) < 20:
+            raise serializers.ValidationError("Rationale must be at least 20 characters")
+        if len(value) > 2000:
+            raise serializers.ValidationError("Rationale cannot exceed 2000 characters")
+        return value.strip()
 
     def validate_proposed_changes(self, value):
         """Validate proposed_changes is a dict with valid structure"""
@@ -255,41 +265,134 @@ class SuggestedEditCreateSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("proposed_changes cannot be empty")
 
-        # All values must be strings (node properties are text fields)
-        for key, val in value.items():
-            if not isinstance(val, str):
-                raise serializers.ValidationError(f"All values must be strings. Invalid value for '{key}'")
+        # Block internal/read-only fields
+        forbidden_fields = {
+            'id', 'node_id', 'url_normalized', 'doi_normalized', 'title_normalized',
+            'content_normalized', 'version_number', 'operation', 'timestamp',
+            'valid_from', 'valid_to', 'changed_by', 'change_notes'
+        }
+
+        forbidden_found = [k for k in value.keys() if k in forbidden_fields]
+        if forbidden_found:
+            raise serializers.ValidationError(
+                f"Cannot modify read-only fields: {', '.join(forbidden_found)}"
+            )
 
         return value
 
     def validate(self, attrs):
-        """Cross-field validation: check proposed_changes keys match entity_type"""
+        """Cross-field validation: validate proposed_changes against entity schema"""
         entity_type = attrs.get('entity_type')
         proposed_changes = attrs.get('proposed_changes', {})
 
-        # Define allowed fields per entity type
-        allowed_fields = {
-            'claim': ['content'],
-            'source': ['url', 'title', 'author', 'publication_date', 'source_type', 'content']
-        }
+        if entity_type == 'claim':
+            # Use ClaimSerializer for validation (partial=True for updates)
+            from graph.serializers import ClaimSerializer
+            serializer = ClaimSerializer(data=proposed_changes, partial=True)
 
-        allowed = allowed_fields.get(entity_type, [])
-        invalid_keys = [key for key in proposed_changes.keys() if key not in allowed]
+            if not serializer.is_valid():
+                raise serializers.ValidationError({
+                    'proposed_changes': serializer.errors
+                })
 
-        if invalid_keys:
-            raise serializers.ValidationError({
-                'proposed_changes': f"Invalid fields for {entity_type}: {', '.join(invalid_keys)}. "
-                                   f"Allowed fields: {', '.join(allowed)}"
-            })
+            # Must only have 'content' field for claims
+            allowed_fields = {'content'}
+            invalid_keys = set(proposed_changes.keys()) - allowed_fields
+            if invalid_keys:
+                raise serializers.ValidationError({
+                    'proposed_changes': f"Invalid fields for claim: {', '.join(invalid_keys)}. "
+                                       f"Only 'content' is allowed."
+                })
+
+        elif entity_type == 'source':
+            # Use SourceSerializer for validation (partial=True for updates)
+            from graph.serializers import SourceSerializer
+            serializer = SourceSerializer(data=proposed_changes, partial=True)
+
+            if not serializer.is_valid():
+                raise serializers.ValidationError({
+                    'proposed_changes': serializer.errors
+                })
+
+            # Validate authors structure if present
+            if 'authors' in proposed_changes:
+                authors = proposed_changes['authors']
+                if authors is not None:
+                    if not isinstance(authors, list):
+                        raise serializers.ValidationError({
+                            'proposed_changes': {'authors': 'Must be a list of author objects'}
+                        })
+                    for idx, author in enumerate(authors):
+                        if not isinstance(author, dict):
+                            raise serializers.ValidationError({
+                                'proposed_changes': {'authors': f'Author at index {idx} must be an object'}
+                            })
+                        if 'name' not in author:
+                            raise serializers.ValidationError({
+                                'proposed_changes': {'authors': f'Author at index {idx} missing required "name" field'}
+                            })
+
+            # Validate editors structure if present
+            if 'editors' in proposed_changes:
+                editors = proposed_changes['editors']
+                if editors is not None:
+                    if not isinstance(editors, list):
+                        raise serializers.ValidationError({
+                            'proposed_changes': {'editors': 'Must be a list of editor objects'}
+                        })
+                    for idx, editor in enumerate(editors):
+                        if not isinstance(editor, dict):
+                            raise serializers.ValidationError({
+                                'proposed_changes': {'editors': f'Editor at index {idx} must be an object'}
+                            })
+                        if 'name' not in editor:
+                            raise serializers.ValidationError({
+                                'proposed_changes': {'editors': f'Editor at index {idx} missing required "name" field'}
+                            })
+
+            # Validate source_type enum if present
+            if 'source_type' in proposed_changes:
+                valid_types = [
+                    'journal_article', 'preprint', 'book', 'website', 'newspaper',
+                    'magazine', 'thesis', 'conference_paper', 'technical_report',
+                    'government_document', 'dataset', 'media', 'legal', 'testimony'
+                ]
+                if proposed_changes['source_type'] not in valid_types:
+                    raise serializers.ValidationError({
+                        'proposed_changes': {'source_type': f'Must be one of: {", ".join(valid_types)}'}
+                    })
+
+            # Validate legal_category enum if present
+            if 'legal_category' in proposed_changes:
+                valid_categories = ['case', 'statute', 'regulation', 'treaty']
+                if proposed_changes['legal_category'] not in valid_categories:
+                    raise serializers.ValidationError({
+                        'proposed_changes': {'legal_category': f'Must be one of: {", ".join(valid_categories)}'}
+                    })
+
+        elif entity_type == 'connection':
+            # Connections: Only 'notes' field can be edited
+            allowed_fields = {'notes'}
+            invalid_keys = set(proposed_changes.keys()) - allowed_fields
+            if invalid_keys:
+                raise serializers.ValidationError({
+                    'proposed_changes': f"Invalid fields for connection: {', '.join(invalid_keys)}. "
+                                       f"Only 'notes' is allowed."
+                })
+
+            # Validate 'notes' field if present
+            if 'notes' in proposed_changes:
+                notes = proposed_changes['notes']
+                if notes is not None:
+                    if not isinstance(notes, str):
+                        raise serializers.ValidationError({
+                            'proposed_changes': {'notes': 'Must be a string'}
+                        })
+                    if len(notes) > 5000:
+                        raise serializers.ValidationError({
+                            'proposed_changes': {'notes': 'Cannot exceed 5000 characters'}
+                        })
 
         return attrs
-
-    def validate_rationale(self, value):
-        """Validate rationale is provided"""
-        if not value or not value.strip():
-            raise serializers.ValidationError("Rationale cannot be empty")
-        if len(value) > 2000:
-            raise serializers.ValidationError("Rationale cannot exceed 2000 characters")
-        return value.strip()
 
 

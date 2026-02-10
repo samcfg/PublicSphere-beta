@@ -16,6 +16,7 @@ from .serializers import (
 )
 from .services import DeduplicationService, SearchService
 from .citation_fetcher import CitationFetcher
+from .pdf_citation_fetcher import PDFCitationFetcher
 
 
 # Initialize language operations with graph
@@ -338,11 +339,16 @@ def sources_list(request):
         try:
             user_id = request.user.id if request.user.is_authenticated else None
             source_id = ops.create_source(
-                # Core citation fields
+                # Required fields
                 title=title,
                 source_type=serializer.validated_data.get('source_type'),
+                # Universal optional fields
+                thumbnail_link=serializer.validated_data.get('thumbnail_link'),
                 authors=serializer.validated_data.get('authors'),
-                author=serializer.validated_data.get('author'),  # Legacy
+                url=url,
+                accessed_date=serializer.validated_data.get('accessed_date'),
+                excerpt=serializer.validated_data.get('excerpt'),
+                content=serializer.validated_data.get('content'),
                 # Publication metadata
                 publication_date=serializer.validated_data.get('publication_date'),
                 container_title=serializer.validated_data.get('container_title'),
@@ -352,17 +358,30 @@ def sources_list(request):
                 volume=serializer.validated_data.get('volume'),
                 issue=serializer.validated_data.get('issue'),
                 pages=serializer.validated_data.get('pages'),
+                # Book-specific
+                edition=serializer.validated_data.get('edition'),
                 # Identifiers
-                url=url,
                 doi=serializer.validated_data.get('doi'),
                 isbn=serializer.validated_data.get('isbn'),
                 issn=serializer.validated_data.get('issn'),
-                # Web-specific
-                accessed_date=serializer.validated_data.get('accessed_date'),
-                # Flexible metadata
+                pmid=serializer.validated_data.get('pmid'),
+                pmcid=serializer.validated_data.get('pmcid'),
+                arxiv_id=serializer.validated_data.get('arxiv_id'),
+                handle=serializer.validated_data.get('handle'),
+                persistent_id=serializer.validated_data.get('persistent_id'),
+                persistent_id_type=serializer.validated_data.get('persistent_id_type'),
+                # Editors
+                editors=serializer.validated_data.get('editors'),
+                # Legal-specific
+                jurisdiction=serializer.validated_data.get('jurisdiction'),
+                legal_category=serializer.validated_data.get('legal_category'),
+                court=serializer.validated_data.get('court'),
+                decision_date=serializer.validated_data.get('decision_date'),
+                case_name=serializer.validated_data.get('case_name'),
+                code=serializer.validated_data.get('code'),
+                section=serializer.validated_data.get('section'),
+                # Metadata overflow
                 metadata=serializer.validated_data.get('metadata'),
-                # Content
-                content=serializer.validated_data.get('content'),
                 user_id=user_id
             )
             return standard_response(data={'id': source_id}, status_code=201, source='graph_db')
@@ -404,7 +423,10 @@ def fetch_citation_metadata(request):
         if url:
             result = CitationFetcher.fetch_from_url(url)
         else:  # pdf_file
-            result = CitationFetcher.fetch_from_pdf(pdf_file)
+            result = PDFCitationFetcher.fetch_from_pdf(
+                pdf_file,
+                crossref_fetcher_fn=CitationFetcher._fetch_crossref
+            )
 
         return standard_response(data=result, source='citation_fetcher')
 

@@ -28,15 +28,22 @@ class BasicSchema:
             ),
             'Source': NodeSchema(
                 label='Source',
-                required_properties={'id': str},
-                optional_properties={
-                    # Core citation fields
+                required_properties={
+                    'id': str,
                     'title': str,
-                    'source_type': str,  # 'journal_article', 'book', 'book_chapter', 'website',
-                                        # 'newspaper', 'magazine', 'conference_paper', 'thesis',
-                                        # 'report', 'personal_communication', 'observation', 'preprint'
-                    'authors': str,  # JSON string: [{"name": "...", "role": "author"}]
-                    'author': str,   # Legacy field (deprecated)
+                    'source_type': str  # 'journal_article', 'preprint', 'book', 'website',
+                                        # 'newspaper', 'magazine', 'thesis', 'conference_paper',
+                                        # 'technical_report', 'government_document', 'dataset',
+                                        # 'media', 'legal', 'testimony'
+                },
+                optional_properties={
+                    # Universal optional fields (all types)
+                    'thumbnail_link': str,
+                    'authors': str,  # JSONB string: [{"name": "...", "role": "author"}]
+                    'url': str,
+                    'accessed_date': str,
+                    'excerpt': str,
+                    'content': str,
 
                     # Publication metadata
                     'publication_date': str,
@@ -49,20 +56,34 @@ class BasicSchema:
                     'issue': str,
                     'pages': str,
 
+                    # Book-specific
+                    'edition': str,
+
                     # Identifiers
-                    'url': str,
                     'doi': str,
                     'isbn': str,
                     'issn': str,
+                    'pmid': str,
+                    'pmcid': str,
+                    'arxiv_id': str,
+                    'handle': str,
+                    'persistent_id': str,
+                    'persistent_id_type': str,
 
-                    # Web-specific
-                    'accessed_date': str,  # ISO 8601 date
+                    # Editors
+                    'editors': str,  # JSONB string: [{"name": "...", "role": "editor"}]
 
-                    # Flexible metadata
-                    'metadata': str,  # JSON string for additional fields
+                    # Legal-specific
+                    'jurisdiction': str,
+                    'legal_category': str,  # 'case', 'statute', 'regulation', 'treaty'
+                    'court': str,
+                    'decision_date': str,
+                    'case_name': str,
+                    'code': str,
+                    'section': str,
 
-                    # Content
-                    'content': str   # quotes/excerpts
+                    # Flexible overflow for type-specific edge cases
+                    'metadata': str  # JSONB string for additional fields
                 }
             )
         }

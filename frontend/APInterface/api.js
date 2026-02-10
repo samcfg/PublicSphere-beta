@@ -114,7 +114,15 @@ export async function fetchSources() {
  * Create a new source
  * POST /api/sources/
  * @param {string} token - Auth token
- * @param {Object} data - {url, title, author, publication_date, source_type, content}
+ * @param {Object} data - Source properties matching SourceCreateSerializer:
+ *   Required: {title, source_type}
+ *   Optional: {thumbnail_link, authors, url, accessed_date, excerpt, content,
+ *             publication_date, container_title, publisher, publisher_location,
+ *             volume, issue, pages, edition, doi, isbn, issn, pmid, pmcid,
+ *             arxiv_id, handle, persistent_id, persistent_id_type, editors,
+ *             jurisdiction, legal_category, court, decision_date, case_name,
+ *             code, section, metadata}
+ *   Type-specific: legal requires {jurisdiction, legal_category}, website requires {url}
  */
 export async function createSource(token, data) {
   return apiFetch(`${BASE_URL}/sources/`, {
@@ -546,6 +554,52 @@ export async function resolveFlag(token, flagId, data) {
  */
 export async function fetchControversialEntities(limit = 50) {
   return apiFetch(`${BASE_URL}/social/controversial/?limit=${limit}`);
+}
+
+/**
+ * Create a suggested edit for a node
+ * POST /api/social/suggestions/
+ * @param {string} token - Auth token
+ * @param {Object} data - {entity_uuid, entity_type, proposed_changes, rationale, is_anonymous?}
+ */
+export async function createSuggestion(token, data) {
+  return apiFetch(`${BASE_URL}/social/suggestions/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get all suggestions for an entity
+ * GET /api/social/suggestions/entity/?entity=uuid&status=pending|accepted|rejected
+ * @param {string} entityUuid - Target entity UUID
+ * @param {string} status - Optional status filter
+ */
+export async function fetchEntitySuggestions(entityUuid, status = null) {
+  const url = status
+    ? `${BASE_URL}/social/suggestions/entity/?entity=${entityUuid}&status=${status}`
+    : `${BASE_URL}/social/suggestions/entity/?entity=${entityUuid}`;
+  return apiFetch(url);
+}
+
+/**
+ * Get details of a specific suggestion
+ * GET /api/social/suggestions/:suggestion_id/
+ * @param {string} suggestionId - Suggestion UUID
+ */
+export async function fetchSuggestion(suggestionId) {
+  return apiFetch(`${BASE_URL}/social/suggestions/${suggestionId}/`);
+}
+
+/**
+ * Check if suggestion meets acceptance threshold
+ * GET /api/social/suggestions/:suggestion_id/check-threshold/
+ * @param {string} suggestionId - Suggestion UUID
+ * @returns {Object} {can_accept, reason, rating_stats, node_engagement}
+ */
+export async function checkSuggestionThreshold(suggestionId) {
+  return apiFetch(`${BASE_URL}/social/suggestions/${suggestionId}/check-threshold/`);
 }
 
 // ============================================================================

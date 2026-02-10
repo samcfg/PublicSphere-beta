@@ -28,12 +28,18 @@ class ClaimVersionAdmin(admin.ModelAdmin):
 @admin.register(SourceVersion)
 class SourceVersionAdmin(admin.ModelAdmin):
     """Read-only admin for source version history - append-only audit trail"""
-    list_display = ('node_id', 'version_number', 'title', 'author', 'source_type', 'operation', 'timestamp')
+    list_display = ('node_id', 'version_number', 'title', 'source_type', 'operation', 'timestamp')
     list_filter = ('source_type', 'operation', 'timestamp')
-    search_fields = ('node_id', 'title', 'author', 'url', 'content')
-    readonly_fields = ('node_id', 'version_number', 'url', 'title', 'author', 'publication_date',
-                      'source_type', 'content', 'operation', 'timestamp', 'valid_from',
-                      'valid_to', 'changed_by', 'change_notes')
+    search_fields = ('node_id', 'title', 'url', 'content', 'doi', 'isbn')
+    readonly_fields = (
+        'node_id', 'version_number', 'title', 'source_type', 'thumbnail_link', 'authors',
+        'url', 'accessed_date', 'excerpt', 'content', 'publication_date', 'container_title',
+        'publisher', 'publisher_location', 'volume', 'issue', 'pages', 'edition',
+        'doi', 'isbn', 'issn', 'pmid', 'pmcid', 'arxiv_id', 'handle', 'persistent_id',
+        'persistent_id_type', 'editors', 'jurisdiction', 'legal_category', 'court',
+        'decision_date', 'case_name', 'code', 'section', 'metadata',
+        'operation', 'timestamp', 'valid_from', 'valid_to', 'changed_by', 'change_notes'
+    )
     ordering = ('-timestamp',)
 
     def has_add_permission(self, request):

@@ -56,19 +56,84 @@ class TemporalQueryService:
                 'label': 'Source',
                 'properties': {}
             }
-            # Add Source-specific properties if they exist
-            if sv.url:
-                node_dict['properties']['url'] = sv.url
+            # Add Source properties if they exist
+            # Required fields
             if sv.title:
                 node_dict['properties']['title'] = sv.title
-            if sv.author:
-                node_dict['properties']['author'] = sv.author
-            if sv.publication_date:
-                node_dict['properties']['publication_date'] = sv.publication_date
             if sv.source_type:
                 node_dict['properties']['source_type'] = sv.source_type
+            # Universal optional fields
+            if sv.thumbnail_link:
+                node_dict['properties']['thumbnail_link'] = sv.thumbnail_link
+            if sv.authors:
+                node_dict['properties']['authors'] = sv.authors
+            if sv.url:
+                node_dict['properties']['url'] = sv.url
+            if sv.accessed_date:
+                node_dict['properties']['accessed_date'] = sv.accessed_date.isoformat() if sv.accessed_date else None
+            if sv.excerpt:
+                node_dict['properties']['excerpt'] = sv.excerpt
             if sv.content:
                 node_dict['properties']['content'] = sv.content
+            # Publication metadata
+            if sv.publication_date:
+                node_dict['properties']['publication_date'] = sv.publication_date
+            if sv.container_title:
+                node_dict['properties']['container_title'] = sv.container_title
+            if sv.publisher:
+                node_dict['properties']['publisher'] = sv.publisher
+            if sv.publisher_location:
+                node_dict['properties']['publisher_location'] = sv.publisher_location
+            # Volume/Issue/Pages
+            if sv.volume:
+                node_dict['properties']['volume'] = sv.volume
+            if sv.issue:
+                node_dict['properties']['issue'] = sv.issue
+            if sv.pages:
+                node_dict['properties']['pages'] = sv.pages
+            # Book-specific
+            if sv.edition:
+                node_dict['properties']['edition'] = sv.edition
+            # Identifiers
+            if sv.doi:
+                node_dict['properties']['doi'] = sv.doi
+            if sv.isbn:
+                node_dict['properties']['isbn'] = sv.isbn
+            if sv.issn:
+                node_dict['properties']['issn'] = sv.issn
+            if sv.pmid:
+                node_dict['properties']['pmid'] = sv.pmid
+            if sv.pmcid:
+                node_dict['properties']['pmcid'] = sv.pmcid
+            if sv.arxiv_id:
+                node_dict['properties']['arxiv_id'] = sv.arxiv_id
+            if sv.handle:
+                node_dict['properties']['handle'] = sv.handle
+            if sv.persistent_id:
+                node_dict['properties']['persistent_id'] = sv.persistent_id
+            if sv.persistent_id_type:
+                node_dict['properties']['persistent_id_type'] = sv.persistent_id_type
+            # Editors
+            if sv.editors:
+                node_dict['properties']['editors'] = sv.editors
+            # Legal-specific
+            if sv.jurisdiction:
+                node_dict['properties']['jurisdiction'] = sv.jurisdiction
+            if sv.legal_category:
+                node_dict['properties']['legal_category'] = sv.legal_category
+            if sv.court:
+                node_dict['properties']['court'] = sv.court
+            if sv.decision_date:
+                node_dict['properties']['decision_date'] = sv.decision_date
+            if sv.case_name:
+                node_dict['properties']['case_name'] = sv.case_name
+            if sv.code:
+                node_dict['properties']['code'] = sv.code
+            if sv.section:
+                node_dict['properties']['section'] = sv.section
+            # Metadata overflow
+            if sv.metadata:
+                node_dict['properties']['metadata'] = sv.metadata
             nodes.append(node_dict)
 
         return nodes

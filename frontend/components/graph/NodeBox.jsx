@@ -1,6 +1,8 @@
 import { forwardRef, useState, useEffect, useImperativeHandle, useRef } from 'react';
 import { searchNodes } from '../../APInterface/api.js';
 import { NodeDisplay } from '../common/NodeDisplay.jsx';
+import { ClaimForm } from './ClaimForm.jsx';
+import { SourceForm } from './SourceForm.jsx';
 import '../../styles/components/node-creation-panel.css';
 
 /**
@@ -44,6 +46,21 @@ export const NodeBox = forwardRef(({
   const [url, setUrl] = useState('');
   const [error, setError] = useState(null);
 
+  // Source metadata fields
+  const [source_type, setSourceType] = useState('');
+  const [authors, setAuthors] = useState([]);
+  const [doi, setDoi] = useState('');
+  const [publication_date, setPublicationDate] = useState('');
+  const [container_title, setContainerTitle] = useState('');
+  const [publisher, setPublisher] = useState('');
+  const [volume, setVolume] = useState('');
+  const [issue, setIssue] = useState('');
+  const [pages, setPages] = useState('');
+  const [edition, setEdition] = useState('');
+  const [isbn, setIsbn] = useState('');
+  const [issn, setIssn] = useState('');
+  const [arxiv_id, setArxivId] = useState('');
+
   // Selected existing node (when mode === 'selected')
   const [selectedNode, setSelectedNode] = useState(null); // {id, node_type, content, title?, url?}
 
@@ -59,8 +76,12 @@ export const NodeBox = forwardRef(({
       return selectedNode !== null;
     }
     // Input mode - coerce to boolean to avoid string/truthy confusion
-    return !!(nodeType && content.trim() &&
-      (nodeType !== 'source' || title.trim()));
+    // Sources require: title + source_type (content is optional description)
+    // Claims require: content only
+    if (nodeType === 'source') {
+      return !!(title.trim() && source_type.trim());
+    }
+    return !!(nodeType && content.trim());
   })();
 
   // Notify parent whenever validation state changes
@@ -80,6 +101,19 @@ export const NodeBox = forwardRef(({
       setContent(initialData.content || '');
       setTitle(initialData.title || '');
       setUrl(initialData.url || '');
+      setSourceType(initialData.source_type || '');
+      setAuthors(initialData.authors || []);
+      setDoi(initialData.doi || '');
+      setPublicationDate(initialData.publication_date || '');
+      setContainerTitle(initialData.container_title || '');
+      setPublisher(initialData.publisher || '');
+      setVolume(initialData.volume || '');
+      setIssue(initialData.issue || '');
+      setPages(initialData.pages || '');
+      setEdition(initialData.edition || '');
+      setIsbn(initialData.isbn || '');
+      setIssn(initialData.issn || '');
+      setArxivId(initialData.arxiv_id || '');
       // Stay in 'input' mode for editing (not 'selected')
     }
   }, [mode, initialData]);
@@ -88,7 +122,7 @@ export const NodeBox = forwardRef(({
   useImperativeHandle(ref, () => ({
     /**
      * Get current data - either new node data or selected existing node
-     * @returns {Object} {inputMode: 'input'|'selected', nodeType, content, title, url, selectedNodeId?}
+     * @returns {Object} {inputMode: 'input'|'selected', nodeType, content, title, url, metadata..., selectedNodeId?}
      */
     getData: () => {
       if (inputMode === 'selected') {
@@ -101,13 +135,33 @@ export const NodeBox = forwardRef(({
           url: selectedNode.url || ''
         };
       }
-      return {
+
+      const data = {
         inputMode: 'input',
         nodeType,
         content: content.trim(),
         title: title.trim(),
         url: url.trim()
       };
+
+      // Include source metadata if it's a source
+      if (nodeType === 'source') {
+        data.source_type = source_type.trim();
+        if (authors.length > 0) data.authors = authors;
+        if (doi.trim()) data.doi = doi.trim();
+        if (publication_date.trim()) data.publication_date = publication_date.trim();
+        if (container_title.trim()) data.container_title = container_title.trim();
+        if (publisher.trim()) data.publisher = publisher.trim();
+        if (volume.trim()) data.volume = volume.trim();
+        if (issue.trim()) data.issue = issue.trim();
+        if (pages.trim()) data.pages = pages.trim();
+        if (edition.trim()) data.edition = edition.trim();
+        if (isbn.trim()) data.isbn = isbn.trim();
+        if (issn.trim()) data.issn = issn.trim();
+        if (arxiv_id.trim()) data.arxiv_id = arxiv_id.trim();
+      }
+
+      return data;
     },
 
     /**
@@ -135,6 +189,20 @@ export const NodeBox = forwardRef(({
       setSelectedNode(null);
       setSearchResults([]);
       setShowResults(false);
+      // Reset source metadata
+      setSourceType('');
+      setAuthors([]);
+      setDoi('');
+      setPublicationDate('');
+      setContainerTitle('');
+      setPublisher('');
+      setVolume('');
+      setIssue('');
+      setPages('');
+      setEdition('');
+      setIsbn('');
+      setIssn('');
+      setArxivId('');
     },
 
     /**
@@ -260,6 +328,50 @@ export const NodeBox = forwardRef(({
     setInputMode('input');
   };
 
+  // Handle metadata fetched from CitationFetcher
+  const handleMetadataFetched = (metadata) => {
+    // Auto-populate form fields from fetched metadata (only if empty)
+    if (metadata.title && !title) {
+      setTitle(metadata.title);
+    }
+    if (metadata.source_type && !source_type) {
+      setSourceType(metadata.source_type);
+    }
+    if (metadata.authors && Array.isArray(metadata.authors) && authors.length === 0) {
+      setAuthors(metadata.authors);
+    }
+    if (metadata.doi && !doi) {
+      setDoi(metadata.doi);
+    }
+    if (metadata.publication_date && !publication_date) {
+      setPublicationDate(metadata.publication_date);
+    }
+    if (metadata.container_title && !container_title) {
+      setContainerTitle(metadata.container_title);
+    }
+    if (metadata.publisher && !publisher) {
+      setPublisher(metadata.publisher);
+    }
+    if (metadata.volume && !volume) {
+      setVolume(metadata.volume);
+    }
+    if (metadata.issue && !issue) {
+      setIssue(metadata.issue);
+    }
+    if (metadata.pages && !pages) {
+      setPages(metadata.pages);
+    }
+    if (metadata.isbn && !isbn) {
+      setIsbn(metadata.isbn);
+    }
+    if (metadata.issn && !issn) {
+      setIssn(metadata.issn);
+    }
+    if (metadata.arxiv_id && !arxiv_id) {
+      setArxivId(metadata.arxiv_id);
+    }
+  };
+
   // Determine highlight color based on node type
   const getHighlightColor = () => {
     const type = inputMode === 'selected' ? selectedNode?.node_type : nodeType;
@@ -381,125 +493,122 @@ export const NodeBox = forwardRef(({
                   </div>
                 )}
 
-                {/* Source-specific fields */}
+                {/* Form fields - delegated to type-specific components */}
                 {nodeType === 'source' && (
-                  <>
-                    <div className="node-creation-field" style={{ position: 'relative' }}>
-                      <label className="node-creation-label">
-                        Title <span style={{ color: '#ff4444' }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={`node-creation-input ${nodeType === 'source' && !title.trim() ? 'error' : ''}`}
-                        placeholder="Source title (required)"
-                        value={title}
-                        onChange={(e) => handleTitleChange(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="node-creation-field">
-                      <label className="node-creation-label">URL (optional)</label>
-                      <input
-                        type="url"
-                        className="node-creation-input"
-                        placeholder="https://..."
-                        value={url}
-                        onChange={(e) => handleUrlChange(e.target.value)}
-                      />
-                    </div>
-                  </>
+                  <SourceForm
+                    title={title}
+                    url={url}
+                    content={content}
+                    source_type={source_type}
+                    authors={authors}
+                    doi={doi}
+                    publication_date={publication_date}
+                    container_title={container_title}
+                    publisher={publisher}
+                    volume={volume}
+                    issue={issue}
+                    pages={pages}
+                    edition={edition}
+                    isbn={isbn}
+                    issn={issn}
+                    arxiv_id={arxiv_id}
+                    onTitleChange={handleTitleChange}
+                    onUrlChange={handleUrlChange}
+                    onContentChange={handleContentChange}
+                    onSourceTypeChange={setSourceType}
+                    onAuthorsChange={setAuthors}
+                    onDoiChange={setDoi}
+                    onPublicationDateChange={setPublicationDate}
+                    onContainerTitleChange={setContainerTitle}
+                    onPublisherChange={setPublisher}
+                    onVolumeChange={setVolume}
+                    onIssueChange={setIssue}
+                    onPagesChange={setPages}
+                    onEditionChange={setEdition}
+                    onIsbnChange={setIsbn}
+                    onIssnChange={setIssn}
+                    onArxivIdChange={setArxivId}
+                    onMetadataFetched={handleMetadataFetched}
+                    error={error}
+                  />
                 )}
 
-                {/* Content field - shown after type is selected */}
-                {nodeType && (
-                  <div className="node-creation-field">
-                    <label className="node-creation-label">
-                      {nodeType === 'source' ? 'Description' : 'Claim'}
-                    </label>
-                    <textarea
-                      className="node-creation-textarea"
-                      placeholder={nodeType === 'source' ? 'Describe the evidence...' : 'State the claim...'}
-                      value={content}
-                      onChange={(e) => handleContentChange(e.target.value)}
-                    />
+                {nodeType === 'claim' && (
+                  <ClaimForm
+                    content={content}
+                    onContentChange={handleContentChange}
+                    error={error}
+                  />
+                )}
 
-                    {/* Search results dropdown */}
-                    {showResults && searchResults.length > 0 && (
-                      <div style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        border: '1px solid var(--accent-blue)',
-                        borderRadius: '4px',
-                        maxHeight: '200px',
-                        overflowY: 'auto',
-                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-                        marginTop: '8px'
-                      }}>
+                {/* Search results dropdown - shown for both types */}
+                {nodeType && showResults && searchResults.length > 0 && (
+                  <div style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--accent-blue)',
+                    borderRadius: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+                    marginTop: '8px'
+                  }}>
+                    <div style={{
+                      padding: '8px 12px',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      borderBottom: '1px solid var(--attr-border)',
+                      backgroundColor: 'var(--bg-primary)'
+                    }}>
+                      {isSearching ? 'Searching...' : `${searchResults.length} similar ${nodeType}(s) found`}
+                    </div>
+                    {searchResults.map((result) => (
+                      <div
+                        key={result.id}
+                        onClick={() => handleSelectNode(result)}
+                        style={{
+                          padding: '10px 12px',
+                          borderBottom: '1px solid var(--bg-primary)',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
                         <div style={{
-                          padding: '8px 12px',
-                          fontSize: '0.75rem',
-                          color: 'var(--text-secondary)',
-                          borderBottom: '1px solid var(--attr-border)',
-                          backgroundColor: 'var(--bg-primary)'
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginBottom: '4px'
                         }}>
-                          {isSearching ? 'Searching...' : `${searchResults.length} similar ${nodeType}(s) found`}
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            backgroundColor: result.node_type === 'claim' ? 'var(--accent-blue)' : 'var(--accent-green)',
+                            color: 'var(--bg-secondary)',
+                            fontSize: '0.65rem',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase'
+                          }}>
+                            {result.node_type}
+                          </span>
                         </div>
-                        {searchResults.map((result) => (
-                          <div
-                            key={result.id}
-                            onClick={() => handleSelectNode(result)}
-                            style={{
-                              padding: '10px 12px',
-                              borderBottom: '1px solid var(--bg-primary)',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                          >
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              marginBottom: '4px'
-                            }}>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '3px',
-                                backgroundColor: result.node_type === 'claim' ? 'var(--accent-blue)' : 'var(--accent-green)',
-                                color: 'var(--bg-secondary)',
-                                fontSize: '0.65rem',
-                                fontWeight: 'bold',
-                                textTransform: 'uppercase'
-                              }}>
-                                {result.node_type}
-                              </span>
-                            </div>
-                            <div style={{
-                              fontSize: '0.85rem',
-                              color: 'var(--text-primary)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical'
-                            }}>
-                              {result.node_type === 'source' ? result.title : result.content}
-                            </div>
-                          </div>
-                        ))}
+                        <div style={{
+                          fontSize: '0.85rem',
+                          color: 'var(--text-primary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {result.node_type === 'source' ? result.title : result.content}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Error display */}
-                {error && (
-                  <div className="node-creation-error">
-                    {error}
+                    ))}
                   </div>
                 )}
               </>

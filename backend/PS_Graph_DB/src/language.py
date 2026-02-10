@@ -177,11 +177,16 @@ class LanguageOperations:
         return claim_id
 
     def create_source(self, source_id: Optional[str] = None,
-                     # Core citation fields
+                     # Required fields
                      title: Optional[str] = None,
                      source_type: Optional[str] = None,
+                     # Universal optional fields
+                     thumbnail_link: Optional[str] = None,
                      authors: Optional[list] = None,  # [{"name": "...", "role": "author"}]
-                     author: Optional[str] = None,  # Legacy field (deprecated)
+                     url: Optional[str] = None,
+                     accessed_date: Optional[str] = None,
+                     excerpt: Optional[str] = None,
+                     content: Optional[str] = None,
                      # Publication metadata
                      publication_date: Optional[str] = None,
                      container_title: Optional[str] = None,
@@ -191,23 +196,66 @@ class LanguageOperations:
                      volume: Optional[str] = None,
                      issue: Optional[str] = None,
                      pages: Optional[str] = None,
+                     # Book-specific
+                     edition: Optional[str] = None,
                      # Identifiers
-                     url: Optional[str] = None,
                      doi: Optional[str] = None,
                      isbn: Optional[str] = None,
                      issn: Optional[str] = None,
-                     # Web-specific
-                     accessed_date: Optional[str] = None,
-                     # Flexible metadata
+                     pmid: Optional[str] = None,
+                     pmcid: Optional[str] = None,
+                     arxiv_id: Optional[str] = None,
+                     handle: Optional[str] = None,
+                     persistent_id: Optional[str] = None,
+                     persistent_id_type: Optional[str] = None,
+                     # Editors
+                     editors: Optional[list] = None,  # [{"name": "...", "role": "editor"}]
+                     # Legal-specific
+                     jurisdiction: Optional[str] = None,
+                     legal_category: Optional[str] = None,
+                     court: Optional[str] = None,
+                     decision_date: Optional[str] = None,
+                     case_name: Optional[str] = None,
+                     code: Optional[str] = None,
+                     section: Optional[str] = None,
+                     # Flexible metadata overflow
                      metadata: Optional[dict] = None,
-                     # Content
-                     content: Optional[str] = None,
                      user_id: Optional[int] = None) -> str:
-        """Create a new Source node with UUID and optional properties"""
+        """Create a new Source node with UUID and citation properties"""
         import json
 
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
+
+        # Validate required fields
+        if title is None:
+            raise ValueError("title is required for Source nodes")
+        if source_type is None:
+            raise ValueError("source_type is required for Source nodes")
+
+        # Validate source_type
+        VALID_SOURCE_TYPES = {
+            'journal_article', 'preprint', 'book', 'website', 'newspaper',
+            'magazine', 'thesis', 'conference_paper', 'technical_report',
+            'government_document', 'dataset', 'media', 'legal', 'testimony'
+        }
+        if source_type not in VALID_SOURCE_TYPES:
+            raise ValueError(f"Invalid source_type: '{source_type}'. Must be one of {VALID_SOURCE_TYPES}")
+
+        # Type-specific required field validation
+        if source_type == 'legal':
+            if jurisdiction is None:
+                raise ValueError("jurisdiction is required for legal sources")
+            if legal_category is None:
+                raise ValueError("legal_category is required for legal sources")
+            # Validate legal_category
+            VALID_LEGAL_CATEGORIES = {'case', 'statute', 'regulation', 'treaty'}
+            if legal_category not in VALID_LEGAL_CATEGORIES:
+                raise ValueError(f"Invalid legal_category: '{legal_category}'. Must be one of {VALID_LEGAL_CATEGORIES}")
+
+        if source_type == 'website':
+            if url is None:
+                raise ValueError("url is required for website sources")
 
         if source_id is None:
             source_id = str(uuid.uuid4())
@@ -218,39 +266,70 @@ class LanguageOperations:
 
         # Helper function to add property
         def add_prop(name: str, value, is_json: bool = False):
+            nonlocal cypher_props
             if value is not None:
                 if is_json:
                     # Serialize JSON to string for AGE storage
                     json_str = json.dumps(value)
                     escaped_value = self._escape_cypher_string(json_str)
-                    nonlocal cypher_props
                     cypher_props += f", {name}: '{escaped_value}'"
                     log_props[name] = value  # Store original object in Django
                 else:
                     escaped_value = self._escape_cypher_string(str(value))
-                    nonlocal cypher_props
                     cypher_props += f", {name}: '{escaped_value}'"
                     log_props[name] = value
 
-        # Add all properties
+        # Add required fields
         add_prop('title', title)
         add_prop('source_type', source_type)
+
+        # Add universal optional fields
+        add_prop('thumbnail_link', thumbnail_link)
         add_prop('authors', authors, is_json=True)
-        add_prop('author', author)  # Legacy
+        add_prop('url', url)
+        add_prop('accessed_date', accessed_date)
+        add_prop('excerpt', excerpt)
+        add_prop('content', content)
+
+        # Add publication metadata
         add_prop('publication_date', publication_date)
         add_prop('container_title', container_title)
         add_prop('publisher', publisher)
         add_prop('publisher_location', publisher_location)
+
+        # Add volume/issue/pages
         add_prop('volume', volume)
         add_prop('issue', issue)
         add_prop('pages', pages)
-        add_prop('url', url)
+
+        # Add book-specific
+        add_prop('edition', edition)
+
+        # Add identifiers
         add_prop('doi', doi)
         add_prop('isbn', isbn)
         add_prop('issn', issn)
-        add_prop('accessed_date', accessed_date)
+        add_prop('pmid', pmid)
+        add_prop('pmcid', pmcid)
+        add_prop('arxiv_id', arxiv_id)
+        add_prop('handle', handle)
+        add_prop('persistent_id', persistent_id)
+        add_prop('persistent_id_type', persistent_id_type)
+
+        # Add editors
+        add_prop('editors', editors, is_json=True)
+
+        # Add legal-specific
+        add_prop('jurisdiction', jurisdiction)
+        add_prop('legal_category', legal_category)
+        add_prop('court', court)
+        add_prop('decision_date', decision_date)
+        add_prop('case_name', case_name)
+        add_prop('code', code)
+        add_prop('section', section)
+
+        # Add metadata overflow
         add_prop('metadata', metadata, is_json=True)
-        add_prop('content', content)
 
         self._execute_with_logging(
             cypher_query=f"CREATE (s:Source {{{cypher_props}}}) RETURN s",
@@ -534,6 +613,8 @@ class LanguageOperations:
 
     def edit_node(self, node_id: str, user_id: Optional[int] = None, **fields) -> bool:
         """Edit node properties. Accepts any valid node properties as keyword arguments"""
+        import json
+
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -542,21 +623,86 @@ class LanguageOperations:
 
         db = get_db()
 
-        # Query for node label first (needed for logging)
+        # Query for node label and current source_type (needed for validation)
         node_data = db.execute_cypher(
             self.current_graph,
-            f"MATCH (n {{id: '{node_id}'}}) RETURN labels(n) as labels",
-            ['labels']
+            f"MATCH (n {{id: '{node_id}'}}) RETURN labels(n) as labels, n.source_type as source_type",
+            ['labels', 'source_type']
         )
         if not node_data:
             return False
 
         node_label = node_data[0]['labels'][0]
 
+        # Validate Source node edits
+        if node_label == 'Source':
+            current_source_type = node_data[0].get('source_type')
+            new_source_type = fields.get('source_type', current_source_type)
+
+            # Validate source_type if being changed
+            if 'source_type' in fields:
+                VALID_SOURCE_TYPES = {
+                    'journal_article', 'preprint', 'book', 'website', 'newspaper',
+                    'magazine', 'thesis', 'conference_paper', 'technical_report',
+                    'government_document', 'dataset', 'media', 'legal', 'testimony'
+                }
+                if new_source_type not in VALID_SOURCE_TYPES:
+                    raise ValueError(f"Invalid source_type: '{new_source_type}'. Must be one of {VALID_SOURCE_TYPES}")
+
+            # Type-specific required field validation
+            if new_source_type == 'legal':
+                # Query current values if not in fields
+                if 'jurisdiction' not in fields or 'legal_category' not in fields:
+                    current_data = db.execute_cypher(
+                        self.current_graph,
+                        f"MATCH (n {{id: '{node_id}'}}) RETURN n.jurisdiction as jurisdiction, n.legal_category as legal_category",
+                        ['jurisdiction', 'legal_category']
+                    )
+                    current_jurisdiction = current_data[0].get('jurisdiction') if current_data else None
+                    current_legal_category = current_data[0].get('legal_category') if current_data else None
+                else:
+                    current_jurisdiction = None
+                    current_legal_category = None
+
+                final_jurisdiction = fields.get('jurisdiction', current_jurisdiction)
+                final_legal_category = fields.get('legal_category', current_legal_category)
+
+                if final_jurisdiction is None:
+                    raise ValueError("jurisdiction is required for legal sources")
+                if final_legal_category is None:
+                    raise ValueError("legal_category is required for legal sources")
+
+                # Validate legal_category
+                if 'legal_category' in fields:
+                    VALID_LEGAL_CATEGORIES = {'case', 'statute', 'regulation', 'treaty'}
+                    if final_legal_category not in VALID_LEGAL_CATEGORIES:
+                        raise ValueError(f"Invalid legal_category: '{final_legal_category}'. Must be one of {VALID_LEGAL_CATEGORIES}")
+
+            if new_source_type == 'website':
+                # Query current url if not in fields
+                if 'url' not in fields:
+                    current_data = db.execute_cypher(
+                        self.current_graph,
+                        f"MATCH (n {{id: '{node_id}'}}) RETURN n.url as url",
+                        ['url']
+                    )
+                    current_url = current_data[0].get('url') if current_data else None
+                else:
+                    current_url = None
+
+                final_url = fields.get('url', current_url)
+                if final_url is None:
+                    raise ValueError("url is required for website sources")
+
         # Build SET clause dynamically
         set_clauses = []
         for field, value in fields.items():
-            if isinstance(value, str):
+            if isinstance(value, (list, dict)):
+                # Handle JSON fields (authors, editors, metadata)
+                json_str = json.dumps(value)
+                escaped_value = self._escape_cypher_string(json_str)
+                set_clauses.append(f"n.{field} = '{escaped_value}'")
+            elif isinstance(value, str):
                 escaped_value = self._escape_cypher_string(value)
                 set_clauses.append(f"n.{field} = '{escaped_value}'")
             elif isinstance(value, (int, float)):

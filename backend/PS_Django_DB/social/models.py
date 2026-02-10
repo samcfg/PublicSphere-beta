@@ -216,18 +216,22 @@ class ViewCount(models.Model):
 
 class SuggestedEdit(models.Model):
     """
-    User-proposed modifications to locked nodes (past edit window or not owned).
-    Community rates suggestions; accepted suggestions apply changes to target node.
+    User-proposed modifications to locked entities (past edit window or not owned).
+    Community rates suggestions; accepted suggestions apply changes to target entity.
 
     Workflow:
     1. User creates suggestion → status='pending'
     2. Community rates the suggestion (Rating model with entity_type='suggested_edit')
     3. Moderator reviews OR threshold auto-triggers → status='accepted'/'rejected'
-    4. Accepted suggestions apply changes via ops.edit_node()
+    4. Accepted suggestions apply changes via ops.edit_node() or ops.edit_edge()
+
+    For connections: Only 'notes' field can be suggested for edit (textual explanation).
+    For nodes: Content and metadata fields can be edited.
     """
     ENTITY_TYPE_CHOICES = [
         ('claim', 'Claim'),
         ('source', 'Source'),
+        ('connection', 'Connection'),
     ]
 
     STATUS_CHOICES = [
@@ -245,7 +249,7 @@ class SuggestedEdit(models.Model):
     entity_uuid = models.CharField(
         max_length=36,
         db_index=True,
-        help_text="UUID of the target claim or source to modify"
+        help_text="UUID of the target claim, source, or connection to modify"
     )
     entity_type = models.CharField(
         max_length=20,

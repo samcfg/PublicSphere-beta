@@ -168,12 +168,50 @@ class TemporalLogger:
                 SourceVersion.objects.create(
                     node_id=node_id,
                     version_number=version_num,
-                    url=properties.get('url'),
+                    # Required fields
                     title=properties.get('title'),
-                    author=properties.get('author'),
-                    publication_date=properties.get('publication_date'),
                     source_type=properties.get('source_type'),
+                    # Universal optional fields
+                    thumbnail_link=properties.get('thumbnail_link'),
+                    authors=properties.get('authors'),
+                    url=properties.get('url'),
+                    accessed_date=properties.get('accessed_date'),
+                    excerpt=properties.get('excerpt'),
                     content=properties.get('content'),
+                    # Publication metadata
+                    publication_date=properties.get('publication_date'),
+                    container_title=properties.get('container_title'),
+                    publisher=properties.get('publisher'),
+                    publisher_location=properties.get('publisher_location'),
+                    # Volume/Issue/Pages
+                    volume=properties.get('volume'),
+                    issue=properties.get('issue'),
+                    pages=properties.get('pages'),
+                    # Book-specific
+                    edition=properties.get('edition'),
+                    # Identifiers
+                    doi=properties.get('doi'),
+                    isbn=properties.get('isbn'),
+                    issn=properties.get('issn'),
+                    pmid=properties.get('pmid'),
+                    pmcid=properties.get('pmcid'),
+                    arxiv_id=properties.get('arxiv_id'),
+                    handle=properties.get('handle'),
+                    persistent_id=properties.get('persistent_id'),
+                    persistent_id_type=properties.get('persistent_id_type'),
+                    # Editors
+                    editors=properties.get('editors'),
+                    # Legal-specific
+                    jurisdiction=properties.get('jurisdiction'),
+                    legal_category=properties.get('legal_category'),
+                    court=properties.get('court'),
+                    decision_date=properties.get('decision_date'),
+                    case_name=properties.get('case_name'),
+                    code=properties.get('code'),
+                    section=properties.get('section'),
+                    # Metadata overflow
+                    metadata=properties.get('metadata'),
+                    # Operation tracking
                     operation=operation,
                     changed_by=changed_by,
                     change_notes=change_notes

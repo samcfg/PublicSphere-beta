@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../utilities/AuthContext.jsx';
 import { fetchUserContributionsList, fetchUserSocialContributions, toggleAnonymity, toggleSocialAnonymity } from '../../APInterface/api.js';
+import { formatSourceType } from '../../utilities/formatters.js';
 
 /**
  * UserContributions component
@@ -235,7 +236,7 @@ export function UserContributions() {
                         'N/A'
                       )}
                     </td>
-                    <td>{source.source_type || 'N/A'}</td>
+                    <td>{source.source_type ? formatSourceType(source.source_type) : 'N/A'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {source.created_at ? new Date(source.created_at).toLocaleDateString() : 'N/A'}
                     </td>

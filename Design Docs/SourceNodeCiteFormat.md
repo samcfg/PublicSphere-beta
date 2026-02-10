@@ -75,39 +75,108 @@ and then visually hilight or show the fields that are relevant to be filled in b
   └─────────────────────────────────────┘
 
 
-Type Detection: 
-> 1. API responses (high confidence):
-  - CrossRef: Returns type field → maps to journal_article, book, conference_paper
-  - arXiv: Always → preprint
+## URL Parsing Waterfall Strategy
 
-  2. schema.org JSON-LD (medium confidence):
-  - NewsArticle → newspaper
-  - ScholarlyArticle → journal_article
-  - Book → book
-  
-  2. whitelist -> common media players/hosts
-  - Podcast apps? 
+The system attempts extraction methods in order of reliability until successful:
 
-  3. Fallback (low confidence):
-  - Everything else → website
+### Tier 1: Identifier Extraction + API Lookup (High Confidence)
+**Pattern**: Extract persistent identifier from URL → Query authoritative API → Map response to our schema
 
-Things which Requires Manual Input
-  - Anecdotal
-  - Legal (Requires Moderator Approval?)
-  - Technical Report
-  - Media
-Say something on detection of "magazine" 
+1. **DOI** (Digital Object Identifier)
+   - Extract: Regex pattern `10.XXXX/...` from URL
+   - API: CrossRef (`https://api.crossref.org/works/{doi}`)
+   - Returns: Title, authors, type, journal/book name, volume/issue/pages, publisher, dates, identifiers
+   - Type mapping: `journal-article` → `journal_article`, `book` → `book`, `proceedings-article` → `conference_paper`, `posted-content` → `preprint`
+
+1. **arXiv ID** (DOI based)
+   - Extract: Pattern `arxiv.org/abs/XXXX.XXXXX` or `arxiv.org/pdf/...`
+   - API: arXiv XML API
+   - Returns: Title, authors, abstract, publication date
+   - Type: Always `preprint`
+
+3. **bioRxiv/medRxiv DOI**
+   - Extract: Pattern `biorxiv.org/content/10.1101/...`
+   - API: CrossRef (uses DOI)
+   - Type override: `preprint` (even though CrossRef may say otherwise)
+
+**Why high confidence**: Publishers submit metadata directly to these APIs. Type detection is explicit.
+  Add:
+  - ISBN (exists in code but unused - line 445)
+  - PMID/PMCID (design intent, not yet implemented)
+  - Handle (design intent, not yet implemented)
+
+---
+
+### Tier 2: HTML Metadata Extraction (Medium Confidence)
+**Pattern**: Fetch HTML → Parse structured meta tags → Map to our schema
+
+Tries extraction methods in order:
+
+1. **schema.org JSON-LD** (Best structured)
+   - Format: `<script type="application/ld+json">` with `@type` field
+   - Type mapping: `ScholarlyArticle` → `journal_article`, `NewsArticle` → `newspaper`, `Book` → `book`, `Thesis` → `thesis`, `Dataset` → `dataset`, `VideoObject` → `media`
+   - Extracts: Title, authors (with affiliations), dates, publisher, container, DOI/ISBN, images
+
+2. **Highwire Press meta tags** (Academic publishers)
+   - Format: `<meta name="citation_title" content="...">`, `<meta name="citation_author">`, etc.
+   - Used by: Most academic journals, PubMed, Google Scholar-compatible sites
+   - Extracts: Title, authors, journal name, volume/issue/pages, DOI, ISSN, dates
+   - Type: Usually `journal_article`, check DOI prefix for preprints
+
+3. **Dublin Core meta tags** (Libraries, repositories)
+   - Format: `<meta name="DC.title">`, `<meta name="DC.creator">`, etc.
+   - Extracts: Title, authors, dates, publisher
+   - Type: Generic `website` (insufficient info for precise typing)
+
+4. **OpenGraph tags** (Social sharing)
+   - Format: `<meta property="og:title">`, `<meta property="article:author">`, etc.
+   - Extracts: Title, authors, dates, site name, thumbnail (`og:image`)
+   - Type heuristics: `og:type="article"` → check domain against newspaper/magazine whitelists, else `website`
+
+**Why medium confidence**: Webmasters may omit/misformat tags. Type inference relies on heuristics.
+
+---
+
+### Tier 3: Domain/Platform Whitelisting (Medium Confidence)
+**Pattern**: Match URL domain against known platforms → Assign type + extract platform-specific fields
+
+- **Media platforms**: `youtube.com|vimeo.com` → `media` with `metadata: {media_format: "video", platform: "YouTube"}`
+- **Audio platforms**: `soundcloud.com|spotify.com|podcasts.apple.com` → `media` with `metadata: {media_format: "audio"}`
+- **Newspaper domains**: `nytimes.com|washingtonpost.com|theguardian.com` → `newspaper`
+- **Magazine domains**: `theatlantic.com|newyorker.com|wired.com` → `magazine`
+- **Government**: `data.gov|*.gov` → `government_document`
+- **Repositories**: `zenodo.org|figshare.com` → `dataset`
+
+**Why medium confidence**: Platform is known, but content type may vary (e.g., YouTube has music, podcasts, lectures).
+
+---
+
+### Tier 4: Fallback (Low Confidence)
+**Pattern**: Basic HTML scraping when all else fails
+
+- Extracts: `<title>` tag only
+- Type: `website`
+- Fields: `title`, `url`, `accessed_date`
+- User must manually populate remaining fields and select correct type
+
+---
+
+## Confidence Levels Explained
+
+- **High**: API-sourced or schema.org with complete structured data
+- **Medium**: HTML meta tags present but may be incomplete; domain-based type inference
+- **Low**: Minimal extraction; user review required
 
 # Source Formats
 ## Types
 - academic journal article
 - preprint
-- book (contains option for chapter)
+- book 
 - book chapter
 - website
 - newspaper
 - thesis
-- conference paper (niche, probably wont be supported by manual UI, but something that the auto-parser may catch)
+- conference paper
 - magazine
 - Government/policy document
 - Dataset
@@ -119,16 +188,19 @@ Say something on detection of "magazine"
 - legal (citing laws)
 - media (includes photo, audio, video)
 
-### Uniform Fields
-label='Source',
-'id': str,
-'title': str,
-'source_type': str,
-optional: ={
-'authors': str, # JSON string: {"name": "...", "role": "author"}]
-'thumbnail_link': str,  # Optional for ALL types - og:image, cover art, featured images, etc.
-'url': str,
-}
+### Uniform Fields (All Types)
+**Required**:
+- `id`: str - Unique identifier
+- `title`: str - Primary title/name of source
+- `source_type`: str - Type category (determines required/optional fields)
+
+**Optional (Available for ALL types)**:
+- `authors`: JSONB - Array of author objects: [{"name": "...", "role": "author"}]
+- `thumbnail_link`: str - Image URL (og:image, cover art, featured images, thumbnails, etc.)
+- `url`: str - Link to source
+- `accessed_date`: str - When the source was accessed
+- `excerpt`: str - Selected quotation or summary
+- `content`: str - Full text content (when applicable)
 ### Type-Based Fields
 **Publicaton**
 'publication_date': str,
@@ -196,7 +268,7 @@ conference date
       "excerpt": "...",
       "content": "...",
 
-      # Tier 4: Everything else goes in metadata JSON
+      # Tier 4: Everything else goes in metadata JSONB
       "metadata": {
           "reporter": "U.S.",
           "reporter_volume": "384",
@@ -233,6 +305,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (journal cover, article featured image)
 - `volume`: Journal volume number
 - `issue`: Issue number
 - `pages`: Page range (e.g., "123-145")
@@ -256,6 +329,7 @@ conference date
 - `publication_date`: Upload/posting date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (preprint featured image)
 - `container_title`: Preprint server name (e.g., "arXiv")
 - `doi`: Digital Object Identifier
 - `arxiv_id`: arXiv identifier (e.g., "2401.12345")
@@ -275,6 +349,7 @@ conference date
 - `authors`: Authors (of book or chapter)
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (book cover)
 - `container_title`: Book title (if citing chapter within edited volume)
 - `editors`: JSON array of editor objects (for edited volumes)
 - `publisher`: Publishing house
@@ -297,11 +372,11 @@ conference date
 - `url`: Page URL
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (og:image, featured image)
 - `authors`: JSON array (if byline exists)
 - `container_title`: Website name
 - `publication_date`: Publication/update date
 - `accessed_date`: When accessed
-- `thumbnail_link`: og:image URL
 
 **Storage**: All fields top-level
 
@@ -316,6 +391,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (article featured image)
 - `authors`: JSON array of reporters
 - `url`: Link to article
 - `accessed_date`: Access date
@@ -335,6 +411,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (magazine cover, article image)
 - `authors`: JSON array
 - `volume`: Volume number
 - `issue`: Issue number
@@ -355,6 +432,7 @@ conference date
 - `publication_date`: Year completed
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (university logo, thesis cover)
 - `publisher`: University name (institution granting degree)
 - `url`: Link to institutional repository or ProQuest
 - `doi`: Digital Object Identifier
@@ -375,6 +453,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (conference logo, paper image)
 - `publisher`: Publisher of proceedings
 - `pages`: Page range
 - `doi`: Digital Object Identifier
@@ -394,6 +473,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (institution logo, report cover)
 - `authors`: JSON array
 - `url`: Link to report
 - `doi`: Digital Object Identifier
@@ -412,6 +492,7 @@ conference date
 - `publication_date`: Publication date
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (agency seal, document cover)
 - `authors`: JSON array (if attributed)
 - `url`: Link to document
 - `metadata`: {"document_number": "GAO-24-106380", "government_level": "federal"}
@@ -428,6 +509,7 @@ conference date
 - `url`: Repository URL or DOI resolver
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (data visualization, repository logo)
 - `authors`: JSON array of dataset creators
 - `publisher`: Repository name (e.g., "Zenodo", "Figshare")
 - `publication_date`: Publication/upload date
@@ -449,10 +531,10 @@ conference date
 - `url`: Link to media
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (video thumbnail, podcast cover, photo)
 - `authors`: JSON array (creators/performers)
 - `publication_date`: Upload/publication date
 - `container_title`: Series/album/channel name
-- `thumbnail_link`: Thumbnail image URL
 - `accessed_date`: Access date
 - `metadata`: {"media_format": "video", "duration": "PT1H30M", "platform": "YouTube"}
 
@@ -468,27 +550,26 @@ conference date
 - `jurisdiction`: Legal jurisdiction (e.g., "United States", "Germany")
 - `legal_category`: Type ("case", "statute", "regulation", "treaty")
 
-**Tier 1 (Canonical Identifiers)**:
+**Typical Optional Fields**:
+- `thumbnail_link`: Image URL (court seal, jurisdiction emblem)
 - `url`: Stable URL to authoritative source
 - `persistent_id`: ECLI, ELI, DOI, Public Law number
 - `persistent_id_type`: Auto-detected type of identifier
-
-**Tier 3 (Common Citation Fields)**:
 - For cases: `court`, `decision_date`, `case_name`
 - For statutes: `code`, `section`, `article`, `publication_date`
 
-**Tier 4 (Traditional Citation Metadata)** - stored in `metadata` JSON:
+**Tier 4 (Traditional Citation Metadata)** - stored in `metadata` JSONB:
 - `reporter`, `reporter_volume`, `first_page`, `file_number`
 - `original_language_title`, `original_script`
 - `issuing_authority`, `promulgation_date`
 - `transliteration_system`, `author_death_date` (for Islamic law)
 - `citation_notes`
 
-**Storage**: Tiers 1-3 top-level; Tier 4 in metadata JSON
+**Storage**: Tiers 1-3 top-level; Tier 4 in metadata JSONB
 
 ---
 
-## 14. personal_communication
+## 14. testimony
 **Purpose**: Anecdotes, personal observations, private communications, interviews
 
 **Required Fields**:
@@ -496,15 +577,11 @@ conference date
 - `authors`: JSON array (communicator/interviewee)
 
 **Typical Optional Fields**:
+- `thumbnail_link`: Image URL (photo of interviewee, event image)
 - `publication_date`: Date of communication/observation
 - `metadata`: {"communication_type": "interview", "interviewer": "...", "location": "..."}
 
 **Storage**: All fields top-level except communication details in metadata
-
----
-
-## Storage Performance Analysis
-
 
 ---
 
@@ -514,7 +591,7 @@ conference date
 
 **Rationale**:
 - Most types have thumbnails via OpenGraph metadata (og:image), book covers, article featured images, video thumbnails
-- Even types with rare thumbnails (legal documents, personal communications) benefit from field availability for edge cases
+- Even types with rare thumbnails (legal documents, testimony) benefit from field availability for edge cases
 - Zero storage cost when NULL
 - UI can conditionally display based on presence
 - Prevents artificial limitations on user flexibility
@@ -531,14 +608,38 @@ conference date
 ✓ **Media sources**: newspaper, magazine, website, media (video/audio/image)
 ✓ **Institutional sources**: technical_report, government_document, dataset
 ✓ **Legal sources**: legal (cases, statutes, regulations, treaties)
-✓ **Personal sources**: personal_communication (anecdotes, interviews, observations)
+✓ **Personal sources**: testimony (anecdotes, interviews, observations)
 
 **Potential Gaps**:
 1. **Standards/Specifications** (ISO, RFC, W3C specs) - Could use `technical_report` or add dedicated type
 2. **Patents** - Currently no type; rare in argument mapping but could add if needed
-3. **Archival Materials** (manuscripts, letters, historical documents) - Could use `personal_communication` or add `archival_document` type
+3. **Archival Materials** (manuscripts, letters, historical documents) - Could use `testimony` or add `archival_document` type
 4. **Religious Texts** (Bible, Quran, etc.) - Could use `book` but may need special citation fields (chapter:verse)
 
-**Recommendation**: Current schema is sufficient for MVP. Monitor usage patterns to determine if specialized types (patents, archival, religious texts) warrant addition. The metadata JSON provides escape hatch for edge cases.
-
 **Field Completeness**: All major citation systems (MLA, APA, Chicago, Bluebook, Vancouver) can be mapped to this field set. The combination of top-level fields + metadata JSON provides flexibility without schema bloat.
+
+---
+
+# Universal Fields Reference
+
+## Fields Present in ALL Source Types
+
+**Required (All Types)**:
+- `id`: str - Unique identifier for the source node
+- `title`: str - Primary title/name of the source
+- `source_type`: str - Type category (journal_article, book, website, legal, etc.)
+
+**Optional (All Types)**:
+- `thumbnail_link`: str - Image URL for visual representation (og:image, covers, thumbnails, logos, featured images, etc.)
+- `authors`: JSONB - Array of author/creator objects: [{"name": "...", "role": "author"}]
+- `url`: str - Web link to the source
+- `accessed_date`: str - Date when the source was accessed (ISO 8601 format recommended)
+- `excerpt`: str - Selected quotation or brief summary from the source
+- `content`: str - Full text content of the source (when applicable/available)
+
+**Notes**:
+- All optional fields have zero storage cost when NULL
+- `thumbnail_link` auto-populated from og:image, Twitter cards, schema.org images, or platform-specific thumbnails
+- `authors` stored as JSONB for flexibility with roles (author, editor, translator, etc.) and queryability
+- `metadata` stored as JSONB to enable future analytics and filtering on type-specific fields
+- Type-specific required/optional fields are documented in individual type specifications above

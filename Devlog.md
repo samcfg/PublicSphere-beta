@@ -211,3 +211,5 @@ Things always get wonky in the frontend. The API needs to be strong to keep thin
 Added search to createnodemodal
 Added basic owner edit to nodes and edges (added delete to edges)
 Made basic "engagement calculation" in graph/views.py, and for it an incrementing viewcounter, just counts page refreshes. This is used to reduce the time that an entity can be edited or deleted without a vote. Think about storing in db engagement as it becomes more used for performance
+02/03 Finalized the source schema, added that validation to create/edt in language, 
+For API calls, found that Javascript has a "CamelCase" convention, but we use"snake_case" in frontend, aligning with backend. 

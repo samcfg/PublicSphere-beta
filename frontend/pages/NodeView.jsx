@@ -4,8 +4,11 @@ import { fetchGraphData, fetchEntityAttribution, fetchEntityComments, fetchEntit
 import { NodeDisplay } from '../components/common/NodeDisplay.jsx';
 import { CommentsThread } from '../components/common/CommentsThread.jsx';
 import { IncomingConnectionPreview } from '../components/common/IncomingConnectionPreview.jsx';
+import { SuggestedEditSidebar } from '../components/common/SuggestedEditSidebar.jsx';
+import { SuggestEditModal } from '../components/graph/SuggestEditModal.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import { useAuth } from '../utilities/AuthContext.jsx';
+import { FaRegEdit } from 'react-icons/fa';
 
 /**
  * Helper function to process incoming edges into connection previews
@@ -56,7 +59,7 @@ export function NodeView() {
   const [searchParams] = useSearchParams();
   const nodeId = searchParams.get('id');
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [nodeData, setNodeData] = useState(null);
   const [incomingConnections, setIncomingConnections] = useState([]);
   const [attributions, setAttributions] = useState({});
@@ -66,6 +69,7 @@ export function NodeView() {
   const [loading, setLoading] = useState(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [error, setError] = useState(null);
+  const [showSuggestEditModal, setShowSuggestEditModal] = useState(false);
 
   useEffect(() => {
     const loadNode = async () => {
@@ -124,10 +128,14 @@ export function NodeView() {
 
       if (source) {
         const nodeType = 'source';
+        const sourceProperties = source.source.properties;
+
         setNodeData({
-          content: source.source.properties.content || 'No content',
+          content: sourceProperties.content || 'No content',
           type: nodeType,
-          url: source.source.properties.url || null
+          url: sourceProperties.url || null,
+          // Store full source data for metadata display
+          sourceData: sourceProperties
         });
 
         // Fetch attribution
@@ -224,7 +232,7 @@ export function NodeView() {
         display: 'flex',
         flexDirection: 'row',
         minHeight: '100vh',
-        padding: '90px 20px 20px 20px',
+        padding: '90px 0 20px 20px',
         gap: '30px'
       }}>
         {/* Sidebar - Incoming Connections */}
@@ -265,14 +273,56 @@ export function NodeView() {
           flexDirection: 'column',
           alignItems: 'center',
           flex: 1,
-          minWidth: 0
+          minWidth: 0,
+          paddingRight: '20px'
         }}>
-          <NodeDisplay
-            nodeId={nodeId}
-            nodeType={nodeData?.type}
-            content={nodeData?.content}
-            url={nodeData?.url}
-          />
+          <div style={{ position: 'relative', width: '100%', maxWidth: '920px' }}>
+            <NodeDisplay
+              nodeId={nodeId}
+              nodeType={nodeData?.type}
+              content={nodeData?.content}
+              url={nodeData?.url}
+              sourceData={nodeData?.sourceData}
+            />
+
+            {/* Suggest Edit Button - only show if user is NOT creator OR past edit window */}
+            {(() => {
+              const attribution = attributions[nodeId];
+              const isCreator = attribution?.creator?.is_own === true;
+              const canEdit = engagement?.edit_window?.can_edit === true;
+
+              // Show suggest button if:
+              // - User is logged in
+              // - User is NOT the creator, OR user is creator but past edit window
+              const shouldShowSuggest = user && (!isCreator || !canEdit);
+
+              return shouldShowSuggest && (
+                <button
+                  onClick={() => setShowSuggestEditModal(true)}
+                  style={{
+                    position: 'absolute',
+                    top: '15px',
+                    right: '15px',
+                    width: '24px',
+                    height: '24px',
+                    padding: '2px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid #d97706',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#d97706'
+                  }}
+                  title="Suggest improvements to this node"
+                >
+                  <FaRegEdit />
+                </button>
+              );
+            })()}
+          </div>
 
           {/* Engagement Metrics - Always show with loading/error state */}
           <div style={{
@@ -329,7 +379,24 @@ export function NodeView() {
             )}
           </div>
         </div>
+
+        {/* Right Sidebar - Suggested Edits */}
+        <SuggestedEditSidebar
+          entityUuid={nodeId}
+          entityType={nodeData?.type}
+          currentData={nodeData?.type === 'source' ? nodeData?.sourceData : { content: nodeData?.content }}
+        />
       </div>
+
+      {/* Suggest Edit Modal */}
+      <SuggestEditModal
+        isOpen={showSuggestEditModal}
+        onClose={() => setShowSuggestEditModal(false)}
+        nodeId={nodeId}
+        nodeType={nodeData?.type}
+        initialData={nodeData}
+        sourceData={nodeData?.sourceData}
+      />
     </AttributionProvider>
   );
 }

@@ -1,9 +1,11 @@
 import { UserAttribution } from './UserAttribution.jsx';
 import { CommentsRating } from './CommentsRating.jsx';
+import { SourceMetadataDisplay } from './SourceMetadataDisplay.jsx';
 
 /**
  * NodeDisplay - Displays node content in centered, poem-like format
  * Shows attribution, optional URL, content, and comments/ratings
+ * For sources: shows structured metadata fields
  * Designed for standalone node views and connection view pages
  *
  * @param {Object} props
@@ -11,10 +13,11 @@ import { CommentsRating } from './CommentsRating.jsx';
  * @param {string} props.nodeType - 'claim' | 'source'
  * @param {string} props.content - Node content text
  * @param {string} props.url - Optional URL (for source nodes)
+ * @param {Object} props.sourceData - Full source object with all metadata (for source nodes)
  * @param {Object} props.containerStyle - Optional style overrides for outer container
  * @param {Object} props.contentStyle - Optional style overrides for inner content container
  */
-export function NodeDisplay({ nodeId, nodeType, content, url, containerStyle = {}, contentStyle = {} }) {
+export function NodeDisplay({ nodeId, nodeType, content, url, sourceData, containerStyle = {}, contentStyle = {} }) {
   const borderColor = nodeType === 'source' ? 'var(--accent-blue-dark)' : 'var(--accent-blue)';
 
   return (
@@ -43,27 +46,18 @@ export function NodeDisplay({ nodeId, nodeType, content, url, containerStyle = {
             showTimestamp={true}
           />
         </div>
-        {url && (
-          <div style={{
-            position: 'absolute',
-            top: '-50px',
-            right: '-50px',
-            fontSize: '12px',
-            maxWidth: '300px',
-            wordWrap: 'break-word',
-            textAlign: 'right'
-          }}>
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
-            >
-              {url}
-            </a>
-          </div>
+
+        {/* Source metadata display */}
+        {nodeType === 'source' ? (
+          <SourceMetadataDisplay
+            sourceData={sourceData}
+            compact={false}
+            fallback={content}
+          />
+        ) : (
+          // Claim display (original centered format)
+          content
         )}
-        {content}
       </div>
       <div style={{
         position: 'absolute',

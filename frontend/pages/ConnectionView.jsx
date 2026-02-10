@@ -3,8 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { fetchGraphData, fetchEntityAttribution, fetchEntityComments, fetchEntityEngagement, trackPageView } from '../APInterface/api.js';
 import { ConnectionDisplay } from '../components/common/ConnectionDisplay.jsx';
 import { CommentsThread } from '../components/common/CommentsThread.jsx';
+import { SuggestedEditSidebar } from '../components/common/SuggestedEditSidebar.jsx';
+import { SuggestEditModal } from '../components/graph/SuggestEditModal.jsx';
 import { AttributionProvider } from '../utilities/AttributionContext.jsx';
 import { useAuth } from '../utilities/AuthContext.jsx';
+import { FaRegEdit } from 'react-icons/fa';
 
 /**
  * ConnectionView page - displays detailed view of a single connection
@@ -13,7 +16,7 @@ import { useAuth } from '../utilities/AuthContext.jsx';
 export function ConnectionView() {
   const [searchParams] = useSearchParams();
   const connectionId = searchParams.get('id');
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [fromNodes, setFromNodes] = useState([]);
   const [toNode, setToNode] = useState(null);
   const [connectionData, setConnectionData] = useState(null);
@@ -24,6 +27,7 @@ export function ConnectionView() {
   const [loading, setLoading] = useState(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [error, setError] = useState(null);
+  const [showSuggestEditModal, setShowSuggestEditModal] = useState(false);
 
   useEffect(() => {
     const loadConnection = async () => {
@@ -70,7 +74,9 @@ export function ConnectionView() {
               id: src.properties.id,
               content: src.properties.content || 'No content',
               type: srcType,
-              url: src.properties.url || null
+              url: src.properties.url || null,
+              // Store full source data for metadata display
+              sourceData: srcType === 'source' ? src.properties : undefined
             });
           }
         });
@@ -83,7 +89,9 @@ export function ConnectionView() {
           id: targetNode.properties.id,
           content: targetNode.properties.content || 'No content',
           type: targetNodeType,
-          url: targetNode.properties.url || null
+          url: targetNode.properties.url || null,
+          // Store full source data for metadata display
+          sourceData: targetNodeType === 'source' ? targetNode.properties : undefined
         };
 
         // Store connection data
@@ -196,19 +204,67 @@ export function ConnectionView() {
     <AttributionProvider attributions={attributions}>
       <div style={{
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
+        flexDirection: 'row',
         minHeight: '100vh',
-        padding: '40px'
+        padding: '40px 0 40px 40px'
       }}>
-        <ConnectionDisplay
-          connectionId={connectionId}
-          fromNodes={fromNodes}
-          toNode={toNode}
-          logicType={connectionData?.logicType}
-          notes={connectionData?.notes}
-          compositeId={connectionData?.compositeId}
-        />
+        {/* Main Content */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          flex: 1,
+          minWidth: 0,
+          paddingRight: '40px'
+        }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '920px' }}>
+          <ConnectionDisplay
+            connectionId={connectionId}
+            fromNodes={fromNodes}
+            toNode={toNode}
+            logicType={connectionData?.logicType}
+            notes={connectionData?.notes}
+            compositeId={connectionData?.compositeId}
+          />
+
+          {/* Suggest Edit Button - only show if user is NOT creator OR past edit window */}
+          {(() => {
+            const attribution = attributions[connectionId];
+            const isCreator = attribution?.creator?.is_own === true;
+            const canEdit = engagement?.edit_window?.can_edit === true;
+
+            // Show suggest button if:
+            // - User is logged in
+            // - User is NOT the creator, OR user is creator but past edit window
+            const shouldShowSuggest = user && (!isCreator || !canEdit);
+
+            return shouldShowSuggest && (
+              <button
+                onClick={() => setShowSuggestEditModal(true)}
+                style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  width: '24px',
+                  height: '24px',
+                  padding: '2px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid #d97706',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#d97706'
+                }}
+                title="Suggest improvements to this connection's notes"
+              >
+                <FaRegEdit />
+              </button>
+            );
+          })()}
+        </div>
 
         {/* Engagement Metrics - Always show with loading/error state */}
         <div style={{
@@ -263,7 +319,25 @@ export function ConnectionView() {
             />
           )}
         </div>
+        </div>
+
+        {/* Right Sidebar - Suggested Edits */}
+        <SuggestedEditSidebar
+          entityUuid={connectionId}
+          entityType="connection"
+          currentData={{ notes: connectionData?.notes }}
+        />
       </div>
+
+      {/* Suggest Edit Modal */}
+      <SuggestEditModal
+        isOpen={showSuggestEditModal}
+        onClose={() => setShowSuggestEditModal(false)}
+        nodeId={connectionId}
+        nodeType="connection"
+        initialData={{ notes: connectionData?.notes }}
+        sourceData={null}
+      />
     </AttributionProvider>
   );
 }

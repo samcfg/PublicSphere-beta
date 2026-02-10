@@ -85,62 +85,66 @@ class SourceVersion(models.Model):
 
     # ===== CORE CITATION FIELDS =====
 
-    # Primary identification
+    # Required fields
     title = models.TextField(null=False, blank=False)  # REQUIRED - primary searchable identifier
-    source_type = models.CharField(max_length=50, null=True, blank=True)
-    # Values: 'journal_article', 'book', 'book_chapter', 'website',
-    #         'newspaper', 'magazine', 'conference_paper', 'thesis',
-    #         'report', 'personal_communication', 'observation', 'preprint'
+    source_type = models.CharField(max_length=50, null=False, blank=False)
+    # Values: 'journal_article', 'preprint', 'book', 'website', 'newspaper',
+    #         'magazine', 'thesis', 'conference_paper', 'technical_report',
+    #         'government_document', 'dataset', 'media', 'legal', 'testimony'
 
-    # Authors/Contributors (structured as JSON for flexibility)
+    # Universal optional fields (all source types)
+    thumbnail_link = models.URLField(max_length=2048, null=True, blank=True)
     authors = models.JSONField(null=True, blank=True)
-    # Structure: [{"name": "Last, First", "role": "author", "affiliation": "..."}]
-    # Roles: 'author', 'editor', 'translator', 'compiler'
-
-    # Legacy author field (deprecated, kept for backward compatibility)
-    author = models.CharField(max_length=200, null=True, blank=True)
+    # Structure: [{"name": "...", "role": "author"}]
+    url = models.URLField(max_length=2048, null=True, blank=True)
+    accessed_date = models.DateField(null=True, blank=True)
+    excerpt = models.TextField(null=True, blank=True)
+    content = models.TextField(null=True, blank=True)
 
     # Publication metadata
     publication_date = models.CharField(max_length=100, null=True, blank=True)
     # ISO 8601 preferred, but accepts partial dates: "2024", "2024-03", "2024-03-15"
-
-    # Container (journal/book/website/conference name)
     container_title = models.TextField(null=True, blank=True)
     # Journal name, book title (for chapters), website name, conference name
-
-    # Publisher information
     publisher = models.CharField(max_length=255, null=True, blank=True)
     publisher_location = models.CharField(max_length=255, null=True, blank=True)
 
-    # Volume/Issue/Pages (journals, magazines, newspapers)
+    # Volume/Issue/Pages
     volume = models.CharField(max_length=50, null=True, blank=True)
     issue = models.CharField(max_length=50, null=True, blank=True)
     pages = models.CharField(max_length=50, null=True, blank=True)  # "123-145" or "E456"
 
+    # Book-specific
+    edition = models.CharField(max_length=50, null=True, blank=True)
+
     # Identifiers
-    url = models.URLField(max_length=2048, null=True, blank=True)
     doi = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     # Digital Object Identifier - unique, persistent
     isbn = models.CharField(max_length=20, null=True, blank=True)
     issn = models.CharField(max_length=20, null=True, blank=True)
+    pmid = models.CharField(max_length=20, null=True, blank=True)
+    pmcid = models.CharField(max_length=20, null=True, blank=True)
+    arxiv_id = models.CharField(max_length=50, null=True, blank=True)
+    handle = models.CharField(max_length=255, null=True, blank=True)
+    persistent_id = models.CharField(max_length=255, null=True, blank=True)
+    persistent_id_type = models.CharField(max_length=50, null=True, blank=True)
 
-    # Web-specific metadata
-    accessed_date = models.DateField(null=True, blank=True)
-    # When URL was accessed (important for web sources that change)
+    # Editors
+    editors = models.JSONField(null=True, blank=True)
+    # Structure: [{"name": "...", "role": "editor"}]
 
-    # Additional metadata (flexible overflow for specialized fields)
+    # Legal-specific fields
+    jurisdiction = models.CharField(max_length=255, null=True, blank=True)
+    legal_category = models.CharField(max_length=50, null=True, blank=True)
+    # Values: 'case', 'statute', 'regulation', 'treaty'
+    court = models.CharField(max_length=255, null=True, blank=True)
+    decision_date = models.CharField(max_length=100, null=True, blank=True)
+    case_name = models.TextField(null=True, blank=True)
+    code = models.CharField(max_length=255, null=True, blank=True)
+    section = models.CharField(max_length=255, null=True, blank=True)
+
+    # Flexible metadata overflow for type-specific edge cases
     metadata = models.JSONField(null=True, blank=True)
-    # Examples:
-    # - edition: "3rd edition"
-    # - series: "Lecture Notes in Computer Science"
-    # - version: "preprint v2"
-    # - archive: "arXiv"
-    # - arxiv_id: "2301.12345"
-    # - original_publication: {...} for translations/reprints
-    # - presentation_type: "poster" or "talk" for conferences
-
-    # Content (quotes/excerpts - separate from citation)
-    content = models.TextField(null=True, blank=True)
 
     # ===== SEARCH AND DEDUPLICATION FIELDS =====
     url_normalized = models.CharField(max_length=2048, null=True, blank=True, db_index=True)

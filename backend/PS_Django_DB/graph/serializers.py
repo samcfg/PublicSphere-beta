@@ -16,18 +16,24 @@ class SourceSerializer(serializers.Serializer):
     """Serializer for Source nodes"""
     id = serializers.UUIDField(read_only=True)
 
-    # Core citation fields
+    # Required fields
     title = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     source_type = serializers.ChoiceField(
-        choices=['journal_article', 'book', 'book_chapter', 'website',
-                'newspaper', 'magazine', 'conference_paper', 'thesis',
-                'report', 'personal_communication', 'observation', 'preprint'],
+        choices=['journal_article', 'preprint', 'book', 'website', 'newspaper',
+                'magazine', 'thesis', 'conference_paper', 'technical_report',
+                'government_document', 'dataset', 'media', 'legal', 'testimony'],
         required=False,
         allow_blank=True,
         allow_null=True
     )
+
+    # Universal optional fields
+    thumbnail_link = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
     authors = serializers.JSONField(required=False, allow_null=True)
-    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)  # Legacy
+    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
+    accessed_date = serializers.DateField(required=False, allow_null=True)
+    excerpt = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
+    content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
 
     # Publication metadata
     publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
@@ -40,37 +46,60 @@ class SourceSerializer(serializers.Serializer):
     issue = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
     pages = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
 
+    # Book-specific
+    edition = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+
     # Identifiers
-    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
     doi = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
     isbn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     issn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    pmid = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    pmcid = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    arxiv_id = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    handle = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    persistent_id = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    persistent_id_type = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
 
-    # Web-specific
-    accessed_date = serializers.DateField(required=False, allow_null=True)
+    # Editors
+    editors = serializers.JSONField(required=False, allow_null=True)
 
-    # Flexible metadata
+    # Legal-specific
+    jurisdiction = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    legal_category = serializers.ChoiceField(
+        choices=['case', 'statute', 'regulation', 'treaty'],
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+    court = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    decision_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    case_name = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
+    code = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    section = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+
+    # Flexible metadata overflow
     metadata = serializers.JSONField(required=False, allow_null=True)
-
-    # Content
-    content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
 
 
 class SourceCreateSerializer(serializers.Serializer):
     """Serializer for creating Source nodes"""
-    # Core citation fields
-    title = serializers.CharField(max_length=500, required=True, allow_blank=False)  # REQUIRED
+    # Required fields
+    title = serializers.CharField(max_length=500, required=True, allow_blank=False)
     source_type = serializers.ChoiceField(
-        choices=['journal_article', 'book', 'book_chapter', 'website',
-                'newspaper', 'magazine', 'conference_paper', 'thesis',
-                'report', 'personal_communication', 'observation', 'preprint'],
-        required=False,
-        allow_blank=True,
-        allow_null=True
+        choices=['journal_article', 'preprint', 'book', 'website', 'newspaper',
+                'magazine', 'thesis', 'conference_paper', 'technical_report',
+                'government_document', 'dataset', 'media', 'legal', 'testimony'],
+        required=True
     )
+
+    # Universal optional fields
+    thumbnail_link = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
     authors = serializers.JSONField(required=False, allow_null=True)
-    # Expected format: [{"name": "Last, First", "role": "author", "affiliation": "..."}]
-    author = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)  # Legacy
+    # Expected format: [{"name": "...", "role": "author"}]
+    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
+    accessed_date = serializers.DateField(required=False, allow_null=True)
+    excerpt = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
+    content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
 
     # Publication metadata
     publication_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
@@ -83,20 +112,58 @@ class SourceCreateSerializer(serializers.Serializer):
     issue = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
     pages = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
 
+    # Book-specific
+    edition = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+
     # Identifiers
-    url = serializers.URLField(max_length=2048, required=False, allow_blank=True, allow_null=True)
     doi = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
     isbn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     issn = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    pmid = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    pmcid = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    arxiv_id = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    handle = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    persistent_id = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    persistent_id_type = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
 
-    # Web-specific
-    accessed_date = serializers.DateField(required=False, allow_null=True)
+    # Editors
+    editors = serializers.JSONField(required=False, allow_null=True)
+    # Expected format: [{"name": "...", "role": "editor"}]
 
-    # Flexible metadata
+    # Legal-specific
+    jurisdiction = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    legal_category = serializers.ChoiceField(
+        choices=['case', 'statute', 'regulation', 'treaty'],
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
+    court = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    decision_date = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    case_name = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
+    code = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    section = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+
+    # Flexible metadata overflow
     metadata = serializers.JSONField(required=False, allow_null=True)
 
-    # Content
-    content = serializers.CharField(max_length=50000, required=False, allow_blank=True, allow_null=True)
+    def validate(self, data):
+        """Type-specific required field validation"""
+        source_type = data.get('source_type')
+
+        # Legal sources require jurisdiction and legal_category
+        if source_type == 'legal':
+            if not data.get('jurisdiction'):
+                raise serializers.ValidationError({"jurisdiction": "jurisdiction is required for legal sources"})
+            if not data.get('legal_category'):
+                raise serializers.ValidationError({"legal_category": "legal_category is required for legal sources"})
+
+        # Website sources require url
+        if source_type == 'website':
+            if not data.get('url'):
+                raise serializers.ValidationError({"url": "url is required for website sources"})
+
+        return data
 
 
 class ConnectionSerializer(serializers.Serializer):
