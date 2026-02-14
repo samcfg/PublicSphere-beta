@@ -520,6 +520,7 @@ def connections_list(request):
                 logic_type=serializer.validated_data['logic_type'],
                 notes=serializer.validated_data.get('notes'),
                 composite_id=str(serializer.validated_data['composite_id']) if serializer.validated_data.get('composite_id') else None,
+                quote=serializer.validated_data.get('quote'),
                 user_id=user_id
             )
             return standard_response(data={'composite_id': composite_id}, status_code=201, source='graph_db')
@@ -540,6 +541,7 @@ def connections_list(request):
                 notes=serializer.validated_data.get('notes'),
                 logic_type=serializer.validated_data.get('logic_type'),
                 composite_id=str(serializer.validated_data['composite_id']) if serializer.validated_data.get('composite_id') else None,
+                quote=serializer.validated_data.get('quote'),
                 user_id=user_id
             )
             return standard_response(data={'id': connection_id}, status_code=201, source='graph_db')

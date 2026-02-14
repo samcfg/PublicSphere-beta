@@ -55,9 +55,10 @@ class TemporalLogger:
                 MATCH (n {{id: '{node_id}'}})-[r]-()
                 RETURN r.id as edge_id, type(r) as edge_type,
                        startNode(r).id as source_id, endNode(r).id as target_id,
-                       r.notes as notes, r.logic_type as logic_type, r.composite_id as composite_id
+                       r.notes as notes, r.logic_type as logic_type, r.composite_id as composite_id,
+                       r.quote as quote
                 """,
-                ['edge_id', 'edge_type', 'source_id', 'target_id', 'notes', 'logic_type', 'composite_id']
+                ['edge_id', 'edge_type', 'source_id', 'target_id', 'notes', 'logic_type', 'composite_id', 'quote']
             )
             # Log each edge deletion
             for edge_data in edges:
@@ -68,6 +69,8 @@ class TemporalLogger:
                     edge_properties['logic_type'] = edge_data['logic_type']
                 if edge_data.get('composite_id'):
                     edge_properties['composite_id'] = edge_data['composite_id']
+                if edge_data.get('quote'):
+                    edge_properties['quote'] = edge_data['quote']
                 self.log_edge_version(
                     graph_name=graph_name,
                     edge_id=edge_data['edge_id'],
@@ -300,6 +303,7 @@ class TemporalLogger:
                 notes=properties.get('notes'),
                 logic_type=properties.get('logic_type'),
                 composite_id=properties.get('composite_id'),
+                quote=properties.get('quote'),
                 operation=operation,
                 changed_by=changed_by,
                 change_notes=change_notes

@@ -271,6 +271,16 @@ class SuggestedEdit(models.Model):
         default=False,
         help_text="If True, display as [anonymous] in public queries"
     )
+    refactor_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        choices=[
+            (None, 'Simple Edit'),
+            ('connection_restructure', 'Connection Restructure'),
+        ],
+        help_text="Type of structural refactoring, null for simple property edits"
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,

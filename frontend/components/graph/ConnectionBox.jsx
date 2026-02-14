@@ -26,8 +26,11 @@ export function ConnectionBox({
   onLogicTypeChange,
   connectionNotes,
   onConnectionNotesChange,
+  connectionQuote,
+  onConnectionQuoteChange,
   nodeCount,
-  onNodeCountChange
+  onNodeCountChange,
+  currentNodeType
 }) {
   // Simple binary choice for simple mode
   const relationshipOptions = [
@@ -164,6 +167,33 @@ export function ConnectionBox({
                 style={{ minHeight: '60px' }}
               />
             </div>
+
+            {/* Quote field - only visible when creating a Source node */}
+            {currentNodeType === 'source' && (
+              <div className="node-creation-field">
+                <label className="node-creation-label">
+                  Quote from Source
+                  <span style={{ fontSize: '11px', opacity: 0.6, marginLeft: '6px' }}>
+                    ({connectionQuote.length}/500)
+                  </span>
+                </label>
+                <textarea
+                  className="node-creation-textarea"
+                  placeholder="Brief excerpt for commentary (fair use, max 500 chars)..."
+                  value={connectionQuote}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 500) {
+                      onConnectionQuoteChange(e.target.value);
+                    }
+                  }}
+                  maxLength={500}
+                  style={{ minHeight: '50px', fontSize: '11px' }}
+                />
+                <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px' }}>
+                  Optional. Use brief excerpts for scholarly commentary.
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

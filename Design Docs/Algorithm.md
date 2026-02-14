@@ -1,8 +1,8 @@
-● Claim Rating Algorithm v2
+### Claim Rating Algorithm 
+**claim's rating** is constructed by a combination of the sources and connections that lead up to it. Thus, rating a claim because it "feels" right is impossible: a claim is only as good as the reasons for it.
 
   Core principles:
-  1. Within argument paths: Multiply source strength × connection validity (a chain's strength requires both strong evidence AND
-  strong logic)
+  1. Within argument paths: Multiply source strength × connection validity (a chain's strength requires both strong evidence AND strong logic)
   2. Compound connections: Product of all parent inputs (conjunction is only as strong as combined reliability)
   3. Multiple independent paths: Probabilistic reinforcement (two 70% arguments → 91% combined, not 140%)
   4. Contradictions: Subtract aggregated contradiction strength from support strength
@@ -44,4 +44,3 @@
   - Source A: 80 factuality
   - Connection: 90 logic
   - Path strength: (80/100) × (90/100) × 100 = 72
-

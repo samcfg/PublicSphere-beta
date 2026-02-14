@@ -31,6 +31,7 @@ export const NodeBox = forwardRef(({
   initialData = null,
   index = 0,
   onValidationChange,
+  onNodeTypeChange,
   onClose,
   onSubmit,
   isSubmitting = false,
@@ -90,6 +91,13 @@ export const NodeBox = forwardRef(({
       onValidationChange(index, isValid);
     }
   }, [index, isValid, onValidationChange]);
+
+  // Notify parent whenever node type changes
+  useEffect(() => {
+    if (onNodeTypeChange) {
+      onNodeTypeChange(nodeType);
+    }
+  }, [nodeType, onNodeTypeChange]);
 
   // Internal DOM ref for height measurement
   const domRef = useRef(null);

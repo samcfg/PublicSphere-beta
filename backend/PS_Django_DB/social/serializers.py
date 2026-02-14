@@ -206,7 +206,7 @@ class SuggestedEditSerializer(serializers.ModelSerializer):
         model = SuggestedEdit
         fields = [
             'suggestion_id', 'entity_uuid', 'entity_type', 'suggested_by_username',
-            'proposed_changes', 'rationale', 'is_anonymous', 'status', 'resolved_by_username',
+            'proposed_changes', 'rationale', 'is_anonymous', 'refactor_type', 'status', 'resolved_by_username',
             'resolution_notes', 'created_at', 'resolved_at', 'rating_stats'
         ]
         read_only_fields = [
@@ -239,7 +239,7 @@ class SuggestedEditCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SuggestedEdit
-        fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale', 'is_anonymous']
+        fields = ['entity_uuid', 'entity_type', 'proposed_changes', 'rationale', 'is_anonymous', 'refactor_type']
 
     def validate_entity_type(self, value):
         """Validate entity_type is allowed"""
@@ -284,7 +284,30 @@ class SuggestedEditCreateSerializer(serializers.ModelSerializer):
         """Cross-field validation: validate proposed_changes against entity schema"""
         entity_type = attrs.get('entity_type')
         proposed_changes = attrs.get('proposed_changes', {})
+        refactor_type = attrs.get('refactor_type')
 
+        # Handle refactorings separately
+        if refactor_type == 'connection_restructure':
+            # Validate it's targeting a connection
+            if entity_type != 'connection':
+                raise serializers.ValidationError({
+                    'refactor_type': 'connection_restructure can only target connections'
+                })
+
+            # Validate refactoring structure
+            from social.validators import RefactoringValidator
+            validator = RefactoringValidator(proposed_changes)
+            try:
+                validator.validate()
+            except Exception as e:
+                raise serializers.ValidationError({
+                    'proposed_changes': str(e)
+                })
+
+            # Skip normal validation for refactorings
+            return attrs
+
+        # Normal validation for simple edits
         if entity_type == 'claim':
             # Use ClaimSerializer for validation (partial=True for updates)
             from graph.serializers import ClaimSerializer

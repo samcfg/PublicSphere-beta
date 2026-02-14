@@ -349,8 +349,9 @@ class LanguageOperations:
                          notes: Optional[str] = None,
                          logic_type: Optional[str] = None,
                          composite_id: Optional[str] = None,
+                         quote: Optional[str] = None,
                          user_id: Optional[int] = None) -> str:
-        """Create a Connection edge between any two nodes (Claims, Sources) with optional notes, logic_type, and composite_id"""
+        """Create a Connection edge between any two nodes (Claims, Sources) with optional notes, logic_type, composite_id, and quote"""
         if not self.current_graph:
             raise ValueError("No graph set. Call set_graph() first")
 
@@ -371,6 +372,9 @@ class LanguageOperations:
             cypher_props += f", logic_type: '{logic_type}'"
         if composite_id is not None:
             cypher_props += f", composite_id: '{composite_id}'"
+        if quote is not None:
+            escaped_quote = self._escape_cypher_string(quote)
+            cypher_props += f", quote: '{escaped_quote}'"
 
         # Build logging properties dict
         log_props = {}
@@ -380,6 +384,8 @@ class LanguageOperations:
             log_props['logic_type'] = logic_type
         if composite_id is not None:
             log_props['composite_id'] = composite_id
+        if quote is not None:
+            log_props['quote'] = quote
 
         self._execute_with_logging(
             cypher_query=f"""
@@ -404,9 +410,10 @@ class LanguageOperations:
     def create_compound_connection(self, source_node_ids: List[str], target_node_id: str,
                                    logic_type: str, notes: Optional[str] = None,
                                    composite_id: Optional[str] = None,
+                                   quote: Optional[str] = None,
                                    user_id: Optional[int] = None) -> str:
         """
-        Create a compound connection (multiple edges with shared composite_id, logic_type, notes).
+        Create a compound connection (multiple edges with shared composite_id, logic_type, notes, quote).
 
         Args:
             source_node_ids: List of source node IDs (all edges will point to same target)
@@ -414,6 +421,7 @@ class LanguageOperations:
             logic_type: 'AND', 'OR', 'NOT', 'NAND' (shared by all edges)
             notes: Optional notes (shared by all edges)
             composite_id: Optional shared group ID (auto-generated if not provided)
+            quote: Optional quote excerpt (shared by all edges)
 
         Returns:
             The composite_id used for the group
@@ -437,6 +445,7 @@ class LanguageOperations:
                 notes=notes,
                 logic_type=logic_type,
                 composite_id=composite_id,
+                quote=quote,
                 user_id=user_id
             )
 

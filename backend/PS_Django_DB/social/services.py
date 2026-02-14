@@ -476,7 +476,8 @@ class SuggestionService:
 
     @staticmethod
     def create_suggestion(user_id: int, entity_uuid: str, entity_type: str,
-                         proposed_changes: Dict, rationale: str, is_anonymous: bool = False) -> SuggestedEdit:
+                         proposed_changes: Dict, rationale: str, is_anonymous: bool = False,
+                         refactor_type: Optional[str] = None) -> SuggestedEdit:
         """
         Create a new suggested edit.
 
@@ -488,8 +489,10 @@ class SuggestionService:
                 - Claims: {'content': str}
                 - Sources: various metadata fields
                 - Connections: {'notes': str} only
+                - Refactorings: {'original_connection_id': str, 'operations': list}
             rationale: Why this change improves the entity
             is_anonymous: Whether to display as anonymous
+            refactor_type: Type of structural refactoring (None for simple edits, 'connection_restructure' for refactorings)
 
         Returns:
             SuggestedEdit instance
@@ -500,7 +503,8 @@ class SuggestionService:
             suggested_by_id=user_id,
             proposed_changes=proposed_changes,
             rationale=rationale,
-            is_anonymous=is_anonymous
+            is_anonymous=is_anonymous,
+            refactor_type=refactor_type
         )
         return suggestion
 
@@ -634,6 +638,127 @@ class SuggestionService:
             return suggestion
         except SuggestedEdit.DoesNotExist:
             return None
+
+    @staticmethod
+    def apply_refactoring(suggestion: SuggestedEdit, applied_by_id: int) -> bool:
+        """
+        Apply structural refactoring by executing operations in sequence.
+
+        Args:
+            suggestion: SuggestedEdit instance with refactor_type='connection_restructure'
+            applied_by_id: User ID applying the refactoring (moderator or system)
+
+        Returns:
+            True if successful, False on failure
+
+        Raises:
+            ValueError: If suggestion is not a refactoring or invalid structure
+        """
+        from PS_Graph_DB.src.language import get_language_ops
+        from PS_Graph_DB.src.database import get_db
+
+        if suggestion.refactor_type != 'connection_restructure':
+            raise ValueError(f"Cannot apply refactoring: type is {suggestion.refactor_type}, expected 'connection_restructure'")
+
+        ops = get_language_ops()
+        ops.set_graph('test_graph')
+        db = get_db()
+
+        changes = suggestion.proposed_changes
+        original_id = changes.get('original_connection_id')
+        operations = changes.get('operations', [])
+
+        if not original_id or not operations:
+            raise ValueError("Invalid refactoring structure: missing original_connection_id or operations")
+
+        # Query original connection to get source_id and target_id
+        try:
+            original_conn = db.execute_cypher(
+                'test_graph',
+                f"""
+                MATCH (source)-[r {{id: '{original_id}'}}]->(target)
+                RETURN source.id as source_id, target.id as target_id
+                """,
+                ['source_id', 'target_id']
+            )
+
+            if not original_conn or len(original_conn) == 0:
+                raise ValueError(f"Original connection {original_id} not found")
+
+            original_source_id = original_conn[0]['source_id']
+            original_target_id = original_conn[0]['target_id']
+
+        except Exception as e:
+            raise ValueError(f"Failed to query original connection: {str(e)}")
+
+        # Resolve special markers
+        markers = {
+            '$SOURCE': original_source_id,
+            '$TARGET': original_target_id,
+            '$ORIGINAL': original_id
+        }
+
+        # Track temp_id → real UUID mappings
+        id_mapping = {}
+
+        def resolve_ref(ref: str) -> str:
+            """Resolve reference to actual UUID (handles markers, temp_ids, direct UUIDs)"""
+            if ref.startswith('$'):
+                return markers[ref]
+            elif ref in id_mapping:
+                return id_mapping[ref]
+            else:
+                return ref  # Direct UUID
+
+        # Execute operations in order
+        try:
+            for operation in sorted(operations, key=lambda x: x['op_id']):
+                op_type = operation['type']
+
+                if op_type == 'create_claim':
+                    real_id = ops.create_claim(
+                        content=operation['data']['content'],
+                        user_id=applied_by_id
+                    )
+                    id_mapping[operation['temp_id']] = real_id
+
+                elif op_type == 'create_source':
+                    real_id = ops.create_source(
+                        user_id=applied_by_id,
+                        **operation['data']
+                    )
+                    id_mapping[operation['temp_id']] = real_id
+
+                elif op_type == 'create_connection':
+                    from_id = resolve_ref(operation['from'])
+                    to_id = resolve_ref(operation['to'])
+                    ops.create_connection(
+                        from_node_id=from_id,
+                        to_node_id=to_id,
+                        user_id=applied_by_id,
+                        **operation.get('data', {})
+                    )
+
+                elif op_type == 'create_compound_connection':
+                    source_ids = [resolve_ref(s) for s in operation['sources']]
+                    target_id = resolve_ref(operation['target'])
+                    ops.create_compound_connection(
+                        source_node_ids=source_ids,
+                        target_node_id=target_id,
+                        user_id=applied_by_id,
+                        **operation.get('data', {})
+                    )
+
+                elif op_type == 'delete_connection':
+                    conn_id = resolve_ref(operation['connection_id'])
+                    ops.delete_edge(conn_id, user_id=applied_by_id)
+
+            return True
+
+        except Exception as e:
+            # Log error but don't crash - caller should handle
+            print(f"Error applying refactoring: {str(e)}")
+            return False
 
     @staticmethod
     def get_user_suggestions(user_id: int, status: Optional[str] = None) -> List[SuggestedEdit]:

@@ -378,9 +378,10 @@ class SuggestedEditAdmin(admin.ModelAdmin):
         avg = stats['avg']
 
         if avg is not None:
+            avg_formatted = f'{avg:.1f}'
             return format_html(
-                '<strong>{}</strong> votes, avg: <strong>{:.1f}</strong>/100',
-                count, avg
+                '<strong>{}</strong> votes, avg: <strong>{}</strong>/100',
+                count, avg_formatted
             )
         return f"{count} votes (no ratings yet)"
     rating_stats_display.short_description = 'Rating Stats'
@@ -424,12 +425,27 @@ class SuggestedEditAdmin(admin.ModelAdmin):
 
         for suggestion in queryset.filter(status='pending'):
             try:
-                # Apply changes to target node
-                success = ops.edit_node(
-                    suggestion.entity_uuid,
-                    user_id=request.user.id,
-                    **suggestion.proposed_changes
-                )
+                # Handle refactorings vs simple edits
+                if suggestion.refactor_type == 'connection_restructure':
+                    # Apply refactoring
+                    success = suggestion_service.apply_refactoring(
+                        suggestion,
+                        applied_by_id=request.user.id
+                    )
+                else:
+                    # Apply simple edit to target node or edge
+                    if suggestion.entity_type == 'connection':
+                        success = ops.edit_edge(
+                            suggestion.entity_uuid,
+                            user_id=request.user.id,
+                            **suggestion.proposed_changes
+                        )
+                    else:
+                        success = ops.edit_node(
+                            suggestion.entity_uuid,
+                            user_id=request.user.id,
+                            **suggestion.proposed_changes
+                        )
 
                 if success:
                     # Mark as accepted

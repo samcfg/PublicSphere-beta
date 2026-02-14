@@ -97,7 +97,8 @@ class BasicSchema:
                 optional_properties={
                     'notes': str,
                     'logic_type': str,    # 'AND', 'OR', 'NOT', 'NAND'
-                    'composite_id': str   # UUID shared across compound edge group
+                    'composite_id': str,  # UUID shared across compound edge group
+                    'quote': str          # Optional excerpt from Source node (max 500 chars)
                 }
             )
         }

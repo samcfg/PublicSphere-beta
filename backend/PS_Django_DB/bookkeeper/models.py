@@ -238,6 +238,7 @@ class EdgeVersion(models.Model):
     notes = models.TextField(null=True, blank=True)
     logic_type = models.CharField(max_length=10, null=True, blank=True)  # 'AND', 'OR'
     composite_id = models.CharField(max_length=36, null=True, blank=True, db_index=True)
+    quote = models.TextField(null=True, blank=True)  # Optional excerpt from Source node (max 500 chars)
 
     # Temporal metadata
     OPERATION_CHOICES = [

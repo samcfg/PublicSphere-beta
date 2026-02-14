@@ -232,8 +232,13 @@ function setupBundlingRecalculation(cy) {
   /**
    * Recalculate compound edge bundling when nodes are repositioned
    * Triggers on 'free' event (when user releases dragged node)
+   * Also listens for custom 'recalculateBundling' event for programmatic triggers
    */
   cy.on('free', 'node', () => {
+    applyCompoundEdgeBundling(cy);
+  });
+
+  cy.on('recalculateBundling', () => {
     applyCompoundEdgeBundling(cy);
   });
 }

@@ -179,6 +179,7 @@ class ConnectionSerializer(serializers.Serializer):
         allow_null=True
     )
     composite_id = serializers.UUIDField(required=False, allow_null=True)
+    quote = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
 
 
 class ConnectionCreateSerializer(serializers.Serializer):
@@ -193,6 +194,13 @@ class ConnectionCreateSerializer(serializers.Serializer):
         allow_null=True
     )
     composite_id = serializers.UUIDField(required=False, allow_null=True)
+    quote = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Optional excerpt from source node (max 500 chars for fair use)"
+    )
 
 
 class CompoundConnectionCreateSerializer(serializers.Serializer):
@@ -209,6 +217,13 @@ class CompoundConnectionCreateSerializer(serializers.Serializer):
     )
     notes = serializers.CharField(max_length=5000, required=False, allow_blank=True, allow_null=True)
     composite_id = serializers.UUIDField(required=False, allow_null=True)
+    quote = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Optional excerpt from source nodes (max 500 chars for fair use)"
+    )
 
 
 class NodeUpdateSerializer(serializers.Serializer):

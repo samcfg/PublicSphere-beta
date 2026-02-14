@@ -43,9 +43,11 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
 
   // Simple mode state (only relationship - NodeBox manages node data)
   const [relationship, setRelationship] = useState(null); // 'supports', 'contradicts'
+  const [currentNodeType, setCurrentNodeType] = useState(null); // Track node type for quote field visibility
 
   // Connection state
   const [connectionNotes, setConnectionNotes] = useState('');
+  const [connectionQuote, setConnectionQuote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // NodeBox refs for imperative control
@@ -131,6 +133,11 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
     // Map relationship to logic_type (null = supports, NOT = contradicts)
     if (relationship === 'contradicts') {
       connectionData.logic_type = 'NOT';
+    }
+
+    // Add quote if provided (only valid when new node is a Source)
+    if (connectionQuote.trim()) {
+      connectionData.quote = connectionQuote.trim();
     }
 
     return connectionData;
@@ -316,13 +323,20 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           }
 
           // Run layout to position graph
-          cy.layout({
+          const layout = cy.layout({
             name: 'dagre',
             rankDir: 'BT',
             nodeSep: 80,
             rankSep: 120,
             animate: false
-          }).run();
+          });
+
+          layout.on('layoutstop', () => {
+            // Trigger compound edge bundling recalculation
+            cy.trigger('recalculateBundling');
+          });
+
+          layout.run();
 
           handleClose();
         } catch (localUpdateError) {
@@ -434,12 +448,19 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
       }
 
       // Step 2: Create compound connection
-      const connResult = await createConnection(token, {
+      const connectionData = {
         source_node_ids: nodeIds,
         target_node_id: existingNodeId,
         logic_type: logicType,
         notes: connectionNotes.trim()
-      });
+      };
+
+      // Add quote if provided (only valid when new nodes are Sources)
+      if (connectionQuote.trim()) {
+        connectionData.quote = connectionQuote.trim();
+      }
+
+      const connResult = await createConnection(token, connectionData);
 
       if (connResult.error) {
         throw new Error(typeof connResult.error === 'object' ? JSON.stringify(connResult.error) : connResult.error);
@@ -523,13 +544,20 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
         }
 
         // Run layout
-        cy.layout({
+        const layout = cy.layout({
           name: 'dagre',
           rankDir: 'BT',
           nodeSep: 80,
           rankSep: 120,
           animate: false
-        }).run();
+        });
+
+        layout.on('layoutstop', () => {
+          // Trigger compound edge bundling recalculation
+          cy.trigger('recalculateBundling');
+        });
+
+        layout.run();
 
         handleClose();
       } catch (localUpdateError) {
@@ -658,6 +686,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
             ref={(el) => nodeBoxRefs.current[0] = el}
             index={0}
             onValidationChange={handleValidationChange}
+            onNodeTypeChange={setCurrentNodeType}
             onClose={handleClose}
             onSubmit={handleCreate}
             isSubmitting={isSubmitting}
@@ -686,8 +715,11 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
           onLogicTypeChange={setLogicType}
           connectionNotes={connectionNotes}
           onConnectionNotesChange={setConnectionNotes}
+          connectionQuote={connectionQuote}
+          onConnectionQuoteChange={setConnectionQuote}
           nodeCount={nodeCount}
           onNodeCountChange={handleNodeCountChange}
+          currentNodeType={currentNodeType}
         />
       </PositionedOverlay>
 
@@ -703,6 +735,7 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
             ref={(el) => nodeBoxRefs.current[0] = el}
             index={0}
             onValidationChange={handleValidationChange}
+            onNodeTypeChange={setCurrentNodeType}
             onClose={handleClose}
             onSubmit={handleCreate}
             isSubmitting={isSubmitting}
@@ -722,6 +755,12 @@ export function NodeCreationModal({ isOpen, onClose, node, cy, frameRef, existin
               ref={(el) => nodeBoxRefs.current[index] = el}
               index={index}
               onValidationChange={handleValidationChange}
+              onNodeTypeChange={(nodeType) => {
+                // In compound mode, track if ANY box is a source
+                if (nodeType === 'source') {
+                  setCurrentNodeType('source');
+                }
+              }}
               onClose={handleClose}
               onSubmit={handleCreate}
               isSubmitting={isSubmitting}

@@ -31,6 +31,7 @@ This file tracks all locations where data schemas are defined, enforced, or cons
     - `notes` (str, interpretation/context)
     - `logic_type` (str, 'AND'|'OR'|'NOT'|'NAND' - validated at creation)
     - `composite_id` (str, UUID shared across compound edge group, NULL for single edges)
+    - `quote` (str, excerpt from source node when connection originates FROM a Source, max 500 chars for fair use)
 
 ## Files That Define/Enforce Schema
 
@@ -48,11 +49,12 @@ This file tracks all locations where data schemas are defined, enforced, or cons
   - CREATE/UPDATE: executes Cypher first, then logs
 - `LanguageOperations.create_claim()`: Creates Claim nodes with UUID id, optional content
 - `LanguageOperations.create_source()`: Creates Source nodes with UUID id, optional url, title, author, publication_date, source_type, content
-- `LanguageOperations.create_connection()`: Creates Connection edges between any nodes with UUID id, optional notes, logic_type, composite_id
+- `LanguageOperations.create_connection()`: Creates Connection edges between any nodes with UUID id, optional notes, logic_type, composite_id, quote
   - Validates logic_type against {'AND', 'OR', 'NOT', 'NAND'}
   - Accepts from_node_id/to_node_id (works with Claims, Sources, any future node types)
+  - Quote field: optional excerpt from source node (max 500 chars, for fair use commentary)
 - `LanguageOperations.create_compound_connection()`: Convenience function for creating compound edge groups
-  - Creates multiple edges with shared composite_id, logic_type, notes
+  - Creates multiple edges with shared composite_id, logic_type, notes, quote
   - Validates logic_type at entry
   - Returns composite_id for group operations
 - `LanguageOperations.get_all_claims()`: Returns all Claim nodes
@@ -90,7 +92,7 @@ This file tracks all locations where data schemas are defined, enforced, or cons
   - Indexes: node_id, timestamp, (valid_from, valid_to), (node_id, version_number), source_type, url_normalized, doi_normalized, publication_date, GIN(title_search), GIN(title trigram)
   - Table: `source_versions`
 - `EdgeVersion` model: Tracks all edge changes
-  - Fields: `edge_id` (CharField, UUID), `edge_type` (CharField), `source_node_id` (CharField, UUID), `target_node_id` (CharField, UUID), `notes` (TextField, nullable), `logic_type` (CharField, nullable, 'AND'|'OR'|'NOT'|'NAND'), `composite_id` (CharField, nullable, UUID), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
+  - Fields: `edge_id` (CharField, UUID), `edge_type` (CharField), `source_node_id` (CharField, UUID), `target_node_id` (CharField, UUID), `notes` (TextField, nullable), `logic_type` (CharField, nullable, 'AND'|'OR'|'NOT'|'NAND'), `composite_id` (CharField, nullable, UUID), `quote` (TextField, nullable, max 500 chars for fair use), `operation` (CharField: CREATE/UPDATE/DELETE), `timestamp` (DateTimeField, auto), `valid_from` (DateTimeField, auto), `valid_to` (DateTimeField, nullable), `changed_by` (CharField, nullable), `change_notes` (TextField, nullable)
   - Indexes: edge_id, timestamp, (valid_from, valid_to), (source_node_id, target_node_id), composite_id
   - Table: `edge_versions`
 
@@ -110,7 +112,7 @@ This file tracks all locations where data schemas are defined, enforced, or cons
   - CREATE: Creates new open version (valid_to = NULL, version_number = 1)
   - Raises ValueError for unknown node labels
 - `TemporalLogger.log_edge_version()`: Logs edge CREATE/UPDATE/DELETE to Django models
-  - Extracts and logs notes, logic_type, composite_id properties
+  - Extracts and logs notes, logic_type, composite_id, quote properties
   - Same valid_from/valid_to interval logic as nodes
 - `get_temporal_logger()`: Singleton accessor for logger instance
 
@@ -144,7 +146,7 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 - Response format: `{data: {claims: [...], sources: [...], edges: [...]}, meta: {...}, error: null}`
 - Claims: `{claim: {properties: {id, content}}}`
 - Sources: `{source: {properties: {id, title, source_type, authors, url, ...}}}` (all citation fields)
-- Edges: `{connection: {properties: {id, notes, logic_type, composite_id}}, source_node: {properties: {id}}, target_node: {properties: {id}}}`
+- Edges: `{connection: {properties: {id, notes, logic_type, composite_id, quote}}, source_node: {properties: {id}}, target_node: {properties: {id}}}`
 
 **Cytoscape Integration**: React components convert AGE format to Cytoscape.js elements
 - Node styling by label: Claims (blue), Sources (green)
@@ -156,8 +158,8 @@ This file tracks all locations where data schemas are defined, enforced, or cons
 
 ### Current Graph Operations
 1. **Creation**: `language.py` operations → AGE Database (graph structure with UUIDs) + Django (temporal log)
-   - Single edges: `create_connection()` with optional logic_type/composite_id
-   - Compound edges: `create_compound_connection()` creates multiple edges with shared metadata
+   - Single edges: `create_connection()` with optional logic_type/composite_id/quote
+   - Compound edges: `create_compound_connection()` creates multiple edges with shared metadata (including quote)
 2. **Storage**: PostgreSQL with AGE extension (current graph structure) + PostgreSQL Django tables (version history)
    - AGE stores individual edges with compound metadata properties
    - Django logs all edge versions including logic_type and composite_id
@@ -183,7 +185,7 @@ This file tracks all locations where data schemas are defined, enforced, or cons
   - Individual edge IDs for internal operations
   - Composite IDs for compound group operations (transparent API via try-single-first pattern)
 - **Compound Edge Pattern**:
-  - Backend: Multiple physical edges with shared composite_id, logic_type, notes
+  - Backend: Multiple physical edges with shared composite_id, logic_type, notes, quote
   - API: Transparent handling - composite_id functions like edge_id in delete/edit operations
   - Frontend: Receives individual edges, groups by composite_id for visualization
 
@@ -308,10 +310,11 @@ All endpoints return responses wrapped by `standard_response()` (common/api_stan
 
 **POST /connections/** - Create connection (single or compound)
 - Auth: Optional
-- Body (single): `{from_node_id: uuid, to_node_id: uuid, notes?: str, logic_type?: 'AND|OR|NOT|NAND', composite_id?: uuid}`
-- Body (compound): `{source_node_ids: [uuid, uuid, ...], target_node_id: uuid, logic_type: 'AND|OR|NOT|NAND', notes?: str, composite_id?: uuid}`
-  - Creates multiple edges with shared composite_id, logic_type, notes
+- Body (single): `{from_node_id: uuid, to_node_id: uuid, notes?: str, logic_type?: 'AND|OR|NOT|NAND', composite_id?: uuid, quote?: str}`
+- Body (compound): `{source_node_ids: [uuid, uuid, ...], target_node_id: uuid, logic_type: 'AND|OR|NOT|NAND', notes?: str, composite_id?: uuid, quote?: str}`
+  - Creates multiple edges with shared composite_id, logic_type, notes, quote
   - Min 2 source nodes required
+  - Quote field: optional excerpt from source node (max 500 chars for fair use commentary)
 - Returns 201 (single): `{data: {id: uuid}, ...}`
 - Returns 201 (compound): `{data: {composite_id: uuid}, ...}`
 
@@ -320,7 +323,7 @@ All endpoints return responses wrapped by `standard_response()` (common/api_stan
 - Guards: Ownership check, time window check
 - URL param: `connection_id` can be individual edge ID or composite_id
   - Composite_id updates entire group (synchronized metadata)
-- Body: `{notes?: str, logic_type?: str}` (dynamic)
+- Body: `{notes?: str, logic_type?: str, quote?: str}` (dynamic, quote max 500 chars)
 - Returns: `{data: {id: uuid, updated: true}, ...}`
 
 **DELETE /connections/{connection_id}/** - Delete connection
@@ -410,8 +413,8 @@ Located in `graph/serializers.py`:
 
 - `ClaimCreateSerializer`: Validates claim creation (content optional)
 - `SourceCreateSerializer`: Validates source creation (title required, source_type choices, JSON fields for authors/metadata)
-- `ConnectionCreateSerializer`: Validates single connection (logic_type choices)
-- `CompoundConnectionCreateSerializer`: Validates compound connection (min 2 sources, required logic_type)
+- `ConnectionCreateSerializer`: Validates single connection (logic_type choices, quote max 500 chars)
+- `CompoundConnectionCreateSerializer`: Validates compound connection (min 2 sources, required logic_type, quote max 500 chars)
 - `NodeUpdateSerializer`, `EdgeUpdateSerializer`: Generic (dynamic validation in views)
 
 **Source Type Choices**: 'journal_article', 'book', 'book_chapter', 'website', 'newspaper', 'magazine', 'conference_paper', 'thesis', 'report', 'personal_communication', 'observation', 'preprint'

@@ -60,9 +60,9 @@ class EdgeVersionAdmin(admin.ModelAdmin):
     """Read-only admin for edge version history - append-only audit trail"""
     list_display = ('edge_id', 'version_number', 'edge_type', 'source_node_id', 'target_node_id', 'operation', 'timestamp')
     list_filter = ('edge_type', 'operation', 'timestamp')
-    search_fields = ('edge_id', 'source_node_id', 'target_node_id', 'notes', 'composite_id')
+    search_fields = ('edge_id', 'source_node_id', 'target_node_id', 'notes', 'composite_id', 'quote')
     readonly_fields = ('edge_id', 'version_number', 'edge_type', 'source_node_id', 'target_node_id',
-                      'notes', 'logic_type', 'composite_id', 'operation', 'timestamp',
+                      'notes', 'logic_type', 'composite_id', 'quote', 'operation', 'timestamp',
                       'valid_from', 'valid_to', 'changed_by', 'change_notes')
     ordering = ('-timestamp',)
 

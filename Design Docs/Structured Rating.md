@@ -1,15 +1,11 @@
-
-
   ranker options:
   - 'network-simplex' (default): Optimal rank assignment,
   minimizes edge length
   - 'tight-tree': Produces more compact trees
   - 'longest-path': Emphasizes the deepest reasoning chains
   (good for highlighting argument depth)
-
-
 #### Hypothetical structural rating system
-ONNECTION: "Pfizer trial data" --[supports]--> "Vaccines are safe"
+CONNECTION: "Pfizer trial data" --[supports]--> "Vaccines are safe"
 
   CHALLENGES (visible on edge):
   ├─ "Trial period too short for long-term effects" (24 users agree)
@@ -26,6 +22,5 @@ ONNECTION: "Pfizer trial data" --[supports]--> "Vaccines are safe"
   Instead of "I rate this 60%", users click:
   - "I challenge this on methodological grounds" → selects challenge type → explains
 
-11/11
 We have "dimensions" in the comments field to build out, for people to chose whether they 
 are ranking accuracy, usefulness, etc. 
